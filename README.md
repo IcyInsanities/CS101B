@@ -5,5 +5,5 @@ CS101B Pintos Code
 
 Team:
 Shir Aharon
-Steven Okai
+Steven Okai (testing push)
 Reggie Wilcox
