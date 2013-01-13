@@ -3,8 +3,8 @@
 #define TRUE    1
 #define FALSE   0
 typedef bool uint8_t; */
-<stdbool.h>
-<stdint.h>
+#include <stdbool.h>
+#include <stdint.h>
 
 /*
 - array of arguments
@@ -28,14 +28,14 @@ typedef bool uint8_t; */
 - error flag
 */
 typedef struct {
-    char**  arg_array;
-    char*   input;
-    char*   output;
-    bool    reder_desc1;
-    bool    reder_desc2;
-    bool    pipe_flag;
-    bool    trun_flag;
-    bool    bkgd_flag;
-    uint8_t history_num;
-    uint8_t error_code;
-} cmd_struc;
+    uint8_t**   arg_array;
+    uint8_t*    input;
+    uint8_t*    output;
+    bool        reder_desc1;
+    bool        reder_desc2;
+    bool        pipe_flag;
+    bool        trun_flag;
+    bool        bkgd_flag;
+    uint8_t     history_num;
+    uint8_t     error_code;
+} cmd_struct;
