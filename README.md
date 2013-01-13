@@ -4,6 +4,6 @@ CS101B
 CS101B Pintos Code
 
 Team:
-Shir Aharon
-Steven Okai (testing push)
-Reggie Wilcox
+Shir Aharon (NOT SHORT)
+Agnus Okai (testing push) (SHORT)
+Reggie Wilcox (NOT SHORT)
