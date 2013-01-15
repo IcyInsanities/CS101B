@@ -7,8 +7,7 @@
 
 int main()
 {
-    //uint8_t test_str[] = "test < blah.c >& fuckit > lks\"l !ks\"ksj\0";
-    uint8_t test_str[] = "this < is <a >test 1>&2 \"of <>!&Reggie's code\"  & ";
+    uint8_t test_str[] = "this < is <a >test 1>&2 \"of <>!&Reggie's code\"  & \0";
     uint8_t* new_str;
     uint32_t offset;
     cmd_struct cmd;
@@ -347,6 +346,8 @@ str_ll* split(uint8_t* cmd, uint32_t* offset)
                         state = WHITE_SP;
                         break;
                     default:
+                        temp[temp_off] = cmd[*offset];
+                        temp_off ++;
                         state = NORM_CHAR;
                 }
                 break;
