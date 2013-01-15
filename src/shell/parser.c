@@ -4,6 +4,29 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+int main()
+{
+    //uint8_t test_str[] = "test < blah.c >& fuckit > lks\"l !ks\"ksj\0";
+    uint8_t test_str[] = "!23\0";
+    uint32_t offset;
+    str_ll* list;
+    list = NULL;
+    offset = 0;
+
+    list = split(test_str, &offset);
+
+    
+    while(list != NULL)
+    {
+        printf(list->str);
+        printf("\n");
+        list = list->next;
+    }
+
+
+    return 0;
+}
+
 uint8_t* parse(uint8_t* argv, cmd_struct* cmd)
 {
     uint32_t            offset;             // Offset within the input string
@@ -26,10 +49,11 @@ str_ll* split(uint8_t* cmd, uint32_t* offset)
     uint8_t*            null_end;           // NULL termination of array
     str_ll*             split_list;         // Linked list of arguments
     str_ll*             cur_elem;           // Current element in the list
+    uint32_t            set;
 
     // Allocate and set the null terminator
     null_end = (uint8_t*)malloc(sizeof(uint8_t));
-    null_end[0] = ASCII_NULL;
+    *null_end = ASCII_NULL;
 
     // Allocate first element of linked list and set to null
     split_list = (str_ll*)malloc(sizeof(uint8_t));
@@ -40,9 +64,8 @@ str_ll* split(uint8_t* cmd, uint32_t* offset)
     cur_elem = split_list;
 
     state = INIT;   // Start in the initial state
-    offset = 0;     
     temp_off = 0;
-
+    
     while(state != ERROR_STATE && state != DONE)
     {
         switch(state)
@@ -83,11 +106,16 @@ str_ll* split(uint8_t* cmd, uint32_t* offset)
                 switch(cmd[*offset])
                 {
                     case ASCII_NULL:
+                        // Add string to list first
+                        temp[temp_off] = ASCII_NULL; 
+                        temp_off = 0;
+                        cur_elem = append(cur_elem, temp, null_end);
+
                         state = DONE;
                         break;
                     case '|':
                         // Add string to list first
-                        temp[temp_off + 1] = ASCII_NULL; 
+                        temp[temp_off] = ASCII_NULL; 
                         temp_off = 0;
                         cur_elem = append(cur_elem, temp, null_end);
 
@@ -95,7 +123,7 @@ str_ll* split(uint8_t* cmd, uint32_t* offset)
                         break;
                     case '&':
                         // Add string to list first
-                        temp[temp_off + 1] = ASCII_NULL; 
+                        temp[temp_off] = ASCII_NULL; 
                         temp_off = 0;
                         cur_elem = append(cur_elem, temp, null_end);
 
@@ -103,7 +131,7 @@ str_ll* split(uint8_t* cmd, uint32_t* offset)
                         break;
                     case '<':
                         // Add string to list first
-                        temp[temp_off + 1] = ASCII_NULL; 
+                        temp[temp_off] = ASCII_NULL; 
                         temp_off = 0;
                         cur_elem = append(cur_elem, temp, null_end);
 
@@ -111,7 +139,7 @@ str_ll* split(uint8_t* cmd, uint32_t* offset)
                         break;
                     case '>':
                         // Add string to list first
-                        temp[temp_off + 1] = ASCII_NULL; 
+                        temp[temp_off] = ASCII_NULL; 
                         temp_off = 0;
                         cur_elem = append(cur_elem, temp, null_end);
 
@@ -140,8 +168,7 @@ str_ll* split(uint8_t* cmd, uint32_t* offset)
                 if(cmd[*offset] != ' ')
                 {
                     // NULL terminate str
-                    temp[temp_off + 1] = ASCII_NULL; 
-                    // Null terminate list
+                    temp[temp_off] = ASCII_NULL; 
                     temp_off = 0;
 
                     // Add the element in
@@ -346,12 +373,13 @@ str_ll* split(uint8_t* cmd, uint32_t* offset)
                     default:
                         state = ERROR_STATE;
                 }
+                break;
             case EXC_NUM:
                 switch(cmd[*offset])
                 {
                     case ASCII_NULL:
                         // Add string to list when leaving state
-                        temp[temp_off + 1] = ASCII_NULL;
+                        temp[temp_off] = ASCII_NULL;
                         temp_off = 0;
                         cur_elem = append(cur_elem, temp, null_end);
 
@@ -376,6 +404,7 @@ str_ll* split(uint8_t* cmd, uint32_t* offset)
                         // Can only have numbers
                         state = ERROR;
                 }
+                break;
             case AMP_CHAR:
                 // Load a single & in the buffer
                 temp[0] = '&';
@@ -420,11 +449,7 @@ str_ll* split(uint8_t* cmd, uint32_t* offset)
                         state = QUOTE;
                         break;
                     case ' ':
-                        // Add to the list before we terminate
-                        temp_off = 0;
-                        cur_elem = append(cur_elem, temp, null_end);
-
-                        state = WHITE_SP;
+                        state = DUP_REDIR_CHAR;
                         break;
                     default:
                         // Add to the list before we terminate
@@ -432,6 +457,8 @@ str_ll* split(uint8_t* cmd, uint32_t* offset)
                         cur_elem = append(cur_elem, temp, null_end);
 
                         state = NORM_CHAR;
+                        temp[temp_off] = cmd[*offset];
+                        temp_off ++;
                 }
                 break;
             case APPEND_CHAR:
@@ -481,7 +508,7 @@ str_ll* split(uint8_t* cmd, uint32_t* offset)
         // Don't increment on the last iteration
         if(state != DONE && state != ERROR_STATE)
         {
-            *offset ++;
+            (*offset) ++;
         }
     }
     
@@ -503,6 +530,7 @@ str_ll* split(uint8_t* cmd, uint32_t* offset)
 str_ll* append(str_ll* cur_end, uint8_t* new_val, uint8_t* null_val)
 {
     str_ll* next_end;
+
     // Put string in list
     cur_end->str = strdup(new_val);
     // Add a new element to the list
