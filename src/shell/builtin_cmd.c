@@ -5,9 +5,17 @@
 #include <stdio.h>
 
 #include <sys/types.h>
+#include <sys/stat.h>
+#include <fcntl.h>
 #include <stdlib.h>
+#include <errno.h>
 
-#define CHILD_PROCESS 0
+#define CHILD_PROCESS   0
+#define NO_CMD_ERROR    0
+#define PIPE_READ_SIDE  0
+#define PIPE_WRITE_SIDE 1
+#define ASCII_NULL      0
+#define _GNU_SOURCE
 
 void read_from_pipe (int file) {
        FILE *stream;
@@ -18,7 +26,6 @@ void read_from_pipe (int file) {
        fclose (stream);
     }
      
-     
 void write_to_pipe (int file) {
        FILE *stream;
        stream = fdopen (file, "w");
@@ -27,73 +34,173 @@ void write_to_pipe (int file) {
        fclose (stream);
     }
 
-int8_t main(uint32_t argc, int8_t *argv[]) {
+int32_t main(uint32_t argc, int8_t *argv[]) {
 
     pid_t childPID;
-    uint8_t execError;
-    uint32_t fileDesc[2];
     
-    int8_t *arg_list[] = {"ls", "-l", NULL};
-    cmd_struct cmd;
+    int32_t execError;
+    int32_t inputPipe[2];
+    int32_t outputPipe[2];
+    int32_t testError;
     
-    pipe(fileDesc);
+    int32_t testFile;
+    int32_t shirTest;
     
-    bool last_pipe_flag = true;
+    int32_t in_fd;
+    
+    int32_t inputFile;
+    int32_t outputFile;
+    
+    uint32_t status;
+    int8_t string [256];
+    int8_t output [256];
+    cmd_struct test_cmd_struct;
+    cmd_struct *cmd;
 
+    bool last_pipe_flag = true;
+    
+    cmd = &test_cmd_struct;
+    
+    cmd->pipe_flag = true;
+    cmd->output = output;
+    *(cmd->output) = ASCII_NULL;
+    
+    // Create the pipes
+    pipe(inputPipe);
+    pipe(outputPipe);
+
+    // Fork off the child process to execute command
     childPID = fork();
+    
     if (childPID >= 0) {
+    // If there is no error in forking off the process, proceed
     
         if (childPID == CHILD_PROCESS) {
         // If child process, handle command
             
             
+            // Handle STDIN
             if (last_pipe_flag) {
             // Replace input if last pipe exists    
-                //cmd->input = last_pipe;
-                //cmd->output = next_pipe;
                 
                 // Close the write end of the pipe
-                close(fileDesc[1]);
+                close(inputPipe[PIPE_WRITE_SIDE]);
                 
                 // Set read end of pipe to standard input
-                dup2(fileDesc[0], STDIN_FILENO);
-                read_from_pipe(fileDesc[0]);
-                close(fileDesc[0]);
+                dup2(inputPipe[PIPE_READ_SIDE], STDIN_FILENO);
+                //read_from_pipe(inputPipe[PIPE_READ_SIDE]);
+                 gets (string);
+                    printf ("Input pipe works: %s\n",string);
+                close(inputPipe[PIPE_READ_SIDE]);
+
+            } else if (*(cmd->input) != ASCII_NULL) {
+            // If there is a file specified for stdin, use it
+                
+                // Open the file to read from
+                inputFile = open(cmd->input, O_RDONLY);
+                
+                // Set STDIN to use input file
+                dup2(inputFile, STDIN_FILENO);
+                
+            } else {
+            // If there is no redirection or piping then use STDIN
+             
+                
                 
             }
             
-
-            // If there is a pipe symbol at end of command, mark it
-            if (cmd.pipe_flag) {
-
-                last_pipe_flag = true;
+            // Handle STDOUT
+            if (cmd->pipe_flag) {
+            // If there is an ouput pipe, set it to STDOUT
+            
+                printf("stdout->pipe\n");
+                //close(outputPipe[PIPE_READ_SIDE]);
                 
+                testFile = open("temp.txt",O_CREAT | O_TRUNC | O_WRONLY, 0);
+                printf("reggieISAFUCKER\n");
+                // Set write end of pipe to standard output
+                //if (dup2(outputPipe[PIPE_WRITE_SIDE], STDOUT_FILENO) == -1) {
+                
+                errno = 0;
+                if (dup2(testFile, STDOUT_FILENO) == -1) {
+                    if (errno != 0) {
+                    
+                        execError = 3;
+                    }
+                    
+                }
+                
+                write_to_pipe(outputPipe[PIPE_WRITE_SIDE]);
+                //close(outputPipe[PIPE_WRITE_SIDE]);
+                
+                close(testFile);
+            
+            } else if (*(cmd->output) != ASCII_NULL) {
+            // If there is a file specified for stdout, use it
+            
+                // Open the file to write to, creating it if necessary
+                outputFile = open(cmd->output, O_WRONLY);
+                
+                // Set STDOUT to use the output file
+                dup2(outputFile, STDOUT_FILENO);
+                
+                printf("stdout->file\n");
+            
+            } else {
+            // If there is no redirection or piping, the use normal STDOUT
+                
+                printf("stdout->default\n");
             }
-            
-            // Run the command, returning any errors
-            
-            execError = execvp(argv[1], argv + 1);
-            
-            //execv("/bin/", argv);
             
             printf("Child process \n");
+            // Run the command, returning any errors
+            execvp(argv[1], argv + 1);
             
         } else {
             
+            printf("Parent process \n");
 
-            
+            // Setup input pipe if necessary
             if (last_pipe_flag) {
                 // Close the read end of the pipe
-                close(fileDesc[0]);
+                close(inputPipe[PIPE_READ_SIDE]);
                 
                 // Set write end of pipe to standard output
-                dup2(fileDesc[1], STDOUT_FILENO);
-                printf("Parent process \n");
-                write_to_pipe(fileDesc[1]);
-                close(fileDesc[1]);
+                //shirTest = open("output.txt", O_RDONLY); 
+                //dup2(shirTest, inputPipe[PIPE_WRITE_SIDE]);
+                write_to_pipe(inputPipe[PIPE_WRITE_SIDE]);
+                close(inputPipe[PIPE_WRITE_SIDE]);
+                close(shirTest);
                 
             }
             
+            
+            
+            // Setup output pipe
+            if (cmd->pipe_flag) {
+            
+                // Close the write end of the pipe
+                //close(outputPipe[PIPE_WRITE_SIDE]);
+                
+                // Set read end of pipe to standard input
+                //dup2(outputPipe[PIPE_READ_SIDE], STDIN_FILENO);
+                //gets (string);
+                 //   printf ("Output pipe works: %s\n",string);
+                //close(outputPipe[PIPE_READ_SIDE]);
+                
+                // Mark that must pipe into next command
+                last_pipe_flag = true;
+
+            }
+            
+            // Wait for child executing command to terminate
+            childPID = wait();
+            //execError = waitpid(-getgid(), &status, 0);
+            if (childPID == -1) {
+            
+                execError = 2;
+                
+            }
             
         }
     
@@ -104,8 +211,7 @@ int8_t main(uint32_t argc, int8_t *argv[]) {
         return 1;
     
     }
-   
-    return 0;
     
-    
+    return execError;
+
 }
