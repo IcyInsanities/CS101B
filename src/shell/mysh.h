@@ -1,3 +1,5 @@
+#ifndef MYSH_H
+#define MYSH_H
 
 /* // Implement booleans for convenience
 #define TRUE    1
@@ -39,3 +41,5 @@ typedef struct {
     uint8_t     history_num;
     uint8_t     error_code;
 } cmd_struct;
+
+#endif
