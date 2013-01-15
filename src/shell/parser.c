@@ -27,20 +27,160 @@ int main()
     return 0;
 }
 
-uint8_t* parse(uint8_t* argv, cmd_struct* cmd)
-{
+// This function takes a command string and fills in a struct with all values
+// needed for execution. It returns a pointer to where parsing ended, with a
+// pipe or end of string indicated a command has ended.
+uint8_t* parse(uint8_t* cmd_str, cmd_struct* cmd) {
     uint32_t            offset;             // Offset within the input string
     uint32_t            arg_num;            // Current argument number
     uint8_t**           split_cmd;          // Command split into an array
-    
-    // Default to NULL input and output 
-    cmd->input = NULL;
-    cmd->output = NULL;
+    str_ll*             split_list;         // Linked list of arguments
+    str_ll*             cur_elem;           // Current element in the list
+    str_ll*             prev_elem;          // Previous element in the list
 
+    // Set command struct to defaults
+    cmd->input = NULL;          // No input redirection
+    cmd->output = NULL;         // No output redirection
+    cmd->reder_desc1 = 0;       // No descriptors given from >&
+    cmd->reder_desc2 = 0;       // No descriptors given from >&
+    cmd->pipe_flag = false;     // Output is not piped
+    cmd->trun_flag = true;      // Output is truncated
+    cmd->bkgd_flag = false;     // Output is not run in background
+    cmd->history_num = 0        // No history command given
+    cmd->error_code = NO_ERROR  // Start with no errors
+    
+    // Parse the command into separate arguments in the form of a linked list
     offset = 0;
+    split_list = split(cmd_str, offset);
+    if (split_list == NULL) {
+        cmd->error_code = ERROR;    // Splitter encountered an error
+    }
+
+    // Parse redirects out of linked list
+    // Any nodes used up are deleted by marking as NULL strings, which prevents
+    // the descriptors from being taken from a previous argument when it is
+    // should be an error in the command (i.e. a.txt > b.txt >& 2)
     arg_num = 0;
+    cur_elem = split_list;
+    while (cur_elem != NULL) {
+        // Check if input redirection given
+        if (cur_elem.str[0] == '<') {
+            cur_elem.str = NULL;        // Delete this node
+            cur_elem = cur_elem.next;   // Move to next element
+            if (cur_elem = NULL) {
+                cmd->error_code = ERROR;
+                break;
+            }
+            cmd->input = cur_elem.str;  // Assign filename to input
+            cur_elem.str = NULL;        // Delete this node
+        }
+        else if (cur_elem.str[0] == '>') {
+            // Check if redirection descriptors given
+            if (cur_elem.str[0] == '&') {
+                // If output redirection was seen, it was first
+                cmd->reder_desc_first = false;
+                // Decrement argument count which is no longer an argument
+                arg_num--;
+                // Previous element is the first descriptors, check that not 
+                // already used
+                if (prev_elem.str = NULL) {
+                    cmd->error_code = ERROR;
+                    break;
+                }
+                cmd->reder_desc1 = atoi(prev_elem.str);
+                prev_elem.str = NULL;   // Delete previous
+                // Next element is the second descriptors
+                cur_elem.str = NULL;        // Delete this node
+                cur_elem = cur_elem.next;   // Move to next element
+                if (cur_elem = NULL) {
+                    cmd->error_code = ERROR;
+                    break;
+                }
+                cmd->reder_desc2 = atoi(cur_elem.str);
+                prev_elem.str = NULL;       // Delete this node
+            }
+            // Output redirection given
+            else {
+                // Check if truncation
+                if (cur_elem.str[0] == ASCII_NULL) {
+                    cmd.trun_flag = true;
+                }
+                // Otherwise appending output (>> given)
+                else (cur_elem.str[0] == '>') {
+                    cmd.trun_flag = false;
+                }
+                // Reassign output
+                cur_elem.str = NULL;         // Delete this node
+                cur_elem = cur_elem.next;    // Move to next element
+                if (cur_elem = NULL) {
+                    cmd->error_code = ERROR;
+                    break;
+                }
+                cmd->output = cur_elem.str;  // Assign filename to output
+                cur_elem.str = NULL;         // Delete this node
+                // If descriptors were seen, they were first
+                cmd->reder_desc_first = true;
+            }
+        }
+        // Current element is an argument, increment count
+        else {
+            arg_num++;
+        }
+        prev_elem = cur_elem;       // Move to next element
+        cur_elem = cur_elem.next;
+    }
+    
+    // Check last element for & or |, if no error prev_elem is the last
+    if (cmd->error_code == NO_ERROR) {
+        if (prev_elem.str[0] == '&') {
+            cmd->bkgd_flag = true;
+            prev_elem.str = NULL;
+            arg_num--;
+        }
+        else if (prev_elem.str[0] == '|') {
+            cmd->pipe_flag = true;
+            prev_elem.str = NULL;
+            arg_num--;
+        }
+    }
+    
+    // Check if command was a ! command for history
+    // split function already handled extra arguments
+    if (split_list.str[0] == '!') {
+        arg_num = 0;    // No arguments to pass here
+        cmd->history_num = atoi(split_list.next.str);
+    }
+    
+    // Create array of arguments from the command passed in
+    if ((arg_num > 0) && (cmd->error_code == NO_ERROR)) {
+        // Allocate space for arguments
+        cmd->arg_array = (uint8_t*)malloc(sizeof(uint8_t*) * arg_num);
+        arg_num = 0;
+        cur_elem = split_list;
+        while (cur_elem != NULL) {
+            if (cur_elem.str != NULL) { // Check that not marked as deleted
+                strcpy((char*) cmd->arg_array[arg_num], (char*) cur_elem.str);
+                arg_num++; // Move to next array argument spot
+            }
+            cur_elem = cur_elem.next;
+        }
+    }
+
+    // Clean up the linked list
+    while (split_list != NULL) {
+        cur_elem = split_list;
+        split_list = split_list.next;
+        free(cur_elem);
+    }
+
+    // Return pointer to where parsing started
+    return cmd_str + offset;
 }
 
+// This function takes a command string and parses, stopping if a pipe command
+// is seen. The pointer to the start of the string is updated to where parsing
+// stopped, and a linked list of the arguments of the command is returned.
+// A null linked list is used to represent if an error was seen during parsing.
 str_ll* split(uint8_t* cmd, uint32_t* offset)
 {
     enum split_states   state;              // FSM for splitting command
@@ -511,7 +651,7 @@ str_ll* split(uint8_t* cmd, uint32_t* offset)
             (*offset) ++;
         }
     }
-    
+
     // Indicate an error by returning NULL
     if(state == ERROR_STATE)
     {
