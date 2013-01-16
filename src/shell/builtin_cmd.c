@@ -15,6 +15,7 @@
 #define PIPE_READ_SIDE  0
 #define PIPE_WRITE_SIDE 1
 #define ASCII_NULL      0
+#define NO_DUP_REDER    0
 #define _GNU_SOURCE
 
 /*
@@ -92,9 +93,12 @@ int32_t main(uint32_t argc, int8_t *argv[]) {
     
     cmd->pipe_flag = false;
     cmd->output = outputFileStr;
-    //*(cmd->output) = ASCII_NULL;
+    *(cmd->output) = ASCII_NULL;
     cmd->input = inputFileStr;
-    //*(cmd->input) = ASCII_NULL;
+    *(cmd->input) = ASCII_NULL;
+    
+    cmd->reder_desc1 = STDERR_FILENO;
+    cmd->reder_desc2 = STDOUT_FILENO;
     
     // Truncate file by default
     cmd->trun_flag = true;
@@ -154,7 +158,6 @@ int32_t main(uint32_t argc, int8_t *argv[]) {
                 //close(outputPipe[PIPE_READ_SIDE]);
                 
                 // Open a test file
-                // TODO: implement append/tuncate
                 testFile = open("temp.txt",O_CREAT | O_TRUNC | O_WRONLY, 0);
                 //testFile = open("temp.txt",O_CREAT | O_APPEND | O_WRONLY, 0);
                 
@@ -200,6 +203,20 @@ int32_t main(uint32_t argc, int8_t *argv[]) {
                 close(outputPipe[PIPE_READ_SIDE]);
                 close(outputPipe[PIPE_WRITE_SIDE]);
                 
+                
+            } else if (cmd->reder_desc1 > NO_DUP_REDER && cmd->reder_desc2 > NO_DUP_REDER) {
+            // if there is duplication redirection, handle it
+            
+                // Open the file to write to, creating it if necessary
+                outputFile = open("dup_test.txt", O_CREAT | O_WRONLY | O_TRUNC);
+                
+                // Duplicate the output
+                dup2(cmd->reder_desc2, cmd->reder_desc1);
+                
+                printf("I am in stdout\n");
+                fprintf(stderr, "I am in stderr\n");
+
+            
             } else {
             // If there is no redirection or piping, the use normal STDOUT
                 
