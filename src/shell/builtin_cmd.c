@@ -35,6 +35,8 @@
  * 
  */
 
+int8_t string [256];
+     
 void read_from_pipe (int file) {
        FILE *stream;
        int c;
@@ -52,27 +54,146 @@ void write_to_pipe (int file) {
        fclose (stream);
     }
 
+int32_t ExecCommand(cmd_struct *cmd, int32_t *inputPipe, int32_t *outputPipe) {
+
+    int32_t outputFile;
+    int32_t inputFile;
+    int32_t execError;
+    
+    int32_t testFile;
+        
+    int32_t appendFlag;
+    
+    
+    // Handle STDIN
+    if (inputPipe != NULL) {
+    // Replace input if last pipe exists    
+        
+        // Close the write end of the pipe
+        close(inputPipe[PIPE_WRITE_SIDE]);
+        
+        // Set read end of pipe to standard input
+        dup2(inputPipe[PIPE_READ_SIDE], STDIN_FILENO);
+        //read_from_pipe(inputPipe[PIPE_READ_SIDE]);
+        gets (string);
+            printf ("Input pipe works: %s\n",string);
+        close(inputPipe[PIPE_READ_SIDE]);
+
+    } else if (*(cmd->input) != ASCII_NULL) {
+    // If there is a file specified for redirection of stdin, use it
+        
+        // Open the file to read from
+        inputFile = open(cmd->input, O_RDONLY);
+        
+        // Set STDIN to use input file
+        dup2(inputFile, STDIN_FILENO);
+        
+        // Close input pipe if not used
+        close(inputPipe[PIPE_READ_SIDE]);
+        close(inputPipe[PIPE_WRITE_SIDE]);
+        
+    } else {
+    // If there is no redirection or piping then use STDIN
+     
+        
+        
+    }
+    
+    // Handle STDOUT
+    if (cmd->pipe_flag == false && outputPipe != NULL) {
+    // If there is an ouput pipe, set it to STDOUT
+    
+        printf("stdout->pipe\n");
+        //close(outputPipe[PIPE_READ_SIDE]);
+        
+        // Open a test file
+        testFile = open("temp.txt",O_CREAT | O_TRUNC | O_WRONLY, 0);
+        //testFile = open("temp.txt",O_CREAT | O_APPEND | O_WRONLY, 0);
+        
+        // Set write end of pipe to standard output
+        //if (dup2(outputPipe[PIPE_WRITE_SIDE], STDOUT_FILENO) == -1) {
+        
+        errno = 0;
+        if (dup2(testFile, STDOUT_FILENO) == -1) {
+            if (errno != 0) {
+            
+                execError = 3;
+            }
+            
+        }
+        
+        write_to_pipe(outputPipe[PIPE_WRITE_SIDE]);
+        //close(outputPipe[PIPE_WRITE_SIDE]);
+        
+        close(testFile);
+    
+    } else if (*(cmd->output) != ASCII_NULL) {
+    // If there is a file specified for redirection of stdout, use it
+
+        // Check if truncating or appending
+        if ((cmd->trun_flag) == false) {
+        
+            appendFlag = O_APPEND;
+        } else {
+        
+            appendFlag = O_TRUNC;
+            
+        }
+        
+        // Open the file to write to, creating it if necessary
+        outputFile = open(cmd->output, O_CREAT | O_WRONLY | appendFlag);
+        
+        // Set STDOUT to use the output file
+        dup2(outputFile, STDOUT_FILENO);
+        
+        printf("stdout->file\n");
+ 
+        
+    } else if (cmd->reder_desc1 > NO_DUP_REDER && cmd->reder_desc2 > NO_DUP_REDER) {
+    // if there is duplication redirection, handle it
+    
+        // Open the file to write to, creating it if necessary
+        outputFile = open("dup_test.txt", O_CREAT | O_WRONLY | O_TRUNC);
+        
+        // Duplicate the output
+        dup2(cmd->reder_desc2, cmd->reder_desc1);
+        
+        printf("I am in stdout\n");
+        fprintf(stderr, "I am in stderr\n");
+
+    
+    } else {
+    // If there is no redirection or piping, the use normal STDOUT
+        
+        printf("stdout->default\n");
+    }
+    
+    // Run the command, returning any errors
+    execvp(cmd->arg_array[1], cmd->arg_array + 1);
+    
+    // Close output file
+    close(outputFile);
+            
+    return execError;
+    
+    
+}
+
 int32_t main(uint32_t argc, int8_t *argv[]) {
 
     uint8_t outputFileStr[14] = "redir_out.txt\0";
     uint8_t inputFileStr[13] =  "redir_in.txt\0";
     
     pid_t childPID;
-    
-    int32_t outputFile;
-    int32_t inputFile;
-    
+
     int32_t execError;
     
     // Define pipes for piping in and out of child (executed command)
     int32_t inputPipe[2];
     int32_t outputPipe[2];
     
-    int32_t appendFlag;
-    
     int32_t testError;
     
-    int32_t testFile;
     int32_t shirTest;
     
     int32_t in_fd;
@@ -82,7 +203,6 @@ int32_t main(uint32_t argc, int8_t *argv[]) {
     int32_t outputFileDescr;
     
     uint32_t status;
-    int8_t string [256];
     
     // Define a command structure for testing
     cmd_struct test_cmd_struct;
@@ -94,12 +214,14 @@ int32_t main(uint32_t argc, int8_t *argv[]) {
     
     cmd->pipe_flag = false;
     cmd->output = outputFileStr;
-    *(cmd->output) = ASCII_NULL;
+    //*(cmd->output) = ASCII_NULL;
     cmd->input = inputFileStr;
     *(cmd->input) = ASCII_NULL;
     
-    cmd->reder_desc1 = STDERR_FILENO;
-    cmd->reder_desc2 = STDOUT_FILENO;
+    //cmd->reder_desc1 = STDERR_FILENO;
+    cmd->reder_desc1 = NO_DUP_REDER;
+    //cmd->reder_desc2 = STDOUT_FILENO;
+    cmd->reder_desc2 = NO_DUP_REDER;
     
     // Truncate file by default
     cmd->trun_flag = true;
@@ -108,6 +230,8 @@ int32_t main(uint32_t argc, int8_t *argv[]) {
     pipe(inputPipe);
     pipe(outputPipe);
 
+    cmd->arg_array = argv;
+    
     // Fork off the child process to execute command
     childPID = fork();
     
@@ -116,7 +240,12 @@ int32_t main(uint32_t argc, int8_t *argv[]) {
     
         if (childPID == CHILD_PROCESS) {
         // If child process, handle command
+        
+            printf("Child process \n");
+            execError = ExecCommand(cmd, NULL, NULL);
+            printf("End child process \n");
             
+            /*
             // Handle STDIN
             if (last_pipe_flag) {
             // Replace input if last pipe exists    
@@ -231,7 +360,7 @@ int32_t main(uint32_t argc, int8_t *argv[]) {
             
             // Close output file
             close(outputFile);
-            
+            */
         } else {
             
             printf("Parent process \n");
