@@ -17,6 +17,22 @@
 #define ASCII_NULL      0
 #define _GNU_SOURCE
 
+/*
+ * TODO:
+ *  - Finish up piping
+ *  - Implement redirection commands (DONE)
+ *  - Implement append redirection instead of truncation (DONE)
+ *  - Implement output duplication
+ *  - Error handling
+ *      - Executed command throws error
+ *      - Fork fails
+ *      - Creating pipe fails
+ *      - dup fails?
+ *      - open/close fails
+ *      - wait throws error
+ * 
+ */
+
 void read_from_pipe (int file) {
        FILE *stream;
        int c;
@@ -36,11 +52,22 @@ void write_to_pipe (int file) {
 
 int32_t main(uint32_t argc, int8_t *argv[]) {
 
+    uint8_t outputFileStr[14] = "redir_out.txt\0";
+    uint8_t inputFileStr[13] =  "redir_in.txt\0";
+    
     pid_t childPID;
     
+    int32_t outputFile;
+    int32_t inputFile;
+    
     int32_t execError;
+    
+    // Define pipes for piping in and out of child (executed command)
     int32_t inputPipe[2];
     int32_t outputPipe[2];
+    
+    int32_t appendFlag;
+    
     int32_t testError;
     
     int32_t testFile;
@@ -48,22 +75,29 @@ int32_t main(uint32_t argc, int8_t *argv[]) {
     
     int32_t in_fd;
     
-    int32_t inputFile;
-    int32_t outputFile;
+    // Define input and output files
+    int32_t inputFileDescr;
+    int32_t outputFileDescr;
     
     uint32_t status;
     int8_t string [256];
-    int8_t output [256];
+    
+    // Define a command structure for testing
     cmd_struct test_cmd_struct;
     cmd_struct *cmd;
 
-    bool last_pipe_flag = true;
+    bool last_pipe_flag = false;
     
     cmd = &test_cmd_struct;
     
-    cmd->pipe_flag = true;
-    cmd->output = output;
-    *(cmd->output) = ASCII_NULL;
+    cmd->pipe_flag = false;
+    cmd->output = outputFileStr;
+    //*(cmd->output) = ASCII_NULL;
+    cmd->input = inputFileStr;
+    //*(cmd->input) = ASCII_NULL;
+    
+    // Truncate file by default
+    cmd->trun_flag = true;
     
     // Create the pipes
     pipe(inputPipe);
@@ -77,7 +111,6 @@ int32_t main(uint32_t argc, int8_t *argv[]) {
     
         if (childPID == CHILD_PROCESS) {
         // If child process, handle command
-            
             
             // Handle STDIN
             if (last_pipe_flag) {
@@ -94,13 +127,17 @@ int32_t main(uint32_t argc, int8_t *argv[]) {
                 close(inputPipe[PIPE_READ_SIDE]);
 
             } else if (*(cmd->input) != ASCII_NULL) {
-            // If there is a file specified for stdin, use it
+            // If there is a file specified for redirection of stdin, use it
                 
                 // Open the file to read from
                 inputFile = open(cmd->input, O_RDONLY);
                 
                 // Set STDIN to use input file
                 dup2(inputFile, STDIN_FILENO);
+                
+                // Close input pipe if not used
+                close(inputPipe[PIPE_READ_SIDE]);
+                close(inputPipe[PIPE_WRITE_SIDE]);
                 
             } else {
             // If there is no redirection or piping then use STDIN
@@ -116,8 +153,11 @@ int32_t main(uint32_t argc, int8_t *argv[]) {
                 printf("stdout->pipe\n");
                 //close(outputPipe[PIPE_READ_SIDE]);
                 
+                // Open a test file
+                // TODO: implement append/tuncate
                 testFile = open("temp.txt",O_CREAT | O_TRUNC | O_WRONLY, 0);
-                printf("reggieISAFUCKER\n");
+                //testFile = open("temp.txt",O_CREAT | O_APPEND | O_WRONLY, 0);
+                
                 // Set write end of pipe to standard output
                 //if (dup2(outputPipe[PIPE_WRITE_SIDE], STDOUT_FILENO) == -1) {
                 
@@ -136,16 +176,30 @@ int32_t main(uint32_t argc, int8_t *argv[]) {
                 close(testFile);
             
             } else if (*(cmd->output) != ASCII_NULL) {
-            // If there is a file specified for stdout, use it
-            
+            // If there is a file specified for redirection of stdout, use it
+
+                // Check if truncating or appending
+                if ((cmd->trun_flag) == false) {
+                
+                    appendFlag = O_APPEND;
+                } else {
+                
+                    appendFlag = O_TRUNC;
+                    
+                }
+                
                 // Open the file to write to, creating it if necessary
-                outputFile = open(cmd->output, O_WRONLY);
+                outputFile = open(cmd->output, O_CREAT | O_WRONLY | appendFlag);
                 
                 // Set STDOUT to use the output file
                 dup2(outputFile, STDOUT_FILENO);
                 
                 printf("stdout->file\n");
-            
+                
+                // Need to close the output pipe if not piping out
+                close(outputPipe[PIPE_READ_SIDE]);
+                close(outputPipe[PIPE_WRITE_SIDE]);
+                
             } else {
             // If there is no redirection or piping, the use normal STDOUT
                 
@@ -153,8 +207,12 @@ int32_t main(uint32_t argc, int8_t *argv[]) {
             }
             
             printf("Child process \n");
+            
             // Run the command, returning any errors
             execvp(argv[1], argv + 1);
+            
+            // Close output file
+            close(outputFile);
             
         } else {
             
@@ -174,9 +232,17 @@ int32_t main(uint32_t argc, int8_t *argv[]) {
                 
             }
             
+            // Wait for child executing command to terminate
+            childPID = wait();
+            //execError = waitpid(-getgid(), &status, 0);
+            if (childPID == -1) {
             
+                execError = 2;
+                
+            }
             
-            // Setup output pipe
+                        
+            // Setup piping into next command
             if (cmd->pipe_flag) {
             
                 // Close the write end of the pipe
@@ -190,17 +256,15 @@ int32_t main(uint32_t argc, int8_t *argv[]) {
                 
                 // Mark that must pipe into next command
                 last_pipe_flag = true;
-
-            }
-            
-            // Wait for child executing command to terminate
-            childPID = wait();
-            //execError = waitpid(-getgid(), &status, 0);
-            if (childPID == -1) {
-            
-                execError = 2;
+                
+                // Need to properly pipe output of command into next command
+                // Set input pipe to previous output pipe
+                inputPipe[PIPE_WRITE_SIDE] = outputPipe[PIPE_READ_SIDE];
+                // TODO: May have to make new read side for input pipe so child process has something to read...
                 
             }
+            
+            // TODO: Overwrite (make new) read side for output pipe for the new command
             
         }
     
