@@ -7,7 +7,7 @@
 
 int main()
 {
-    uint8_t test_str[] = "this < is <a >test 1>&2 \"of <>!&Reggie's code\"  & \0";
+    uint8_t test_str[] = "!23 lskjdf\0";
     uint8_t* new_str;
     uint32_t offset;
     cmd_struct cmd;
@@ -495,6 +495,7 @@ str_ll* split(uint8_t* cmd, uint32_t* offset)
                 // Load a single ! in the buffer
                 temp[0] = '!';
                 temp[1] = ASCII_NULL;
+
                 switch(cmd[*offset])
                 {
                     case '0':
@@ -547,7 +548,7 @@ str_ll* split(uint8_t* cmd, uint32_t* offset)
                         break;
                     default:
                         // Can only have numbers
-                        state = ERROR;
+                        state = ERROR_STATE;
                 }
                 break;
             case AMP_CHAR:
