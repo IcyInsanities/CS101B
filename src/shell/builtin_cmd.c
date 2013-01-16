@@ -56,16 +56,21 @@ void write_to_pipe (int file) {
 
 int32_t ExecCommand(cmd_struct *cmd, int32_t *inputPipe, int32_t *outputPipe) {
 
+    // Input and output files
     int32_t outputFile;
     int32_t inputFile;
+    
+    // Error status
     int32_t execError;
+   
     
     int32_t testFile;
         
+    // Append to file option flag
     int32_t appendFlag;
     
     
-    // Handle STDIN
+    // Handle input
     if (inputPipe != NULL) {
     // Replace input if last pipe exists    
         
@@ -88,10 +93,6 @@ int32_t ExecCommand(cmd_struct *cmd, int32_t *inputPipe, int32_t *outputPipe) {
         // Set STDIN to use input file
         dup2(inputFile, STDIN_FILENO);
         
-        // Close input pipe if not used
-        close(inputPipe[PIPE_READ_SIDE]);
-        close(inputPipe[PIPE_WRITE_SIDE]);
-        
     } else {
     // If there is no redirection or piping then use STDIN
      
@@ -99,7 +100,7 @@ int32_t ExecCommand(cmd_struct *cmd, int32_t *inputPipe, int32_t *outputPipe) {
         
     }
     
-    // Handle STDOUT
+    // Handle output
     if (cmd->pipe_flag == false && outputPipe != NULL) {
     // If there is an ouput pipe, set it to STDOUT
     
@@ -108,7 +109,6 @@ int32_t ExecCommand(cmd_struct *cmd, int32_t *inputPipe, int32_t *outputPipe) {
         
         // Open a test file
         testFile = open("temp.txt",O_CREAT | O_TRUNC | O_WRONLY, 0);
-        //testFile = open("temp.txt",O_CREAT | O_APPEND | O_WRONLY, 0);
         
         // Set write end of pipe to standard output
         //if (dup2(outputPipe[PIPE_WRITE_SIDE], STDOUT_FILENO) == -1) {
@@ -175,7 +175,6 @@ int32_t ExecCommand(cmd_struct *cmd, int32_t *inputPipe, int32_t *outputPipe) {
     close(outputFile);
             
     return execError;
-    
     
 }
 
@@ -245,122 +244,6 @@ int32_t main(uint32_t argc, int8_t *argv[]) {
             execError = ExecCommand(cmd, NULL, NULL);
             printf("End child process \n");
             
-            /*
-            // Handle STDIN
-            if (last_pipe_flag) {
-            // Replace input if last pipe exists    
-                
-                // Close the write end of the pipe
-                close(inputPipe[PIPE_WRITE_SIDE]);
-                
-                // Set read end of pipe to standard input
-                dup2(inputPipe[PIPE_READ_SIDE], STDIN_FILENO);
-                //read_from_pipe(inputPipe[PIPE_READ_SIDE]);
-                 gets (string);
-                    printf ("Input pipe works: %s\n",string);
-                close(inputPipe[PIPE_READ_SIDE]);
-
-            } else if (*(cmd->input) != ASCII_NULL) {
-            // If there is a file specified for redirection of stdin, use it
-                
-                // Open the file to read from
-                inputFile = open(cmd->input, O_RDONLY);
-                
-                // Set STDIN to use input file
-                dup2(inputFile, STDIN_FILENO);
-                
-                // Close input pipe if not used
-                close(inputPipe[PIPE_READ_SIDE]);
-                close(inputPipe[PIPE_WRITE_SIDE]);
-                
-            } else {
-            // If there is no redirection or piping then use STDIN
-             
-                
-                
-            }
-            
-            // Handle STDOUT
-            if (cmd->pipe_flag) {
-            // If there is an ouput pipe, set it to STDOUT
-            
-                printf("stdout->pipe\n");
-                //close(outputPipe[PIPE_READ_SIDE]);
-                
-                // Open a test file
-                testFile = open("temp.txt",O_CREAT | O_TRUNC | O_WRONLY, 0);
-                //testFile = open("temp.txt",O_CREAT | O_APPEND | O_WRONLY, 0);
-                
-                // Set write end of pipe to standard output
-                //if (dup2(outputPipe[PIPE_WRITE_SIDE], STDOUT_FILENO) == -1) {
-                
-                errno = 0;
-                if (dup2(testFile, STDOUT_FILENO) == -1) {
-                    if (errno != 0) {
-                    
-                        execError = 3;
-                    }
-                    
-                }
-                
-                write_to_pipe(outputPipe[PIPE_WRITE_SIDE]);
-                //close(outputPipe[PIPE_WRITE_SIDE]);
-                
-                close(testFile);
-            
-            } else if (*(cmd->output) != ASCII_NULL) {
-            // If there is a file specified for redirection of stdout, use it
-
-                // Check if truncating or appending
-                if ((cmd->trun_flag) == false) {
-                
-                    appendFlag = O_APPEND;
-                } else {
-                
-                    appendFlag = O_TRUNC;
-                    
-                }
-                
-                // Open the file to write to, creating it if necessary
-                outputFile = open(cmd->output, O_CREAT | O_WRONLY | appendFlag);
-                
-                // Set STDOUT to use the output file
-                dup2(outputFile, STDOUT_FILENO);
-                
-                printf("stdout->file\n");
-                
-                // Need to close the output pipe if not piping out
-                close(outputPipe[PIPE_READ_SIDE]);
-                close(outputPipe[PIPE_WRITE_SIDE]);
-                
-                
-            } else if (cmd->reder_desc1 > NO_DUP_REDER && cmd->reder_desc2 > NO_DUP_REDER) {
-            // if there is duplication redirection, handle it
-            
-                // Open the file to write to, creating it if necessary
-                outputFile = open("dup_test.txt", O_CREAT | O_WRONLY | O_TRUNC);
-                
-                // Duplicate the output
-                dup2(cmd->reder_desc2, cmd->reder_desc1);
-                
-                printf("I am in stdout\n");
-                fprintf(stderr, "I am in stderr\n");
-
-            
-            } else {
-            // If there is no redirection or piping, the use normal STDOUT
-                
-                printf("stdout->default\n");
-            }
-            
-            printf("Child process \n");
-            
-            // Run the command, returning any errors
-            execvp(argv[1], argv + 1);
-            
-            // Close output file
-            close(outputFile);
-            */
         } else {
             
             printf("Parent process \n");
