@@ -488,6 +488,10 @@ str_ll* split(uint8_t* cmd, uint32_t* offset)
                         state = ERROR_STATE;
                         break;
                     default:
+                         // Add string to list when leaving state
+                        temp_off = 0;
+                        cur_elem = append(cur_elem, temp, null_end);
+
                         state = DONE;                       
                 }
                 break;
