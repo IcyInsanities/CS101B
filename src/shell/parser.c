@@ -5,63 +5,60 @@
 #include <stdlib.h>
 #include <string.h>
 
-int main()
-{
-    //uint8_t test_str[] = "test < blah.c >& fuckit > lks\"l !ks\"ksj\0";
-    //uint8_t test_str[] = "this < is <a >test 1>&2 \"of <>!&Reggie's code\"  & ";
-    uint8_t test_str[] = "I want < < a.txt > working shell.txt &";
-    uint8_t* new_str;
-    uint32_t offset;
-    cmd_struct cmd;
-    str_ll* list;
-    list = NULL;
-    offset = 0;
-    uint32_t i;
-
-    // Test split function
-    printf("Split function test\n";
-    list = split(test_str, &offset);
-    while(list != NULL)
-    {
-        printf("%s\n", (char*) list->str);
-        list = list->next;
-    }
-    printf("Offset: %d\n", offset);
-
-    // Test parse function
-    printf("Parse function test\n";
-    printf("Orig: %s\n", (char*) test_str);
-    new_str = parse(test_str, &cmd);
-    printf("New:  %s\n", (char*) new_str);
-    if (cmd.error_code == NO_ERROR) {
-        i = 0;
-        while (cmd.arg_array[i] != NULL) {
-            printf("  %s\n", (char*) cmd.arg_array[i]);
-            i++;
-        }
-        printf("In file:   %s\n", (char*) cmd.input);
-        printf("Out file:  %s\n", (char*) cmd.output);
-        printf("Double redir:  %d >& %d\n", cmd.reder_desc1, cmd.reder_desc2);
-        printf("Pipe:    %d\n", cmd.pipe_flag);
-        printf("Trun:    %d\n", cmd.trun_flag);
-        printf("Bkgd:    %d\n", cmd.bkgd_flag);
-        printf("History: %d\n", cmd.history_num);
-    }
-    else {
-        printf("Error: %d\n", cmd.error_code);
-    }
-
-    return 0;
-}
+// test code before integration, TO BE DELETED!!!
+// int main()
+// {
+//     //uint8_t test_str[] = "test < blah.c >& fuckit > lks\"l !ks\"ksj\0";
+//     //uint8_t test_str[] = "this < is <a >test 1>&2 \"of <>!&Reggie's code\"  & ";
+//     uint8_t test_str[] = "I want < a.txt >> working > shell.txt 1>&1 > corr.txt";
+//     uint8_t* new_str;
+//     uint32_t offset;
+//     cmd_struct cmd;
+//     str_ll* list;
+//     list = NULL;
+//     offset = 0;
+//     uint32_t i;
+// 
+//     // Test split function
+//     printf("Split function test\n");
+//     list = split(test_str, &offset);
+//     while(list != NULL)
+//     {
+//         printf("%s\n", (char*) list->str);
+//         list = list->next;
+//     }
+//     printf("Offset: %d\n", offset);
+// 
+//     // Test parse function
+//     printf("Parse function test\n");
+//     printf("Orig: %s\n", (char*) test_str);
+//     new_str = parse(test_str, &cmd);
+//     printf("New:  %s\n", (char*) new_str);
+//     if (cmd.error_code == NO_ERROR) {
+//         i = 0;
+//         while (cmd.arg_array[i] != NULL) {
+//             printf("  %s\n", (char*) cmd.arg_array[i]);
+//             i++;
+//         }
+//         printf("In file:   %s\n", (char*) cmd.input);
+//         printf("Out file:  %s\n", (char*) cmd.output);
+//         printf("Double redir:  %d >& %d\n", cmd.reder_desc1, cmd.reder_desc2);
+//         printf("Reder first:   %d\n", cmd.reder_desc_first);
+//         printf("Pipe:    %d\n", cmd.pipe_flag);
+//         printf("Trun:    %d\n", cmd.trun_flag);
+//         printf("Bkgd:    %d\n", cmd.bkgd_flag);
+//         printf("History: %d\n", cmd.history_num);
+//     }
+//     else {
+//         printf("Error: %d\n", cmd.error_code);
+//     }
+// 
+//     return 0;
+// }
 
 // This function takes a command string and fills in a struct with all values
 // needed for execution. It returns a pointer to where parsing ended, with a
 // pipe or end of string indicated a command has ended.
-
-// DEBUGGING COMMENTS
-// - array not being initialized correctly
-// - extra arguments on ! command?
-// - check for | and & on ! command
 uint8_t* parse(uint8_t* cmd_str, cmd_struct* cmd) {
     uint32_t            offset;             // Offset within the input string
     uint32_t            arg_num;            // Current argument number
@@ -108,7 +105,7 @@ uint8_t* parse(uint8_t* cmd_str, cmd_struct* cmd) {
         }
         else if (cur_elem->str[0] == '>') {
             // Check if redirection descriptors given
-            if (cur_elem->str[0] == '&') {
+            if (cur_elem->str[1] == '&') {
                 // If output redirection was seen, it was first
                 cmd->reder_desc_first = false;
                 // Decrement argument count which is no longer an argument
@@ -129,12 +126,12 @@ uint8_t* parse(uint8_t* cmd_str, cmd_struct* cmd) {
                     break;
                 }
                 cmd->reder_desc2 = atoi((char*) cur_elem->str);
-                prev_elem->str = NULL;       // Delete this node
+                cur_elem->str = NULL;       // Delete this node
             }
             // Output redirection given
             else {
                 // Check if truncation
-                if (cur_elem->str[0] == ASCII_NULL) {
+                if (cur_elem->str[1] == ASCII_NULL) {
                     cmd->trun_flag = true;
                 }
                 // Otherwise appending output (>> given)
@@ -154,26 +151,22 @@ uint8_t* parse(uint8_t* cmd_str, cmd_struct* cmd) {
                 cmd->reder_desc_first = true;
             }
         }
+        // Check for & or |, must be last from splitting function
+        else if (cur_elem->str[0] == '&') {
+            cmd->bkgd_flag = true;
+            cur_elem->str = NULL;
+        }
+        else if (cur_elem->str[0] == '|') {
+            cmd->pipe_flag = true;
+            cur_elem->str = NULL;
+        }
         // Current element is an argument, increment count
         else {
             arg_num++;
         }
         prev_elem = cur_elem;       // Move to next element
         cur_elem = cur_elem->next;
-    }
-
-    // Check last element for & or |, if no error prev_elem is the last
-    if (cmd->error_code == NO_ERROR) {
-        if (prev_elem->str[0] == '&') {
-            cmd->bkgd_flag = true;
-            prev_elem->str = NULL;
-            arg_num--;
-        }
-        else if (prev_elem->str[0] == '|') {
-            cmd->pipe_flag = true;
-            prev_elem->str = NULL;
-            arg_num--;
-        }
+        
     }
 
     // Check if command was a ! command for history
