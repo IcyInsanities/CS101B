@@ -520,6 +520,10 @@ str_ll* split(uint8_t* cmd, uint32_t* offset)
                         state = ERROR_STATE;
                         break;
                     default:
+                         // Add string to list when leaving state
+                        temp_off = 0;
+                        cur_elem = append(cur_elem, temp, null_end);
+
                         state = DONE;
                 }
                 break;
@@ -527,6 +531,7 @@ str_ll* split(uint8_t* cmd, uint32_t* offset)
                 // Load a single ! in the buffer
                 temp[0] = '!';
                 temp[1] = ASCII_NULL;
+
                 switch(cmd[*offset])
                 {
                     case '0':
@@ -579,7 +584,7 @@ str_ll* split(uint8_t* cmd, uint32_t* offset)
                         break;
                     default:
                         // Can only have numbers
-                        state = ERROR;
+                        state = ERROR_STATE;
                 }
                 break;
             case AMP_CHAR:
@@ -661,10 +666,6 @@ str_ll* split(uint8_t* cmd, uint32_t* offset)
                         state = QUOTE;
                         break;
                     case ' ':
-                        // Add to the list before we terminate
-                        temp_off = 0;
-                        cur_elem = append(cur_elem, temp, null_end);
-
                         state = APPEND_CHAR;
                         break;
                     default:
@@ -672,6 +673,8 @@ str_ll* split(uint8_t* cmd, uint32_t* offset)
                         temp_off = 0;
                         cur_elem = append(cur_elem, temp, null_end);
 
+                        temp[temp_off] = cmd[*offset];
+                        temp_off ++;
                         state = NORM_CHAR;
                 }
                 break;
