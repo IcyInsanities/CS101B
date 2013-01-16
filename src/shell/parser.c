@@ -630,17 +630,15 @@ str_ll* split(uint8_t* cmd, uint32_t* offset)
                         state = QUOTE;
                         break;
                     case ' ':
-                        // Add to the list before we terminate
-                        temp_off = 0;
-                        cur_elem = append(cur_elem, temp, null_end);
-
                         state = APPEND_CHAR;
                         break;
                     default:
                         // Add to the list before we terminate
                         temp_off = 0;
                         cur_elem = append(cur_elem, temp, null_end);
-
+                        
+                        temp[temp_off] = cmd[*offset];
+                        temp_off ++;
                         state = NORM_CHAR;
                 }
                 break;
