@@ -1,6 +1,7 @@
 #include <stdbool.h>
 #include <stdint.h>
 #include "mysh.h"
+#include "builtin_cmd.h"
 #include <unistd.h>
 #include <stdio.h>
 
@@ -296,3 +297,5 @@ int32_t main(uint32_t argc, int8_t *argv[]) {
     return execError;
 
 }
+
+
