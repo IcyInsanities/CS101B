@@ -6,6 +6,12 @@
 #include <string.h>
 
 // test code before integration, TO BE DELETED!!!
+//
+//  PROBLEM STRINGS
+//      a > > b.txt     - eats whitespace
+//      a > > > b.txt   - core dumps
+//      whitespace extra?????????
+//
 // int main()
 // {
 //     //uint8_t test_str[] = "test < blah.c >& fuckit > lks\"l !ks\"ksj\0";
@@ -18,7 +24,7 @@
 //     list = NULL;
 //     offset = 0;
 //     uint32_t i;
-// 
+//
 //     // Test split function
 //     printf("Split function test\n");
 //     list = split(test_str, &offset);
@@ -28,7 +34,7 @@
 //         list = list->next;
 //     }
 //     printf("Offset: %d\n", offset);
-// 
+//
 //     // Test parse function
 //     printf("Parse function test\n");
 //     printf("Orig: %s\n", (char*) test_str);
@@ -42,8 +48,8 @@
 //         }
 //         printf("In file:   %s\n", (char*) cmd.input);
 //         printf("Out file:  %s\n", (char*) cmd.output);
-//         printf("Double redir:  %d >& %d\n", cmd.reder_desc1, cmd.reder_desc2);
-//         printf("Reder first:   %d\n", cmd.reder_desc_first);
+//         printf("Double redir:  %d >& %d\n", cmd.redir_desc1, cmd.redir_desc2);
+//         printf("Reder first:   %d\n", cmd.redir_desc_first);
 //         printf("Pipe:    %d\n", cmd.pipe_flag);
 //         printf("Trun:    %d\n", cmd.trun_flag);
 //         printf("Bkgd:    %d\n", cmd.bkgd_flag);
@@ -52,7 +58,7 @@
 //     else {
 //         printf("Error: %d\n", cmd.error_code);
 //     }
-// 
+//
 //     return 0;
 // }
 
@@ -65,12 +71,13 @@ uint8_t* parse(uint8_t* cmd_str, cmd_struct* cmd) {
     str_ll*             split_list;         // Linked list of arguments
     str_ll*             cur_elem;           // Current element in the list
     str_ll*             prev_elem;          // Previous element in the list
+    uint32_t            i;                  // Index
 
     // Set command struct to defaults
     cmd->input = NULL;          // No input redirection
     cmd->output = NULL;         // No output redirection
-    cmd->reder_desc1 = 0;       // No descriptors given from >&
-    cmd->reder_desc2 = 0;       // No descriptors given from >&
+    cmd->redir_desc1 = 0;       // No descriptors given from >&
+    cmd->redir_desc2 = 0;       // No descriptors given from >&
     cmd->pipe_flag = false;     // Output is not piped
     cmd->trun_flag = true;      // Output is truncated
     cmd->bkgd_flag = false;     // Output is not run in background
@@ -107,7 +114,7 @@ uint8_t* parse(uint8_t* cmd_str, cmd_struct* cmd) {
             // Check if redirection descriptors given
             if (cur_elem->str[1] == '&') {
                 // If output redirection was seen, it was first
-                cmd->reder_desc_first = false;
+                cmd->redir_desc_first = false;
                 // Decrement argument count which is no longer an argument
                 arg_num--;
                 // Previous element is the first descriptors, check that not
@@ -116,7 +123,7 @@ uint8_t* parse(uint8_t* cmd_str, cmd_struct* cmd) {
                     cmd->error_code = ERROR;
                     break;
                 }
-                cmd->reder_desc1 = atoi((char*) prev_elem->str);
+                cmd->redir_desc1 = atoi((char*) prev_elem->str);
                 prev_elem->str = NULL;   // Delete previous
                 // Next element is the second descriptors
                 cur_elem->str = NULL;        // Delete this node
@@ -125,7 +132,7 @@ uint8_t* parse(uint8_t* cmd_str, cmd_struct* cmd) {
                     cmd->error_code = ERROR;
                     break;
                 }
-                cmd->reder_desc2 = atoi((char*) cur_elem->str);
+                cmd->redir_desc2 = atoi((char*) cur_elem->str);
                 cur_elem->str = NULL;       // Delete this node
             }
             // Output redirection given
@@ -148,7 +155,7 @@ uint8_t* parse(uint8_t* cmd_str, cmd_struct* cmd) {
                 cmd->output = cur_elem->str;  // Assign filename to output
                 cur_elem->str = NULL;         // Delete this node
                 // If descriptors were seen, they were first
-                cmd->reder_desc_first = true;
+                cmd->redir_desc_first = true;
             }
         }
         // Check for & or |, must be last from splitting function
@@ -166,7 +173,7 @@ uint8_t* parse(uint8_t* cmd_str, cmd_struct* cmd) {
         }
         prev_elem = cur_elem;       // Move to next element
         cur_elem = cur_elem->next;
-        
+
     }
 
     // Check if command was a ! command for history
@@ -182,17 +189,17 @@ uint8_t* parse(uint8_t* cmd_str, cmd_struct* cmd) {
     // Create array of arguments from the command passed in
     if (cmd->error_code == NO_ERROR) {
         // Allocate space for arguments
-        cmd->arg_array = (uint8_t*)malloc(sizeof(uint8_t*) * (arg_num+1));
-        arg_num = 0;
+        arg_num--;  // Remove whitespace extra element
+        cmd->arg_array = (uint8_t*)malloc(sizeof(uint8_t*) * arg_num);
+        i = 0;
         cur_elem = split_list;
-        while (cur_elem != NULL) {
+        while ((i < arg_num) && (cur_elem != NULL)) {
             if (cur_elem->str != NULL) { // Check that not marked as deleted
-                cmd->arg_array[arg_num] = cur_elem->str;
-                arg_num++; // Move to next array argument spot
+                cmd->arg_array[i] = cur_elem->str;
+                i++;    // Move to next array argument spot
             }
             cur_elem = cur_elem->next;
         }
-        cmd->arg_array[arg_num] = NULL;
     }
 
     // Clean up the linked list
@@ -210,8 +217,7 @@ uint8_t* parse(uint8_t* cmd_str, cmd_struct* cmd) {
 // is seen. The pointer to the start of the string is updated to where parsing
 // stopped, and a linked list of the arguments of the command is returned.
 // A null linked list is used to represent if an error was seen during parsing.
-str_ll* split(uint8_t* cmd, uint32_t* offset)
-{
+str_ll* split(uint8_t* cmd, uint32_t* offset) {
     enum split_states   state;              // FSM for splitting command
     uint8_t             temp[MAX_LENGTH];   // Temp buffer transcribe string
     uint32_t            temp_off;           // Offset within temp
@@ -234,15 +240,13 @@ str_ll* split(uint8_t* cmd, uint32_t* offset)
     state = INIT;   // Start in the initial state
     temp_off = 0;
 
-    while(state != ERROR_STATE && state != DONE)
-    {
-        switch(state)
-        {
+    while(state != ERROR_STATE && state != DONE) {
+        switch(state) {
             case INIT:
-                switch(cmd[*offset])
-                {
+                switch(cmd[*offset]) {
                     // Catch all invalid starting characters
                     case ASCII_NULL:
+                    case '\n':
                     case '|':
                     case '&':
                         state = ERROR_STATE;      // Generate an error
@@ -271,9 +275,9 @@ str_ll* split(uint8_t* cmd, uint32_t* offset)
                 }
                 break;
             case NORM_CHAR:
-                switch(cmd[*offset])
-                {
+                switch(cmd[*offset]) {
                     case ASCII_NULL:
+                    case '\n':
                         // Add string to list first
                         temp[temp_off] = ASCII_NULL;
                         temp_off = 0;
@@ -333,8 +337,7 @@ str_ll* split(uint8_t* cmd, uint32_t* offset)
                 break;
             case WHITE_SP:
                 // Transcribe the string after we remove the whitespace
-                if(cmd[*offset] != ' ')
-                {
+                if(cmd[*offset] != ' ') {
                     // NULL terminate str
                     temp[temp_off] = ASCII_NULL;
                     temp_off = 0;
@@ -342,9 +345,9 @@ str_ll* split(uint8_t* cmd, uint32_t* offset)
                     // Add the element in
                     cur_elem = append(cur_elem, temp, null_end);
                 }
-                switch(cmd[*offset])
-                {
+                switch(cmd[*offset]) {
                     case ASCII_NULL:
+                    case '\n':
                         state = DONE;
                         break;
                     case '|':
@@ -377,14 +380,14 @@ str_ll* split(uint8_t* cmd, uint32_t* offset)
                 }
                 break;
             case QUOTE:
-                switch(cmd[*offset])
-                {
+                switch(cmd[*offset]) {
                     // Only way to break out of QUOTE is with another '\"' char
                     case '\"':
                         state = QUOTE_END;
                         break;
                     // Cannot terminate in the middle of a quote
                     case ASCII_NULL:
+                    case '\n':
                         state = ERROR_STATE;
                         break;
                     // If still in the quote, just transcribe the character
@@ -394,9 +397,9 @@ str_ll* split(uint8_t* cmd, uint32_t* offset)
                 }
                 break;
             case QUOTE_END:
-                switch(cmd[*offset])
-                {
+                switch(cmd[*offset]) {
                     case ASCII_NULL:
+                    case '\n':
                         state = DONE;
                         break;
                     case '|':
@@ -427,9 +430,9 @@ str_ll* split(uint8_t* cmd, uint32_t* offset)
                 temp[0] = '<';
                 temp[1] = ASCII_NULL;
 
-                switch(cmd[*offset])
-                {
+                switch(cmd[*offset]) {
                     case ASCII_NULL:
+                    case '\n':
                     case '|':
                     case '&':
                     case '<':
@@ -462,9 +465,9 @@ str_ll* split(uint8_t* cmd, uint32_t* offset)
                 temp[0] = '>';
                 temp[1] = ASCII_NULL;
 
-                switch(cmd[*offset])
-                {
+                switch(cmd[*offset]) {
                     case ASCII_NULL:
+                    case '\n':
                     case '|':
                     case '<':
                     case '!':
@@ -502,9 +505,9 @@ str_ll* split(uint8_t* cmd, uint32_t* offset)
                 temp[0] = '|';
                 temp[1] = ASCII_NULL;
 
-                switch(cmd[*offset])
-                {
+                switch(cmd[*offset]) {
                     case ASCII_NULL:
+                    case '\n':
                     // Throw error on ||
                     case '|':
                     case '&':
@@ -525,8 +528,7 @@ str_ll* split(uint8_t* cmd, uint32_t* offset)
                 temp[0] = '!';
                 temp[1] = ASCII_NULL;
 
-                switch(cmd[*offset])
-                {
+                switch(cmd[*offset]) {
                     case '0':
                     case '1':
                     case '2':
@@ -550,9 +552,9 @@ str_ll* split(uint8_t* cmd, uint32_t* offset)
                 }
                 break;
             case EXC_NUM:
-                switch(cmd[*offset])
-                {
+                switch(cmd[*offset]) {
                     case ASCII_NULL:
+                    case '\n':
                         // Add string to list when leaving state
                         temp[temp_off] = ASCII_NULL;
                         temp_off = 0;
@@ -585,9 +587,9 @@ str_ll* split(uint8_t* cmd, uint32_t* offset)
                 temp[0] = '&';
                 temp[1] = ASCII_NULL;
 
-                switch(cmd[*offset])
-                {
+                switch(cmd[*offset]) {
                     case ASCII_NULL:
+                    case '\n':
                         // Add to the list before we terminate
                         temp_off = 0;
                         cur_elem = append(cur_elem, temp, null_end);
@@ -606,9 +608,9 @@ str_ll* split(uint8_t* cmd, uint32_t* offset)
                 temp[1] = '&';
                 temp[2] = ASCII_NULL;
 
-                switch(cmd[*offset])
-                {
+                switch(cmd[*offset]) {
                     case ASCII_NULL:
+                    case '\n':
                     case '|':
                     case '&':
                     case '>':
@@ -641,9 +643,9 @@ str_ll* split(uint8_t* cmd, uint32_t* offset)
                 temp[1] = '>';
                 temp[2] = ASCII_NULL;
 
-                switch(cmd[*offset])
-                {
+                switch(cmd[*offset]) {
                     case ASCII_NULL:
+                    case '\n':
                     case '|':
                     case '&':
                     case '>':
@@ -679,29 +681,34 @@ str_ll* split(uint8_t* cmd, uint32_t* offset)
                 break;
         }
         // Don't increment on the last iteration
-        if(state != DONE && state != ERROR_STATE)
-        {
+        if(state != DONE && state != ERROR_STATE) {
             (*offset) ++;
+        }
+    }
+    
+    // Check if pointing to '\n' and move to following NULL, otherwise error
+    if (cmd[*offset] == '\n') {
+        (*offset) ++;
+        if (cmd[*offset] != ASCII_NULL) {
+            state = ERROR_STATE;
         }
     }
 
     // Indicate an error by returning NULL
-    if(state == ERROR_STATE)
-    {
+    if(state == ERROR_STATE) {
         // First we free the linked list
-        while(split_list != NULL)
-        {
+        while(split_list != NULL) {
             cur_elem = split_list->next;
             free(split_list);
             split_list = cur_elem;
         }
     }
+    
 
     return split_list;
 }
 
-str_ll* append(str_ll* cur_end, uint8_t* new_val, uint8_t* null_val)
-{
+str_ll* append(str_ll* cur_end, uint8_t* new_val, uint8_t* null_val) {
     str_ll* next_end;
 
     // Put string in list

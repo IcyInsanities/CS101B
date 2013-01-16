@@ -21,7 +21,7 @@ enum split_states
     GT_CHAR,
     PIPE_CHAR,
     EXC_CHAR,
-    EXC_NUM,        // Number after ! character 
+    EXC_NUM,        // Number after ! character
     AMP_CHAR,
     DUP_REDIR_CHAR, // Duplicate redirection char >&
     APPEND_CHAR,    // Append character >>

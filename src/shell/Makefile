@@ -1,15 +1,16 @@
+# Define constants
+OBJS = mysh.o parser.o builtin_cmd.o
 CC = gcc
 CFLAGS = -Wall -W
 
 all: mysh
 
-mysh: mysh.o
+mysh: $(OBJS)
 
-parser: parser.o
-	$(CC) -c parser.c
+%.o: %.c
+	$(CC) $(CFLAGS) -c $< -o $@
 
 clean: 
 	rm -f *.o *~ mysh
 
 .PHONY: all clean
-
