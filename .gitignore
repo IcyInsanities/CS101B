@@ -15,3 +15,7 @@
 *.exe
 *.out
 *.app
+
+# Named output files
+mysh
+

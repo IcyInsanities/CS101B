@@ -7,15 +7,19 @@
 
 int main()
 {
-    uint8_t test_str[] = "!23 lskjdf\0";
+    //uint8_t test_str[] = "test < blah.c >& fuckit > lks\"l !ks\"ksj\0";
+    //uint8_t test_str[] = "this < is <a >test 1>&2 \"of <>!&Reggie's code\"  & ";
+    uint8_t test_str[] = "I want < < a.txt > working shell.txt &";
     uint8_t* new_str;
     uint32_t offset;
     cmd_struct cmd;
     str_ll* list;
     list = NULL;
     offset = 0;
+    uint32_t i;
 
     // Test split function
+    printf("Split function test\n";
     list = split(test_str, &offset);
     while(list != NULL)
     {
@@ -23,10 +27,29 @@ int main()
         list = list->next;
     }
     printf("Offset: %d\n", offset);
-    
+
     // Test parse function
-    //new_str = split(test_str, cmd);
-    //prinft("%s\n", (char*) new_str);
+    printf("Parse function test\n";
+    printf("Orig: %s\n", (char*) test_str);
+    new_str = parse(test_str, &cmd);
+    printf("New:  %s\n", (char*) new_str);
+    if (cmd.error_code == NO_ERROR) {
+        i = 0;
+        while (cmd.arg_array[i] != NULL) {
+            printf("  %s\n", (char*) cmd.arg_array[i]);
+            i++;
+        }
+        printf("In file:   %s\n", (char*) cmd.input);
+        printf("Out file:  %s\n", (char*) cmd.output);
+        printf("Double redir:  %d >& %d\n", cmd.reder_desc1, cmd.reder_desc2);
+        printf("Pipe:    %d\n", cmd.pipe_flag);
+        printf("Trun:    %d\n", cmd.trun_flag);
+        printf("Bkgd:    %d\n", cmd.bkgd_flag);
+        printf("History: %d\n", cmd.history_num);
+    }
+    else {
+        printf("Error: %d\n", cmd.error_code);
+    }
 
     return 0;
 }
@@ -34,6 +57,11 @@ int main()
 // This function takes a command string and fills in a struct with all values
 // needed for execution. It returns a pointer to where parsing ended, with a
 // pipe or end of string indicated a command has ended.
+
+// DEBUGGING COMMENTS
+// - array not being initialized correctly
+// - extra arguments on ! command?
+// - check for | and & on ! command
 uint8_t* parse(uint8_t* cmd_str, cmd_struct* cmd) {
     uint32_t            offset;             // Offset within the input string
     uint32_t            arg_num;            // Current argument number
@@ -51,12 +79,13 @@ uint8_t* parse(uint8_t* cmd_str, cmd_struct* cmd) {
     cmd->bkgd_flag = false;     // Output is not run in background
     cmd->history_num = 0;       // No history command given
     cmd->error_code = NO_ERROR; // Start with no errors
-    
+
     // Parse the command into separate arguments in the form of a linked list
     offset = 0;
     split_list = split(cmd_str, &offset);
     if (split_list == NULL) {
         cmd->error_code = ERROR;    // Splitter encountered an error
+        offset = 0;                 // Reset to start of string on error
     }
 
     // Parse redirects out of linked list
@@ -84,7 +113,7 @@ uint8_t* parse(uint8_t* cmd_str, cmd_struct* cmd) {
                 cmd->reder_desc_first = false;
                 // Decrement argument count which is no longer an argument
                 arg_num--;
-                // Previous element is the first descriptors, check that not 
+                // Previous element is the first descriptors, check that not
                 // already used
                 if (prev_elem->str == NULL) {
                     cmd->error_code = ERROR;
@@ -132,7 +161,7 @@ uint8_t* parse(uint8_t* cmd_str, cmd_struct* cmd) {
         prev_elem = cur_elem;       // Move to next element
         cur_elem = cur_elem->next;
     }
-    
+
     // Check last element for & or |, if no error prev_elem is the last
     if (cmd->error_code == NO_ERROR) {
         if (prev_elem->str[0] == '&') {
@@ -146,28 +175,31 @@ uint8_t* parse(uint8_t* cmd_str, cmd_struct* cmd) {
             arg_num--;
         }
     }
-    
+
     // Check if command was a ! command for history
     // split function already handled extra arguments
-    if (split_list->str[0] == '!') {
+    if ((cmd->error_code == NO_ERROR) && (split_list->str[0] == '!')) {
         arg_num = 0;    // No arguments to pass here
         cur_elem = split_list->next;
         cmd->history_num = atoi((char*) cur_elem->str);
+        split_list->str = NULL; // Mark as deleted
+        cur_elem->str = NULL;
     }
-    
+
     // Create array of arguments from the command passed in
-    if ((arg_num > 0) && (cmd->error_code == NO_ERROR)) {
+    if (cmd->error_code == NO_ERROR) {
         // Allocate space for arguments
-        cmd->arg_array = (uint8_t*)malloc(sizeof(uint8_t*) * arg_num);
+        cmd->arg_array = (uint8_t*)malloc(sizeof(uint8_t*) * (arg_num+1));
         arg_num = 0;
         cur_elem = split_list;
         while (cur_elem != NULL) {
             if (cur_elem->str != NULL) { // Check that not marked as deleted
-                strcpy((char*) cmd->arg_array[arg_num], (char*) cur_elem->str);
+                cmd->arg_array[arg_num] = cur_elem->str;
                 arg_num++; // Move to next array argument spot
             }
             cur_elem = cur_elem->next;
         }
+        cmd->arg_array[arg_num] = NULL;
     }
 
     // Clean up the linked list
@@ -208,7 +240,7 @@ str_ll* split(uint8_t* cmd, uint32_t* offset)
 
     state = INIT;   // Start in the initial state
     temp_off = 0;
-    
+
     while(state != ERROR_STATE && state != DONE)
     {
         switch(state)
@@ -250,7 +282,7 @@ str_ll* split(uint8_t* cmd, uint32_t* offset)
                 {
                     case ASCII_NULL:
                         // Add string to list first
-                        temp[temp_off] = ASCII_NULL; 
+                        temp[temp_off] = ASCII_NULL;
                         temp_off = 0;
                         cur_elem = append(cur_elem, temp, null_end);
 
@@ -258,7 +290,7 @@ str_ll* split(uint8_t* cmd, uint32_t* offset)
                         break;
                     case '|':
                         // Add string to list first
-                        temp[temp_off] = ASCII_NULL; 
+                        temp[temp_off] = ASCII_NULL;
                         temp_off = 0;
                         cur_elem = append(cur_elem, temp, null_end);
 
@@ -266,7 +298,7 @@ str_ll* split(uint8_t* cmd, uint32_t* offset)
                         break;
                     case '&':
                         // Add string to list first
-                        temp[temp_off] = ASCII_NULL; 
+                        temp[temp_off] = ASCII_NULL;
                         temp_off = 0;
                         cur_elem = append(cur_elem, temp, null_end);
 
@@ -274,7 +306,7 @@ str_ll* split(uint8_t* cmd, uint32_t* offset)
                         break;
                     case '<':
                         // Add string to list first
-                        temp[temp_off] = ASCII_NULL; 
+                        temp[temp_off] = ASCII_NULL;
                         temp_off = 0;
                         cur_elem = append(cur_elem, temp, null_end);
 
@@ -282,7 +314,7 @@ str_ll* split(uint8_t* cmd, uint32_t* offset)
                         break;
                     case '>':
                         // Add string to list first
-                        temp[temp_off] = ASCII_NULL; 
+                        temp[temp_off] = ASCII_NULL;
                         temp_off = 0;
                         cur_elem = append(cur_elem, temp, null_end);
 
@@ -311,7 +343,7 @@ str_ll* split(uint8_t* cmd, uint32_t* offset)
                 if(cmd[*offset] != ' ')
                 {
                     // NULL terminate str
-                    temp[temp_off] = ASCII_NULL; 
+                    temp[temp_off] = ASCII_NULL;
                     temp_off = 0;
 
                     // Add the element in
@@ -466,7 +498,7 @@ str_ll* split(uint8_t* cmd, uint32_t* offset)
                         // Add string to list when leaving state
                         temp_off = 0;
                         cur_elem = append(cur_elem, temp, null_end);
-                        
+
                         temp[temp_off] = cmd[*offset];
                         temp_off ++;
                         state = NORM_CHAR;
@@ -488,7 +520,11 @@ str_ll* split(uint8_t* cmd, uint32_t* offset)
                         state = ERROR_STATE;
                         break;
                     default:
-                        state = DONE;                       
+                         // Add string to list when leaving state
+                        temp_off = 0;
+                        cur_elem = append(cur_elem, temp, null_end);
+
+                        state = DONE;
                 }
                 break;
             case EXC_CHAR:
@@ -511,7 +547,7 @@ str_ll* split(uint8_t* cmd, uint32_t* offset)
                         // Add string to list when leaving state
                         temp_off = 0;
                         cur_elem = append(cur_elem, temp, null_end);
-                        
+
                         temp[temp_off] = cmd[*offset];
                         temp_off ++;
                         state = EXC_NUM;
@@ -630,10 +666,6 @@ str_ll* split(uint8_t* cmd, uint32_t* offset)
                         state = QUOTE;
                         break;
                     case ' ':
-                        // Add to the list before we terminate
-                        temp_off = 0;
-                        cur_elem = append(cur_elem, temp, null_end);
-
                         state = APPEND_CHAR;
                         break;
                     default:
@@ -641,6 +673,8 @@ str_ll* split(uint8_t* cmd, uint32_t* offset)
                         temp_off = 0;
                         cur_elem = append(cur_elem, temp, null_end);
 
+                        temp[temp_off] = cmd[*offset];
+                        temp_off ++;
                         state = NORM_CHAR;
                 }
                 break;
