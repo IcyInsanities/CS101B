@@ -403,6 +403,13 @@ str_ll* split(uint8_t* cmd, uint32_t* offset) {
                 switch(cmd[*offset]) {
                     case ASCII_NULL:
                     case '\n':
+                        // NULL terminate str
+                        temp[temp_off] = ASCII_NULL;
+                        temp_off = 0;
+
+                        // Add the element in
+                        cur_elem = append(cur_elem, temp, null_end);
+
                         state = DONE;
                         break;
                     case '|':
