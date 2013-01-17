@@ -179,7 +179,7 @@ uint8_t* parse(uint8_t* cmd_str, cmd_struct* cmd) {
     // Check if command was a ! command for history
     // split function already handled extra arguments
     if ((cmd->error_code == NO_ERROR) && (split_list->str[0] == '!')) {
-        arg_num = 0;    // No arguments to pass here
+        arg_num = 1;    // No arguments to pass here (1 accounts for decrement)
         cur_elem = split_list->next;
         cmd->history_num = atoi((char*) cur_elem->str);
         split_list->str = NULL; // Mark as deleted
