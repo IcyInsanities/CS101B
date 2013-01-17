@@ -21,15 +21,18 @@
 // This function prints out the shell history
 void print_history() {
     int32_t i;                          // Loop variable
+    int32_t history_end;                // End of the history
     HIST_ENTRY* hist_entry;             // Pointer to history construct
     
-    i = where_history;
+    history_end = where_history();
 
-    while(i >= history_base)
+    i = history_base;
+
+    while(i <= history_end)
     {
         hist_entry = history_get(i);
-        printf("%2d: %s", i - history_base + 1, hist_entry->line);
-        i --;
+        printf("%2d: %s\n", i - history_base + 1, hist_entry->line);
+        i ++;
     }
 }
 

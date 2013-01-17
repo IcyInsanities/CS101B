@@ -6,7 +6,7 @@ CFLAGS = -Wall -W -lreadline
 all: mysh
 
 mysh: $(OBJS)
-	$(CC) $(CFLAGS) $(OBJS) -o mysh
+	$(CC) $(CFLAGS) $(OBJS) -o mysh -lreadline
 
 %.o: %.c
 	$(CC) $(CFLAGS) -c $< -o $@

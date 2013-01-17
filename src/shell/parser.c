@@ -268,6 +268,7 @@ str_ll* split(uint8_t* cmd, uint32_t* offset) {
                         break;
                     // Ignore whitespace at the start
                     case ' ':
+                        state = INIT;
                         break;
                     // All other characters are valid
                     default:
