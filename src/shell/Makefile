@@ -1,7 +1,7 @@
 # Define constants
 OBJS = mysh.o parser.o builtin_cmd.o shell_cmd.o
 CC = gcc
-CFLAGS = -Wall -W
+CFLAGS = -Wall -W -g
 
 all: mysh
 
