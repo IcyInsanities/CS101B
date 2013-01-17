@@ -152,18 +152,19 @@ int32_t ExecCommand(cmd_struct *cmd, int32_t *inputPipe, int32_t *outputPipe) {
 
     // Run the command, returning any errors
     if (execvp((char*) cmd->arg_array[0], (char**) cmd->arg_array) == -1) {
+        // Close input file
+        if (inputFile != -1) {
+            close(inputFile);
+        }
+        // Close output file
+        if (outputFile != -1) {
+            close(outputFile);
+        }
+        
         // Failed to execute command
         return errno;
     }
-
-    // Close input file
-    if (inputFile != -1) {
-        close(inputFile);
-    }
-    // Close output file
-    if (outputFile != -1) {
-        close(outputFile);
-    }
-
-    return execError;
+    
+    // Should never get here
+    return 1;
 }
