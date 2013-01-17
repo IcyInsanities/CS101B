@@ -265,7 +265,6 @@ int main() {
                 curr_str = NULL;        // Get new user input
             }
             if (err_code_child != NO_ERROR) {
-                fprintf(stderr, "ERROR: Process: %d\n", err_code_child);
                 err_flag = true;
                 curr_str = NULL;        // Get new user input
             }
