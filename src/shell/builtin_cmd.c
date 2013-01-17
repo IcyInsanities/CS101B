@@ -13,28 +13,22 @@
 #include <errno.h>
 
 #define NO_DUP_REDIR            0
-#define CHILD_COMMAND_ERROR     1
-#define CHILD_INPUT_PIPE_ERROR  2
-#define CHILD_INPUT_FILE_ERROR  3
-#define CHILD_OUTPUT_PIPE_ERROR 4
-#define CHILD_OUTPUT_FILE_ERROR 5
-#define CHILD_OUTPUT_DUP_ERROR  6
 
 #define _GNU_SOURCE
 
 /*
  * TODO:
- *  - Finish up piping
+ *  - Finish up piping (DONE)
  *  - Implement case where redirection and duplication
  *  - Implement redirection commands (DONE)
  *  - Implement append redirection instead of truncation (DONE)
- *  - Implement output duplication
+ *  - Implement output duplication (DONE)
  *  - Error handling
  *      - Executed command throws error (DONE)
  *      - Fork fails (DONE)
  *      - Creating pipe fails (DONE)
  *      - dup fails (DONE)
- *      - open/close fails
+ *      - open/close fails (DONE)
  *      - wait throws error (DONE)
  *
  */
@@ -67,7 +61,6 @@ int32_t ExecCommand(cmd_struct *cmd, int32_t *inputPipe, int32_t *outputPipe) {
     // Error status
     int32_t execError = 0;
 
-
     int32_t testFile;
 
     // Append to file option flag
@@ -79,14 +72,12 @@ int32_t ExecCommand(cmd_struct *cmd, int32_t *inputPipe, int32_t *outputPipe) {
     // Replace input if last pipe exists
     if (inputPipe != NULL) {
         fprintf(stdout, "Child: input pipe\n");
-        // Close the write end of the pipe
-        close(inputPipe[PIPE_WRITE_SIDE]);
 
         // Set read end of pipe to standard input
         if(dup2(inputPipe[PIPE_READ_SIDE], STDIN_FILENO) == -1) {
             // Failed to setup input pipe
             fprintf(stderr, "Child: failed to setup input pipe\n");
-            return CHILD_INPUT_PIPE_ERROR;
+            return errno;
         }
     }
     // If there is a file specified for redirection of stdin, use it
@@ -95,11 +86,16 @@ int32_t ExecCommand(cmd_struct *cmd, int32_t *inputPipe, int32_t *outputPipe) {
         // Open the file to read from
         inputFile = open((char*) cmd->input, O_RDWR);
 
+        // If opening file fails, report error
+        if (inputFile == -1) {
+            return errno;
+        }
+        
         // Set STDIN to use input file
         if(dup2(inputFile, STDIN_FILENO)) {
             // Failed to setup input file
             fprintf(stderr, "Child: failed to setup input file\n");
-            return CHILD_INPUT_FILE_ERROR;
+            return errno;
         }
     }
     // If there is no redirection or piping then use STDIN, no code needed
@@ -109,13 +105,21 @@ int32_t ExecCommand(cmd_struct *cmd, int32_t *inputPipe, int32_t *outputPipe) {
     // If there is an ouput pipe, set it to STDOUT
     if (cmd->pipe_flag == true && outputPipe != NULL) {
         fprintf(stdout, "Child: output pipe\n");
-        close(outputPipe[PIPE_READ_SIDE]);
+        
+        // If closing the pipe fails, report an error
+        if(close(outputPipe[PIPE_READ_SIDE]) == -1) {
+            return errno;
+        }
 
         // Set write end of pipe to standard output
         if (dup2(outputPipe[PIPE_WRITE_SIDE], STDOUT_FILENO) == -1) {
             // Failed to setup output pipe from child
             fprintf(stderr, "Child: failed to setup output pipe\n");
-            return CHILD_OUTPUT_PIPE_ERROR;
+            return errno;
+        }
+        // If closing the pipe fails, report an error
+        if (close(outputPipe[PIPE_WRITE_SIDE]) == -1) {
+            return errno;
         }
     }
     // If there is a file specified for redirection of stdout, use it
@@ -133,34 +137,49 @@ int32_t ExecCommand(cmd_struct *cmd, int32_t *inputPipe, int32_t *outputPipe) {
         // Open the file to write to, creating it if necessary
         outputFile = open((char*) cmd->output, O_CREAT | O_RDWR | appendFlag);
 
+        // If opening the output file fails, report an error
+        if (outputFile == -1) {
+            return errno;
+        }
+        
         // Set STDOUT to use the output file
         if (dup2(outputFile, STDOUT_FILENO) == -1) {
             // Failed to setup output file
             fprintf(stderr, "Child: failed to setup output file.\n");
-            return CHILD_OUTPUT_FILE_ERROR;
+            return errno;
         }
     }
     // if there is duplication redirection, handle it
     else if (cmd->redir_desc1 > NO_DUP_REDIR && cmd->redir_desc2 > NO_DUP_REDIR &&
         !((cmd->output != NULL) && (*(cmd->output) != ASCII_NULL))) {
         fprintf(stdout, "Child: dup redir\n");
-        // TODO: remove
-        // Open the file to write to, creating it if necessary
-        outputFile = open("dup_test.txt", O_CREAT | O_RDWR | O_TRUNC);
 
         // Duplicate the output
         if(dup2(cmd->redir_desc2, cmd->redir_desc1) == -1) {
             // Failed to setup duplicate redirection
             fprintf(stderr, "Child: failed to setup dup redirection.\n");
-            return CHILD_OUTPUT_DUP_ERROR;
+            return errno;
         };
     }
     // Handle case with duplicate redirection and normal redirection
     else if (cmd->redir_desc1 > NO_DUP_REDIR && cmd->redir_desc2 > NO_DUP_REDIR &&
         (cmd->output != NULL) && (*(cmd->output) != ASCII_NULL)) {
         
+        // Check if truncating or appending
+        if ((cmd->trun_flag) == false) {
+            appendFlag = O_APPEND;
+        }
+        else {
+            appendFlag = O_TRUNC;
+        }
+        
         // Open the file to write to, creating it if necessary
         outputFile = open((char*) cmd->output, O_CREAT | O_RDWR | appendFlag);
+        
+        // If opening the output file fails, report an error
+        if (outputFile == -1) {
+            return errno;
+        }
         
         // Handle case for dup redirection first,
         if (cmd->redir_desc_first) {
@@ -184,7 +203,7 @@ int32_t ExecCommand(cmd_struct *cmd, int32_t *inputPipe, int32_t *outputPipe) {
     if (execvp((char*) cmd->arg_array[0], (char**) cmd->arg_array) == -1) {
         // Failed to execute command
         fprintf(stderr, "Child: failed to execute command.\n");
-        return CHILD_COMMAND_ERROR;
+        return errno;
     }
     fprintf(stdout, "Child: I live!\n");
 
