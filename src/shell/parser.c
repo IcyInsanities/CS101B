@@ -193,13 +193,14 @@ uint8_t* parse(uint8_t* cmd_str, cmd_struct* cmd) {
         cmd->arg_array = (uint8_t*)malloc(sizeof(uint8_t*) * arg_num);
         i = 0;
         cur_elem = split_list;
-        while ((i < arg_num) && (cur_elem != NULL)) {
+        while ((i < arg_num - 1) && (cur_elem != NULL)) {
             if (cur_elem->str != NULL) { // Check that not marked as deleted
                 cmd->arg_array[i] = cur_elem->str;
                 i++;    // Move to next array argument spot
             }
             cur_elem = cur_elem->next;
         }
+        cmd->arg_array[arg_num-1] = NULL;
     }
 
     // Clean up the linked list
