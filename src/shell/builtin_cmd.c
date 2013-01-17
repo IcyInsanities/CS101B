@@ -25,6 +25,7 @@
 /*
  * TODO:
  *  - Finish up piping
+ *  - Implement case where redirection and duplication
  *  - Implement redirection commands (DONE)
  *  - Implement append redirection instead of truncation (DONE)
  *  - Implement output duplication
@@ -92,7 +93,7 @@ int32_t ExecCommand(cmd_struct *cmd, int32_t *inputPipe, int32_t *outputPipe) {
     else if ((cmd->input != NULL) && (*(cmd->input) != ASCII_NULL)) {
         fprintf(stdout, "Child: input files\n");
         // Open the file to read from
-        inputFile = open((char*) cmd->input, O_RDONLY);
+        inputFile = open((char*) cmd->input, O_RDWR);
 
         // Set STDIN to use input file
         if(dup2(inputFile, STDIN_FILENO)) {
@@ -118,7 +119,8 @@ int32_t ExecCommand(cmd_struct *cmd, int32_t *inputPipe, int32_t *outputPipe) {
         }
     }
     // If there is a file specified for redirection of stdout, use it
-    else if ((cmd->output != NULL) && (*(cmd->output) != ASCII_NULL)) {
+    else if ((cmd->output != NULL) && (*(cmd->output) != ASCII_NULL) && !(cmd->redir_desc1
+        > NO_DUP_REDIR && cmd->redir_desc2 > NO_DUP_REDIR)) {
         fprintf(stdout, "Child: output file\n");
         // Check if truncating or appending
         if ((cmd->trun_flag) == false) {
@@ -129,7 +131,7 @@ int32_t ExecCommand(cmd_struct *cmd, int32_t *inputPipe, int32_t *outputPipe) {
         }
 
         // Open the file to write to, creating it if necessary
-        outputFile = open((char*) cmd->output, O_CREAT | O_WRONLY | appendFlag);
+        outputFile = open((char*) cmd->output, O_CREAT | O_RDWR | appendFlag);
 
         // Set STDOUT to use the output file
         if (dup2(outputFile, STDOUT_FILENO) == -1) {
@@ -139,10 +141,12 @@ int32_t ExecCommand(cmd_struct *cmd, int32_t *inputPipe, int32_t *outputPipe) {
         }
     }
     // if there is duplication redirection, handle it
-    else if (cmd->redir_desc1 > NO_DUP_REDIR && cmd->redir_desc2 > NO_DUP_REDIR) {
+    else if (cmd->redir_desc1 > NO_DUP_REDIR && cmd->redir_desc2 > NO_DUP_REDIR &&
+        !((cmd->output != NULL) && (*(cmd->output) != ASCII_NULL))) {
         fprintf(stdout, "Child: dup redir\n");
+        // TODO: remove
         // Open the file to write to, creating it if necessary
-        outputFile = open("dup_test.txt", O_CREAT | O_WRONLY | O_TRUNC);
+        outputFile = open("dup_test.txt", O_CREAT | O_RDWR | O_TRUNC);
 
         // Duplicate the output
         if(dup2(cmd->redir_desc2, cmd->redir_desc1) == -1) {
@@ -150,6 +154,27 @@ int32_t ExecCommand(cmd_struct *cmd, int32_t *inputPipe, int32_t *outputPipe) {
             fprintf(stderr, "Child: failed to setup dup redirection.\n");
             return CHILD_OUTPUT_DUP_ERROR;
         };
+    }
+    // Handle case with duplicate redirection and normal redirection
+    else if (cmd->redir_desc1 > NO_DUP_REDIR && cmd->redir_desc2 > NO_DUP_REDIR &&
+        (cmd->output != NULL) && (*(cmd->output) != ASCII_NULL)) {
+        
+        // Open the file to write to, creating it if necessary
+        outputFile = open((char*) cmd->output, O_CREAT | O_RDWR | appendFlag);
+        
+        // Handle case for dup redirection first,
+        if (cmd->redir_desc_first) {
+            
+            dup2(cmd->redir_desc2, cmd->redir_desc1);
+            dup2(outputFile, STDOUT_FILENO);
+
+        }
+        else {
+        
+            dup2(outputFile, STDOUT_FILENO);
+            dup2(cmd->redir_desc2, cmd->redir_desc1);
+        }
+        
     }
     // If there is no redirection or piping, the use normal STDOUT, no code here
     else {fprintf(stdout, "Child: no output!\n");}
