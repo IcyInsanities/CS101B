@@ -188,16 +188,16 @@ int main() {
         // Start with no errors seen
         err_flag = false;
 
-        //// // WHEEEEEEEEEEEEEEEEEEEEEE
-        //// printf("Split function test\n");
-        //// offset = 0;
-        //// list = split(curr_str, &offset);
-        //// while(list != NULL)
-        //// {
-        ////     printf("%s\n", (char*) list->str);
-        ////     list = list->next;
-        //// }
-        //// printf("Offset: %d\n", offset);
+         // WHEEEEEEEEEEEEEEEEEEEEEE
+         printf("Split function test\n");
+         offset = 0;
+         list = split(curr_str, &offset);
+         while(list != NULL)
+         {
+             printf("%s\n", (char*) list->str);
+             list = list->next;
+         }
+         printf("Offset: %d\n", offset);
 
         // Parse command and get location to continue from
         curr_str = parse(curr_str, &cmd);
@@ -208,28 +208,28 @@ int main() {
             err_flag = true;
         }
         // Check for null command
-        if (cmd.arg_array[0] == NULL) {
+        if (cmd.arg_array[0] == NULL && cmd.history_num == 0) {
             curr_str = NULL;
             continue;
         }
         
-        //// // WHEEEEEEEEEEEEEEEEEEEEEE
-        //// if (!err_flag) {
-        ////     printf("Parse function test\n");
-        ////     i = 0;
-        ////     while (cmd.arg_array[i] != NULL) {
-        ////         printf("Arg %d: %s\n", i, (char*) cmd.arg_array[i]);
-        ////         i++;
-        ////     }
-        ////     printf("In file:   %s\n", (char*) cmd.input);
-        ////     printf("Out file:  %s\n", (char*) cmd.output);
-        ////     printf("Double redir:  %d >& %d\n", cmd.redir_desc1, cmd.redir_desc2);
-        ////     printf("Reder first:   %d\n", cmd.redir_desc_first);
-        ////     printf("Pipe:    %d\n", cmd.pipe_flag);
-        ////     printf("Trun:    %d\n", cmd.trun_flag);
-        ////     printf("Bkgd:    %d\n", cmd.bkgd_flag);
-        ////     printf("History: %d\n", cmd.history_num);
-        //// }
+         // WHEEEEEEEEEEEEEEEEEEEEEE
+         if (!err_flag) {
+             printf("Parse function test\n");
+             i = 0;
+             while (cmd.arg_array[i] != NULL) {
+                 printf("Arg %d: %s\n", i, (char*) cmd.arg_array[i]);
+                 i++;
+             }
+             printf("In file:   %s\n", (char*) cmd.input);
+             printf("Out file:  %s\n", (char*) cmd.output);
+             printf("Double redir:  %d >& %d\n", cmd.redir_desc1, cmd.redir_desc2);
+             printf("Reder first:   %d\n", cmd.redir_desc_first);
+             printf("Pipe:    %d\n", cmd.pipe_flag);
+             printf("Trun:    %d\n", cmd.trun_flag);
+             printf("Bkgd:    %d\n", cmd.bkgd_flag);
+             printf("History: %d\n", cmd.history_num);
+         }
         
         // Catch rerun command here, errors already parsed out
         if ((!err_flag) && (cmd.history_num != 0)) {
@@ -250,6 +250,7 @@ int main() {
             }
             else { // In case of error openning output pipe, report
                 fprintf(stderr, "Parent: failed to setup output pipe\n");
+                err_flag = true;
                 pipe_error = PARENT_OUTPUT_PIPE_ERROR;
             }
         }
@@ -274,6 +275,9 @@ int main() {
                 err_code_child = ExecCommand(&cmd, input_pipe_pass, output_pipe_pass);
                 // child terminates here, so it returns the error code it has
                 fprintf(stdout, "Child: %d\n", err_code_child);
+                if (err_code_child != 0) {
+                    err_flag = true;
+                }
                 exit(err_code_child);
             }
             else if (proc_ID > 0) { // Parent code
@@ -282,13 +286,18 @@ int main() {
                 fprintf(stdout, "Parent testing %d\n", err_code_child);
                 WEXITSTATUS(err_code_child);    // Get child return value
                 fprintf(stdout, "Parent says bye %d\n", err_code_child);
+                if (err_code_child != 0) {
+                    err_flag = true;
+                }
             }
             else {                      // Fork failed, give error message
                 fprintf(stderr, "Forking error: %d\n", proc_ID);
+                err_flag = true;
                 curr_str = NULL;        // Get new user input
             }
             if (err_code_child != NO_ERROR) {
                 fprintf(stderr, "Process error: %d\n", err_code_child);
+                err_flag = true;
                 curr_str = NULL;        // Get new user input
             }
         }
@@ -316,11 +325,12 @@ int main() {
         
             // Print errors if present
             if (err_flag == true) {
-                //handle_errors(err_code_child);
-                //handle_errors(pipe_error);
-                //err_flag = false;
-                //err_code_child = 0;
-                //pipe_error = 0;
+                handle_errors(err_code_child);
+                handle_errors(pipe_error);
+                err_flag = false;
+                err_code_child = 0;
+                pipe_error = 0;
+                curr_str = NULL;
             }
             
             for (i = 0; i < 2; i++) {
