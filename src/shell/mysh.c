@@ -16,10 +16,7 @@
 #include "mysh.h"
 #include "parser.h"
 #include "builtin_cmd.h"
-
-// Define maximum command length, and how large a history to save
-#define HISTORY_LENGTH   100
-#define MAX_CMD_LENGTH  1024
+#include "shell_cmd.h"
 
 // Print the shell prompt in the format username:current/directory>
 void print_prompt() {
@@ -36,18 +33,7 @@ void print_prompt() {
     return;
 }
 
-// This function prints out the shell history
-void print_history(uint8_t cmd_history[HISTORY_LENGTH][MAX_CMD_LENGTH],
-                   int32_t cmd_history_idx) {
-    int i, curr_idx = cmd_history_idx;
-    for (i = 0; i < HISTORY_LENGTH; i++) {
-        if (cmd_history[curr_idx][0] != 0) {
-            printf("%2d: %s", i+1, cmd_history[curr_idx]);
-        }
-        curr_idx++;
-        if (curr_idx == HISTORY_LENGTH) {curr_idx = 0;}
-    }
-}
+
 
 void parse_input_cmd(uint8_t* cmd_str,
                      uint8_t cmd_history[HISTORY_LENGTH][MAX_CMD_LENGTH],
@@ -148,10 +134,7 @@ int main() {
         //// printf("Bkgd:    %d\n", cmd.bkgd_flag);
         //// printf("History: %d\n", cmd.history_num);
 
-        // Check for internal commands and handle them
-        // - destroy pipes as needed for clean up
-
-        // Run external commands
+        // Set up output pipe if needed
         if (cmd.pipe_flag) {
             pipe(output_pipe); // Open output pipe if needed
             output_pipe_pass = output_pipe;
@@ -159,46 +142,60 @@ int main() {
         else {
             output_pipe_pass = NULL;
         }
-        fprintf(stdout, "Forking\n");
-        proc_ID = fork();           // Fork off the child process to run command
-        fprintf(stdout, "Forked\n");
-        if (proc_ID == 0) {         // Call child process function if child
-            fprintf(stdout, "Child says hi\n");
-            err_code_child = ExecCommand(&cmd, input_pipe_pass, output_pipe_pass);
-            // child terminates here, so it returns the error code it has
-            fprintf(stdout, "Child: %d\n", err_code_child);
-            exit(err_code_child);
+        
+        // Check for internal commands and handle them
+        if (check_shell_cmd(&cmd)) {
+            // Redirect input as needed
+            // TODO
+            // Execute internal command
+            exec_shell_cmd(&cmd, cmd_history, cmd_history_idx);
+            // Restore stdin, stdout, and stderr to original
+            // TODO
         }
-        else if (proc_ID > 0) {     // Parent code
-            fprintf(stdout, "Parent says hi %d\n", err_code_child);
-            proc_ID = wait(&err_code_child); // Wait for child executing to terminate
-            fprintf(stdout, "Parent testing %d\n", err_code_child);
-            WEXITSTATUS(err_code_child);    // Get child return value
-            fprintf(stdout, "Parent says bye %d\n", err_code_child);
-            if (input_pipe_pass != NULL) {
-                // Close remaining handle
-                close(input_pipe[PIPE_READ_SIDE]);
+        // Run external commands
+        else {
+            proc_ID = fork();       // Fork off the child process to run command
+            if (proc_ID == 0) {     // Call child process function if child
+                fprintf(stdout, "Child says hi\n");
+                err_code_child = ExecCommand(&cmd, input_pipe_pass, output_pipe_pass);
+                // child terminates here, so it returns the error code it has
+                fprintf(stdout, "Child: %d\n", err_code_child);
+                exit(err_code_child);
             }
-            // Swap pipes
-            swap_dummy = output_pipe;
-            output_pipe = input_pipe;
-            input_pipe = swap_dummy;
-            // Reassign input_pipe_pass correctly
-            if (output_pipe_pass != NULL) {
-                input_pipe_pass = input_pipe;
-                close(input_pipe[PIPE_WRITE_SIDE]);
+            else if (proc_ID > 0) { // Parent code
+                fprintf(stdout, "Parent says hi %d\n", err_code_child);
+                proc_ID = wait(&err_code_child); // Wait for child executing to terminate
+                fprintf(stdout, "Parent testing %d\n", err_code_child);
+                WEXITSTATUS(err_code_child);    // Get child return value
+                fprintf(stdout, "Parent says bye %d\n", err_code_child);
             }
-        }
-        else {                      // Fork failed, give error message
-            printf("Forking error: %d\n", proc_ID);
-            curr_str = NULL;        // Get new user input
+            else {                      // Fork failed, give error message
+                printf("Forking error: %d\n", proc_ID);
+                curr_str = NULL;        // Get new user input
+            }
+            if (err_code_child != NO_ERROR) {
+                printf("Process error: %d\n", err_code_child);
+                curr_str = NULL;        // Get new user input
+            }
         }
         
-        if (err_code_child != NO_ERROR) {
-            printf("Process error: %d\n", err_code_child);
-            curr_str = NULL;        // Get new user input
+        // Set up pipes for next iteration
+        if (input_pipe_pass != NULL) {
+            // Close remaining handle
+            close(input_pipe[PIPE_READ_SIDE]);
+        }
+        // Swap pipes
+        swap_dummy = output_pipe;
+        output_pipe = input_pipe;
+        input_pipe = swap_dummy;
+        // Reassign input_pipe_pass correctly
+        if (output_pipe_pass != NULL) {
+            input_pipe_pass = input_pipe;
+            close(input_pipe[PIPE_WRITE_SIDE]);
         }
 
+        //// NEED TO CLOSE ALL PIPES IF ERROR SEEN
+        
         // Clean up memory allocated
         if (cmd.arg_array != NULL) {
             free(cmd.arg_array);
