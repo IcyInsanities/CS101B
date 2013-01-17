@@ -189,7 +189,7 @@ uint8_t* parse(uint8_t* cmd_str, cmd_struct* cmd) {
     // Create array of arguments from the command passed in
     if (cmd->error_code == NO_ERROR) {
         // Allocate space for arguments
-        arg_num--;  // Remove whitespace extra element
+        //arg_num--;  // Remove whitespace extra element
         cmd->arg_array = (uint8_t*)malloc(sizeof(uint8_t*) * arg_num);
         i = 0;
         cur_elem = split_list;
@@ -245,11 +245,13 @@ str_ll* split(uint8_t* cmd, uint32_t* offset) {
             case INIT:
                 switch(cmd[*offset]) {
                     // Catch all invalid starting characters
-                    case ASCII_NULL:
-                    case '\n':
                     case '|':
                     case '&':
                         state = ERROR_STATE;      // Generate an error
+                        break;
+                    case ASCII_NULL:
+                    case '\n':
+                        state = DONE;
                         break;
                     case '>':
                         state = GT_CHAR;
@@ -488,13 +490,34 @@ str_ll* split(uint8_t* cmd, uint32_t* offset) {
                         break;
                     case ' ':
                         // Eat away white space
-                        state = GT_CHAR;
+                        state = GT_WHITE;
                         break;
                     default:
                         // Add string to list when leaving state
                         temp_off = 0;
                         cur_elem = append(cur_elem, temp, null_end);
 
+                        temp[temp_off] = cmd[*offset];
+                        temp_off ++;
+                        state = NORM_CHAR;
+                }
+                break;
+            case GT_WHITE:
+                switch(cmd[*offset])
+                {
+                    case ASCII_NULL:
+                    case '\n':
+                    case '|':
+                    case '&':
+                    case '<':
+                    case '>':
+                    case '!':
+                        state = ERROR_STATE;
+                        break;
+                    case '\"':
+                        state = QUOTE;
+                        break;
+                    default:
                         temp[temp_off] = cmd[*offset];
                         temp_off ++;
                         state = NORM_CHAR;
