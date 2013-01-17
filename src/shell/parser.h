@@ -1,17 +1,21 @@
+/* This file contains the header for running the parser and splitter functions
+ *
+ * Team: Shir, Steven, Reggie
+*/
+
 #ifndef PARSER_H
 #define PARSER_H
 
 #include "mysh.h"
 
-
-typedef struct
-{
+// Linked list structure to hold the token strings from the splitter
+typedef struct {
     struct str_ll*  next;
     uint8_t*        str;
 } str_ll;
 
-enum split_states
-{
+// States for the finite state machine
+enum split_states {
     INIT,           // Initial state
     NORM_CHAR,      // Normal character
     WHITE_SP,       // White space
@@ -30,8 +34,11 @@ enum split_states
     DONE            // Finished with no error
 };
 
+// Parse the command string into a cmd_struct
 uint8_t* parse(uint8_t*, cmd_struct*);
+// Split the input command string by tokens
 str_ll* split(uint8_t*, uint32_t*);
+// Add an element to the linked list
 str_ll* append(str_ll*, uint8_t*, uint8_t*);
 
 #endif

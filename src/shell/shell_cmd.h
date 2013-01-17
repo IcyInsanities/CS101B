@@ -1,9 +1,13 @@
+/* This file contains the headers for handling the built in shell command
+ *
+ * Team: Shir, Steven, Reggie
+*/
+
 #ifndef SHELL_CMD_H
 #define SHELL_CMD_H
 
 #include <stdint.h>
 #include "mysh.h"
-
 
 // Checks if the command given is a shell command
 bool check_shell_cmd(cmd_struct *cmd);

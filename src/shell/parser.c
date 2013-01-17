@@ -1,66 +1,14 @@
-#include "parser.h"
-#include "mysh.h"
-#include "gen.h"
+/* This file contains the code for running the parser and splitter functions
+ *
+ * Team: Shir, Steven, Reggie
+*/
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-
-// test code before integration, TO BE DELETED!!!
-//
-//  PROBLEM STRINGS
-//      a > > b.txt     - eats whitespace
-//      a > > > b.txt   - core dumps
-//      whitespace extra?????????
-//
-// int main()
-// {
-//     //uint8_t test_str[] = "test < blah.c >& fuckit > lks\"l !ks\"ksj\0";
-//     //uint8_t test_str[] = "this < is <a >test 1>&2 \"of <>!&Reggie's code\"  & ";
-//     uint8_t test_str[] = "I want < a.txt >> working > shell.txt 1>&1 > corr.txt";
-//     uint8_t* new_str;
-//     uint32_t offset;
-//     cmd_struct cmd;
-//     str_ll* list;
-//     list = NULL;
-//     offset = 0;
-//     uint32_t i;
-//
-//     // Test split function
-//     printf("Split function test\n");
-//     list = split(test_str, &offset);
-//     while(list != NULL)
-//     {
-//         printf("%s\n", (char*) list->str);
-//         list = list->next;
-//     }
-//     printf("Offset: %d\n", offset);
-//
-//     // Test parse function
-//     printf("Parse function test\n");
-//     printf("Orig: %s\n", (char*) test_str);
-//     new_str = parse(test_str, &cmd);
-//     printf("New:  %s\n", (char*) new_str);
-//     if (cmd.error_code == NO_ERROR) {
-//         i = 0;
-//         while (cmd.arg_array[i] != NULL) {
-//             printf("  %s\n", (char*) cmd.arg_array[i]);
-//             i++;
-//         }
-//         printf("In file:   %s\n", (char*) cmd.input);
-//         printf("Out file:  %s\n", (char*) cmd.output);
-//         printf("Double redir:  %d >& %d\n", cmd.redir_desc1, cmd.redir_desc2);
-//         printf("Reder first:   %d\n", cmd.redir_desc_first);
-//         printf("Pipe:    %d\n", cmd.pipe_flag);
-//         printf("Trun:    %d\n", cmd.trun_flag);
-//         printf("Bkgd:    %d\n", cmd.bkgd_flag);
-//         printf("History: %d\n", cmd.history_num);
-//     }
-//     else {
-//         printf("Error: %d\n", cmd.error_code);
-//     }
-//
-//     return 0;
-// }
+#include "parser.h"
+#include "mysh.h"
+#include "gen.h"
 
 // This function takes a command string and fills in a struct with all values
 // needed for execution. It returns a pointer to where parsing ended, with a
@@ -110,6 +58,7 @@ uint8_t* parse(uint8_t* cmd_str, cmd_struct* cmd) {
             cmd->input = cur_elem->str;  // Assign filename to input
             cur_elem->str = NULL;        // Delete this node
         }
+        // Check if some form of output redirection given
         else if (cur_elem->str[0] == '>') {
             // Check if redirection descriptors given
             if (cur_elem->str[1] == '&') {
@@ -171,9 +120,9 @@ uint8_t* parse(uint8_t* cmd_str, cmd_struct* cmd) {
         else {
             arg_num++;
         }
-        prev_elem = cur_elem;       // Move to next element
+        // Move to next element
+        prev_elem = cur_elem;
         cur_elem = cur_elem->next;
-
     }
 
     // Check if command was a ! command for history
@@ -189,10 +138,10 @@ uint8_t* parse(uint8_t* cmd_str, cmd_struct* cmd) {
     // Create array of arguments from the command passed in
     if (cmd->error_code == NO_ERROR) {
         // Allocate space for arguments
-        //arg_num--;  // Remove whitespace extra element
         cmd->arg_array = (uint8_t*)malloc(sizeof(uint8_t*) * arg_num);
         i = 0;
         cur_elem = split_list;
+        // Move arguments into array, skipping the NULL string
         while ((i < arg_num - 1) && (cur_elem != NULL)) {
             if (cur_elem->str != NULL) { // Check that not marked as deleted
                 cmd->arg_array[i] = cur_elem->str;
@@ -200,6 +149,7 @@ uint8_t* parse(uint8_t* cmd_str, cmd_struct* cmd) {
             }
             cur_elem = cur_elem->next;
         }
+        // Set a NULL for the NULL string argument
         cmd->arg_array[arg_num-1] = NULL;
     }
 
@@ -336,7 +286,6 @@ str_ll* split(uint8_t* cmd, uint32_t* offset) {
                         state = NORM_CHAR;
                         temp[temp_off] = cmd[*offset];
                         temp_off ++;
-
                 }
                 break;
             case WHITE_SP:
@@ -721,7 +670,7 @@ str_ll* split(uint8_t* cmd, uint32_t* offset) {
             (*offset) ++;
         }
     }
-    
+
     // Check if pointing to '\n' and move to following NULL, otherwise error
     if (cmd[*offset] == '\n') {
         (*offset) ++;
@@ -739,11 +688,12 @@ str_ll* split(uint8_t* cmd, uint32_t* offset) {
             split_list = cur_elem;
         }
     }
-    
+
 
     return split_list;
 }
 
+// Add an element to the linked list, ensuring that the NULL termination remains
 str_ll* append(str_ll* cur_end, uint8_t* new_val, uint8_t* null_val) {
     str_ll* next_end;
 
@@ -758,4 +708,3 @@ str_ll* append(str_ll* cur_end, uint8_t* new_val, uint8_t* null_val) {
 
     return next_end;
 }
-
