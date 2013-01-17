@@ -91,7 +91,7 @@ int32_t ExecCommand(cmd_struct *cmd, int32_t *inputPipe, int32_t *outputPipe) {
 
     // Handle output
     // If there is an ouput pipe, set it to STDOUT
-    if (cmd->pipe_flag == false && outputPipe != NULL) {
+    if (cmd->pipe_flag == true && outputPipe != NULL) {
         fprintf(stdout, "Child: output pipe\n");
         close(outputPipe[PIPE_READ_SIDE]);
 
