@@ -4,6 +4,10 @@
 #include <stdbool.h>
 #include <stdint.h>
 
+// Define maximum command length, and how large a history to save
+#define HISTORY_LENGTH   100
+#define MAX_CMD_LENGTH  1024
+
 // This struct holds all the details from a command necessary for executing that
 // the parser determines
 typedef struct {

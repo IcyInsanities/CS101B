@@ -16,10 +16,9 @@
 #include "mysh.h"
 #include "parser.h"
 #include "builtin_cmd.h"
+#include "shell_cmd.h"
 
-// Define maximum command length, and how large a history to save
-#define HISTORY_LENGTH   100
-#define MAX_CMD_LENGTH  1024
+#define PARENT_OUTPUT_PIPE_ERROR   1
 
 // Print the shell prompt in the format username:current/directory>
 void print_prompt() {
@@ -33,31 +32,6 @@ void print_prompt() {
 
     // Print out prompt and return1
     printf("%s:%s> ", username, curr_path);
-    return;
-}
-
-// This function prints out the shell history
-void print_history(uint8_t cmd_history[HISTORY_LENGTH][MAX_CMD_LENGTH],
-                   int32_t cmd_history_idx) {
-    int i, curr_idx = cmd_history_idx;
-    for (i = 0; i < HISTORY_LENGTH; i++) {
-        if (cmd_history[curr_idx][0] != 0) {
-            printf("%2d: %s", i+1, cmd_history[curr_idx]);
-        }
-        curr_idx++;
-        if (curr_idx == HISTORY_LENGTH) {curr_idx = 0;}
-    }
-}
-
-void parse_input_cmd(uint8_t* cmd_str,
-                     uint8_t cmd_history[HISTORY_LENGTH][MAX_CMD_LENGTH],
-                     int32_t cmd_history_idx) {
-    if (cmd_str[0] == 'e') {
-        exit(0);
-    }
-    if (cmd_str[0] == 'h') {
-        print_history(cmd_history, cmd_history_idx);
-    }
     return;
 }
 
@@ -87,14 +61,19 @@ int main() {
     pid_t proc_ID;
     // Child error code
     int32_t err_code_child = 0;
+    // Variables for use in rerun
+    int32_t i, curr_idx, cmd_count;
+    // Error value for parent pipes
+    int32_t pipe_error = 0;
 
-    //// int i, offset;
-    //// str_ll* list;
+
+    int offset;
+    str_ll* list;
 
     // Initialize command to NULL
     cmd_str[0] = ASCII_NULL;
     // Initialize cmd_history to null command strings (i.e. no past commands)
-    memset(cmd_history, HISTORY_LENGTH * MAX_CMD_LENGTH, 0);
+    memset(cmd_history, HISTORY_LENGTH * MAX_CMD_LENGTH, ASCII_NULL);
 
     // Run the shell loop of getting user input and handling it
     while (true) {
@@ -112,16 +91,16 @@ int main() {
             curr_str = cmd_str;
         }
 
-        //// // WHEEEEEEEEEEEEEEEEEEEEEE
-        //// printf("Split function test\n");
-        //// offset = 0;
-        //// list = split(curr_str, &offset);
-        //// while(list != NULL)
-        //// {
-        ////     printf("%s\n", (char*) list->str);
-        ////     list = list->next;
-        //// }
-        //// printf("Offset: %d\n", offset);
+        // WHEEEEEEEEEEEEEEEEEEEEEE
+        printf("Split function test\n");
+        offset = 0;
+        list = split(curr_str, &offset);
+        while(list != NULL)
+        {
+            printf("%s\n", (char*) list->str);
+            list = list->next;
+        }
+        printf("Offset: %d\n", offset);
 
         // Parse command and get location to continue from
         curr_str = parse(curr_str, &cmd);
@@ -131,74 +110,116 @@ int main() {
             curr_str = NULL;
             continue;
         }
+        
+        // WHEEEEEEEEEEEEEEEEEEEEEE
+        printf("Parse function test\n");
+        i = 0;
+        while (cmd.arg_array[i] != NULL) {
+            printf("Arg %d: %s\n", i, (char*) cmd.arg_array[i]);
+            i++;
+        }
+        printf("In file:   %s\n", (char*) cmd.input);
+        printf("Out file:  %s\n", (char*) cmd.output);
+        printf("Double redir:  %d >& %d\n", cmd.redir_desc1, cmd.redir_desc2);
+        printf("Reder first:   %d\n", cmd.redir_desc_first);
+        printf("Pipe:    %d\n", cmd.pipe_flag);
+        printf("Trun:    %d\n", cmd.trun_flag);
+        printf("Bkgd:    %d\n", cmd.bkgd_flag);
+        printf("History: %d\n", cmd.history_num);
+        
+        // Catch rerun command here, errors already parsed out
+        if (cmd.history_num != 0) {
+            // Search for command (accounts for partially filled history)
+            curr_str = NULL;    // Set to default as not found
+            cmd_count = 0;
+            curr_idx = cmd_history_idx;
+            for (i = 0; i < HISTORY_LENGTH; i++) {
+                if (cmd_history[curr_idx][0] != 0) {
+                    cmd_count++;
+                    printf("%2d: %s", cmd_count, cmd_history[curr_idx]);
+                    // Command found
+                    if (cmd_count == cmd.history_num) {
+                        // Set curr_str to command to rerun and then continue
+                        curr_str = cmd_history[curr_idx];
+                        break;
+                    }
+                }
+                curr_idx++;
+                if (curr_idx == HISTORY_LENGTH) {curr_idx = 0;}
+            }
+            if (curr_str == NULL) {
+                printf("ERROR: Command requested not in history\n");
+            }            
+            continue;
+        }
 
-        //// // WHEEEEEEEEEEEEEEEEEEEEEE
-        //// printf("Parse function test\n");
-        //// i = 0;
-        //// while (cmd.arg_array[i] != NULL) {
-        ////     printf("Arg %d: %s\n", i, (char*) cmd.arg_array[i]);
-        ////     i++;
-        //// }
-        //// printf("In file:   %s\n", (char*) cmd.input);
-        //// printf("Out file:  %s\n", (char*) cmd.output);
-        //// printf("Double redir:  %d >& %d\n", cmd.redir_desc1, cmd.redir_desc2);
-        //// printf("Reder first:   %d\n", cmd.redir_desc_first);
-        //// printf("Pipe:    %d\n", cmd.pipe_flag);
-        //// printf("Trun:    %d\n", cmd.trun_flag);
-        //// printf("Bkgd:    %d\n", cmd.bkgd_flag);
-        //// printf("History: %d\n", cmd.history_num);
-
-        // Check for internal commands and handle them
-        // - destroy pipes as needed for clean up
-
-        // Run external commands
+        // Set up output pipe if needed
         if (cmd.pipe_flag) {
-            pipe(output_pipe); // Open output pipe if needed
-            output_pipe_pass = output_pipe;
+            if(pipe(output_pipe) != -1) {
+                output_pipe_pass = output_pipe; // Open output pipe if needed
+            }
+            else { // In case of error openning output pipe, report
+                fprintf(stderr, "Parent: failed to setup output pipe\n");
+                pipe_error = PARENT_OUTPUT_PIPE_ERROR;
+            }
         }
         else {
             output_pipe_pass = NULL;
         }
-        fprintf(stdout, "Forking\n");
-        proc_ID = fork();           // Fork off the child process to run command
-        fprintf(stdout, "Forked\n");
-        if (proc_ID == 0) {         // Call child process function if child
-            fprintf(stdout, "Child says hi\n");
-            err_code_child = ExecCommand(&cmd, input_pipe_pass, output_pipe_pass);
-            // child terminates here, so it returns the error code it has
-            fprintf(stdout, "Child: %d\n", err_code_child);
-            exit(err_code_child);
+        
+        // Check for internal commands and handle them
+        if (check_shell_cmd(&cmd)) {
+            // Redirect input as needed
+            // TODO
+            // Execute internal command
+            exec_shell_cmd(&cmd, cmd_history, cmd_history_idx);
+            // Restore stdin, stdout, and stderr to original
+            // TODO
         }
-        else if (proc_ID > 0) {     // Parent code
-            fprintf(stdout, "Parent says hi %d\n", err_code_child);
-            proc_ID = wait(&err_code_child); // Wait for child executing to terminate
-            fprintf(stdout, "Parent testing %d\n", err_code_child);
-            WEXITSTATUS(err_code_child);    // Get child return value
-            fprintf(stdout, "Parent says bye %d\n", err_code_child);
-            if (input_pipe_pass != NULL) {
-                // Close remaining handle
-                close(input_pipe[PIPE_READ_SIDE]);
+        // Run external commands
+        else {
+            proc_ID = fork();       // Fork off the child process to run command
+            if (proc_ID == 0) {     // Call child process function if child
+                fprintf(stdout, "Child says hi\n");
+                err_code_child = ExecCommand(&cmd, input_pipe_pass, output_pipe_pass);
+                // child terminates here, so it returns the error code it has
+                fprintf(stdout, "Child: %d\n", err_code_child);
+                exit(err_code_child);
             }
-            // Swap pipes
-            swap_dummy = output_pipe;
-            output_pipe = input_pipe;
-            input_pipe = swap_dummy;
-            // Reassign input_pipe_pass correctly
-            if (output_pipe_pass != NULL) {
-                input_pipe_pass = input_pipe;
-                close(input_pipe[PIPE_WRITE_SIDE]);
+            else if (proc_ID > 0) { // Parent code
+                fprintf(stdout, "Parent says hi %d\n", err_code_child);
+                proc_ID = wait(&err_code_child); // Wait for child executing to terminate
+                fprintf(stdout, "Parent testing %d\n", err_code_child);
+                WEXITSTATUS(err_code_child);    // Get child return value
+                fprintf(stdout, "Parent says bye %d\n", err_code_child);
             }
-        }
-        else {                      // Fork failed, give error message
-            printf("Forking error: %d\n", proc_ID);
-            curr_str = NULL;        // Get new user input
+            else {                      // Fork failed, give error message
+                printf("Forking error: %d\n", proc_ID);
+                curr_str = NULL;        // Get new user input
+            }
+            if (err_code_child != NO_ERROR) {
+                printf("Process error: %d\n", err_code_child);
+                curr_str = NULL;        // Get new user input
+            }
         }
         
-        if (err_code_child != NO_ERROR) {
-            printf("Process error: %d\n", err_code_child);
-            curr_str = NULL;        // Get new user input
+        // Set up pipes for next iteration
+        if (input_pipe_pass != NULL) {
+            // Close remaining handle
+            close(input_pipe[PIPE_READ_SIDE]);
+        }
+        // Swap pipes
+        swap_dummy = output_pipe;
+        output_pipe = input_pipe;
+        input_pipe = swap_dummy;
+        // Reassign input_pipe_pass correctly
+        if (output_pipe_pass != NULL) {
+            input_pipe_pass = input_pipe;
+            close(input_pipe[PIPE_WRITE_SIDE]);
         }
 
+        //// NEED TO CLOSE ALL PIPES IF ERROR SEEN
+        
         // Clean up memory allocated
         if (cmd.arg_array != NULL) {
             free(cmd.arg_array);
