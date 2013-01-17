@@ -18,6 +18,8 @@
 #include "builtin_cmd.h"
 #include "shell_cmd.h"
 
+#define PARENT_OUTPUT_PIPE_ERROR   1
+
 // Print the shell prompt in the format username:current/directory>
 void print_prompt() {
     // Allocate space for username and current path
@@ -61,6 +63,9 @@ int main() {
     int32_t err_code_child = 0;
     // Variables for use in rerun
     int32_t i, curr_idx, cmd_count;
+    // Error value for parent pipes
+    int32_t pipe_error = 0;
+
 
     int offset;
     str_ll* list;
@@ -150,8 +155,13 @@ int main() {
 
         // Set up output pipe if needed
         if (cmd.pipe_flag) {
-            pipe(output_pipe); // Open output pipe if needed
-            output_pipe_pass = output_pipe;
+            if(pipe(output_pipe) != -1) {
+                output_pipe_pass = output_pipe; // Open output pipe if needed
+            }
+            else { // In case of error openning output pipe, report
+                fprintf(stderr, "Parent: failed to setup output pipe\n");
+                pipe_error = PARENT_OUTPUT_PIPE_ERROR;
+            }
         }
         else {
             output_pipe_pass = NULL;
