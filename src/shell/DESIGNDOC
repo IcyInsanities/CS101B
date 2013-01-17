@@ -159,12 +159,36 @@ Sketched out:
 >> Keep your description of each process' responsibilities limited to
 >> ~25 words or less.
 
+We use a single child process to execute a command.  The process is responsible
+for redirecting input from a previous pipe if necessary, and redirecting output
+output through a pipe to the parent if necessary.  It is also responsible
+for any cleaning up any unused file descriptors in the pipe.
+
+The parent process is responsible for creating the pipes when necessary and
+directing input through a pipe to the child when necessary, and redirecting
+output from the child through the pipe to the next command (run by another
+child process).
+
 >> A5: Similarly, describe which processes are responsible for reaping
 >> other terminated processes in the example command "a | b | c".
+
+The parent process (shell) is responsible for reaping all processes forked
+off to execute commands.  The commands are run one at a time in order (a, b
+then c).  Once a has exited, the parent redirects a's output to b, and reaps
+a.  A child process is then forked of to execute b.  The process is repeated
+until the child for command c has exited.
 
 >> A6: Similarly, describe which processes are responsible for setting
 >> up the redirections in the example command
 >> "a < inp.txt | b | c > out.txt".
+
+The child which executes a command is responsible for managing file
+redirections.  For example, the child executing a will redirect inp.txt to
+the command and pipe its output to the parent process.  In the case of command
+c it will redirect the output to out.txt.
+
+The parent process is responsible for specifying if and where input should be
+directed from and output should be directed to.
 
 ---- RATIONALE ----
 
