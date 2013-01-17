@@ -104,7 +104,7 @@ int32_t ExecCommand(cmd_struct *cmd, int32_t *inputPipe, int32_t *outputPipe) {
     // Handle output
     // If there is an ouput pipe, set it to STDOUT
     if (cmd->pipe_flag == true && outputPipe != NULL) {
-        fprintf(stdout, "Child: output pipe\n");
+        ////fprintf(stdout, "Child: output pipe\n");
         
         // If closing the pipe fails, report an error
         if(close(outputPipe[PIPE_READ_SIDE]) == -1) {
@@ -125,7 +125,7 @@ int32_t ExecCommand(cmd_struct *cmd, int32_t *inputPipe, int32_t *outputPipe) {
     // If there is a file specified for redirection of stdout, use it
     else if ((cmd->output != NULL) && (*(cmd->output) != ASCII_NULL) && !(cmd->redir_desc1
         > NO_DUP_REDIR && cmd->redir_desc2 > NO_DUP_REDIR)) {
-        fprintf(stdout, "Child: output file\n");
+        ////fprintf(stdout, "Child: output file\n");
         // Check if truncating or appending
         if ((cmd->trun_flag) == false) {
             appendFlag = O_APPEND;
@@ -152,7 +152,7 @@ int32_t ExecCommand(cmd_struct *cmd, int32_t *inputPipe, int32_t *outputPipe) {
     // if there is duplication redirection, handle it
     else if (cmd->redir_desc1 > NO_DUP_REDIR && cmd->redir_desc2 > NO_DUP_REDIR &&
         !((cmd->output != NULL) && (*(cmd->output) != ASCII_NULL))) {
-        fprintf(stdout, "Child: dup redir\n");
+        ////fprintf(stdout, "Child: dup redir\n");
 
         // Duplicate the output
         if(dup2(cmd->redir_desc2, cmd->redir_desc1) == -1) {

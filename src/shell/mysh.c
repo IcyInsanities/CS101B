@@ -29,7 +29,7 @@
 void get_prompt(uint8_t* prompt) {
     // Allocate space for username and current path
     uint8_t curr_path[PATH_MAX]; // Use maximum system path length
-
+printf("sup\n");
     // Copy the username into the prompt
     strcpy(prompt, getlogin());
     getcwd( (char*) curr_path, PATH_MAX);
@@ -188,16 +188,16 @@ int main() {
         // Start with no errors seen
         err_flag = false;
 
-        // WHEEEEEEEEEEEEEEEEEEEEEE
-        printf("Split function test\n");
-        offset = 0;
-        list = split(curr_str, &offset);
-        while(list != NULL)
-        {
-            printf("%s\n", (char*) list->str);
-            list = list->next;
-        }
-        printf("Offset: %d\n", offset);
+        //// // WHEEEEEEEEEEEEEEEEEEEEEE
+        //// printf("Split function test\n");
+        //// offset = 0;
+        //// list = split(curr_str, &offset);
+        //// while(list != NULL)
+        //// {
+        ////     printf("%s\n", (char*) list->str);
+        ////     list = list->next;
+        //// }
+        //// printf("Offset: %d\n", offset);
 
         // Parse command and get location to continue from
         curr_str = parse(curr_str, &cmd);
@@ -213,23 +213,23 @@ int main() {
             continue;
         }
         
-        // WHEEEEEEEEEEEEEEEEEEEEEE
-        if (!err_flag) {
-            printf("Parse function test\n");
-            i = 0;
-            while (cmd.arg_array[i] != NULL) {
-                printf("Arg %d: %s\n", i, (char*) cmd.arg_array[i]);
-                i++;
-            }
-            printf("In file:   %s\n", (char*) cmd.input);
-            printf("Out file:  %s\n", (char*) cmd.output);
-            printf("Double redir:  %d >& %d\n", cmd.redir_desc1, cmd.redir_desc2);
-            printf("Reder first:   %d\n", cmd.redir_desc_first);
-            printf("Pipe:    %d\n", cmd.pipe_flag);
-            printf("Trun:    %d\n", cmd.trun_flag);
-            printf("Bkgd:    %d\n", cmd.bkgd_flag);
-            printf("History: %d\n", cmd.history_num);
-        }
+        //// // WHEEEEEEEEEEEEEEEEEEEEEE
+        //// if (!err_flag) {
+        ////     printf("Parse function test\n");
+        ////     i = 0;
+        ////     while (cmd.arg_array[i] != NULL) {
+        ////         printf("Arg %d: %s\n", i, (char*) cmd.arg_array[i]);
+        ////         i++;
+        ////     }
+        ////     printf("In file:   %s\n", (char*) cmd.input);
+        ////     printf("Out file:  %s\n", (char*) cmd.output);
+        ////     printf("Double redir:  %d >& %d\n", cmd.redir_desc1, cmd.redir_desc2);
+        ////     printf("Reder first:   %d\n", cmd.redir_desc_first);
+        ////     printf("Pipe:    %d\n", cmd.pipe_flag);
+        ////     printf("Trun:    %d\n", cmd.trun_flag);
+        ////     printf("Bkgd:    %d\n", cmd.bkgd_flag);
+        ////     printf("History: %d\n", cmd.history_num);
+        //// }
         
         // Catch rerun command here, errors already parsed out
         if ((!err_flag) && (cmd.history_num != 0)) {
@@ -316,16 +316,21 @@ int main() {
         
             // Print errors if present
             if (err_flag == true) {
-                handle_errors(err_code_child);
-                handle_errors(pipe_error);
-                err_flag = false;
-                err_code_child = 0;
-                pipe_error = 0;
+                //handle_errors(err_code_child);
+                //handle_errors(pipe_error);
+                //err_flag = false;
+                //err_code_child = 0;
+                //pipe_error = 0;
             }
             
             for (i = 0; i < 2; i++) {
-                close(input_pipe[i]);
-                close(output_pipe[i]);
+                
+                if (input_pipe[i] != NULL) {
+                    close(input_pipe[i]);
+                }
+                if (output_pipe[i] != NULL) {
+                    close(output_pipe[i]);
+                }
             }
         }
 
