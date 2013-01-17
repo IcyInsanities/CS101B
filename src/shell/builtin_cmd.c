@@ -65,24 +65,19 @@ int32_t ExecCommand(cmd_struct *cmd, int32_t *inputPipe, int32_t *outputPipe) {
 
     // Append to file option flag
     int32_t appendFlag;
-    
-    fprintf(stdout, "Child: I RUN!\n");
 
     // Handle input
     // Replace input if last pipe exists
     if (inputPipe != NULL) {
-        fprintf(stdout, "Child: input pipe\n");
 
         // Set read end of pipe to standard input
         if(dup2(inputPipe[PIPE_READ_SIDE], STDIN_FILENO) == -1) {
             // Failed to setup input pipe
-            fprintf(stderr, "Child: failed to setup input pipe\n");
             return errno;
         }
     }
     // If there is a file specified for redirection of stdin, use it
     else if ((cmd->input != NULL) && (*(cmd->input) != ASCII_NULL)) {
-        fprintf(stdout, "Child: input files\n");
         // Open the file to read from
         inputFile = open((char*) cmd->input, O_RDWR);
 
@@ -94,18 +89,15 @@ int32_t ExecCommand(cmd_struct *cmd, int32_t *inputPipe, int32_t *outputPipe) {
         // Set STDIN to use input file
         if(dup2(inputFile, STDIN_FILENO)) {
             // Failed to setup input file
-            fprintf(stderr, "Child: failed to setup input file\n");
             return errno;
         }
     }
     // If there is no redirection or piping then use STDIN, no code needed
-    else {fprintf(stdout, "Child: no input!\n");}
+    else {}
 
     // Handle output
     // If there is an ouput pipe, set it to STDOUT
     if (cmd->pipe_flag == true && outputPipe != NULL) {
-        ////fprintf(stdout, "Child: output pipe\n");
-        
         // If closing the pipe fails, report an error
         if(close(outputPipe[PIPE_READ_SIDE]) == -1) {
             return errno;
@@ -114,7 +106,6 @@ int32_t ExecCommand(cmd_struct *cmd, int32_t *inputPipe, int32_t *outputPipe) {
         // Set write end of pipe to standard output
         if (dup2(outputPipe[PIPE_WRITE_SIDE], STDOUT_FILENO) == -1) {
             // Failed to setup output pipe from child
-            fprintf(stderr, "Child: failed to setup output pipe\n");
             return errno;
         }
         // If closing the pipe fails, report an error
@@ -125,7 +116,6 @@ int32_t ExecCommand(cmd_struct *cmd, int32_t *inputPipe, int32_t *outputPipe) {
     // If there is a file specified for redirection of stdout, use it
     else if ((cmd->output != NULL) && (*(cmd->output) != ASCII_NULL) && !(cmd->redir_desc1
         > NO_DUP_REDIR && cmd->redir_desc2 > NO_DUP_REDIR)) {
-        ////fprintf(stdout, "Child: output file\n");
         // Check if truncating or appending
         if ((cmd->trun_flag) == false) {
             appendFlag = O_APPEND;
@@ -145,19 +135,16 @@ int32_t ExecCommand(cmd_struct *cmd, int32_t *inputPipe, int32_t *outputPipe) {
         // Set STDOUT to use the output file
         if (dup2(outputFile, STDOUT_FILENO) == -1) {
             // Failed to setup output file
-            fprintf(stderr, "Child: failed to setup output file.\n");
             return errno;
         }
     }
     // if there is duplication redirection, handle it
     else if (cmd->redir_desc1 > NO_DUP_REDIR && cmd->redir_desc2 > NO_DUP_REDIR &&
         !((cmd->output != NULL) && (*(cmd->output) != ASCII_NULL))) {
-        ////fprintf(stdout, "Child: dup redir\n");
 
         // Duplicate the output
         if(dup2(cmd->redir_desc2, cmd->redir_desc1) == -1) {
             // Failed to setup duplicate redirection
-            fprintf(stderr, "Child: failed to setup dup redirection.\n");
             return errno;
         };
     }
@@ -196,16 +183,13 @@ int32_t ExecCommand(cmd_struct *cmd, int32_t *inputPipe, int32_t *outputPipe) {
         
     }
     // If there is no redirection or piping, the use normal STDOUT, no code here
-    else {fprintf(stdout, "Child: no output!\n");}
+    else {}
     
     // Run the command, returning any errors
-    fprintf(stdout, "Child: executing\n");
     if (execvp((char*) cmd->arg_array[0], (char**) cmd->arg_array) == -1) {
         // Failed to execute command
-        fprintf(stderr, "Child: failed to execute command.\n");
         return errno;
     }
-    fprintf(stdout, "Child: I live!\n");
 
     // Close input file
     if (inputFile != -1) {

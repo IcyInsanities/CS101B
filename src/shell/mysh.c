@@ -29,7 +29,6 @@
 void get_prompt(uint8_t* prompt) {
     // Allocate space for username and current path
     uint8_t curr_path[PATH_MAX]; // Use maximum system path length
-printf("sup\n");
     // Copy the username into the prompt
     strcpy(prompt, getlogin());
     getcwd( (char*) curr_path, PATH_MAX);
@@ -49,83 +48,83 @@ void handle_errors(int32_t error_code) {
             break;
             
         case EACCES:
-            printf("Error:%d File access denied.\n", error_code);
+            fprintf(stderr, "Error:%d File access denied.\n", error_code);
             break;
             
         case EEXIST:
-            printf("Error:%d Path already exists.\n", error_code);
+            fprintf(stderr, "Error:%d Path already exists.\n", error_code);
             break;
             
         case EISDIR:
-            printf("Error:%d Path is not a file.\n", error_code);
+            fprintf(stderr, "Error:%d Path is not a file.\n", error_code);
             break;
             
         case EMFILE:
-            printf("Error:%d Maximum number of open files reached.\n", error_code);
+            fprintf(stderr, "Error:%d Maximum number of open files reached.\n", error_code);
             break;
             
         case ENAMETOOLONG:
-            printf("Error:%d Pathname is too long.\n", error_code);
+            fprintf(stderr, "Error:%d Pathname is too long.\n", error_code);
             break;
             
         case ENFILE:
-            printf("Error:%d Maximum number of open files reached.\n", error_code);
+            fprintf(stderr, "Error:%d Maximum number of open files reached.\n", error_code);
             break;
             
         case ENOENT:
-            printf("Error:%d File does not exist.\n", error_code);
+            fprintf(stderr, "Error:%d File does not exist.\n", error_code);
             break;
             
         case ENOSPC:
-            printf("Error:%d Device out of space.\n", error_code);
+            fprintf(stderr, "Error:%d Device out of space.\n", error_code);
             break;
             
         case ENOTDIR:
-            printf("Error:%d Path is not a directory.\n", error_code);
+            fprintf(stderr, "Error:%d Path is not a directory.\n", error_code);
             break;
             
         case EOVERFLOW:
-            printf("Error:%d File too large.\n", error_code);
+            fprintf(stderr, "Error:%d File too large.\n", error_code);
             break;
             
         case EROFS:
-            printf("Error:%d Path is read-only.\n", error_code);
+            fprintf(stderr, "Error:%d Path is read-only.\n", error_code);
             break;
             
         case ETXTBSY:
-            printf("Error:%d Requested path busy.\n", error_code);
+            fprintf(stderr, "Error:%d Requested path busy.\n", error_code);
             break;
             
         case EBADF:
-            printf("Error:%d Invali file descriptor.\n", error_code);
+            fprintf(stderr, "Error:%d Invali file descriptor.\n", error_code);
             break;
             
         case EINTR:
-            printf("Error:%d Close interrupted.\n", error_code);
+            fprintf(stderr, "Error:%d Close interrupted.\n", error_code);
             break;
             
         case EIO:
-            printf("Error:%d I/O error.\n", error_code);
+            fprintf(stderr, "Error:%d I/O error.\n", error_code);
             break;
             
         case EFAULT:
-            printf("Error:%d Invalid pipe file descriptor.\n", error_code);
+            fprintf(stderr, "Error:%d Invalid pipe file descriptor.\n", error_code);
             break;
             
         case EINVAL:
-            printf("Error:%d (pipe2()) Invalid flag value.\n", error_code);
+            fprintf(stderr, "Error:%d (pipe2()) Invalid flag value.\n", error_code);
             break;
             
         case E2BIG:
-            printf("Error:%d Environment and/or argument list too large.\n", error_code);
+            fprintf(stderr, "Error:%d Environment and/or argument list too large.\n", error_code);
             break;
             
         case ECHILD:
-            printf("Error:%d Liar, waitpid() does not work!!!\n", error_code);
+            fprintf(stderr, "Error:%d Liar, waitpid() does not work!!!\n", error_code);
             break;
             
         default:
-            printf("Error:%d Liar, waitpid() does not work!!!\n", error_code);
+            fprintf(stderr, "Error:%d Liar, waitpid() does not work!!!\n", error_code);
             break;
     }
     return;
