@@ -24,9 +24,30 @@ Late tokens: 0
 >> If you have any preliminary comments on your submission, notes for the
 >> TAs, or extra credit, please give them here.
 
+Notes on extra credit and special cases:
+    If multiple redirections of the same type are given in a command, only the
+    last one of each type (<, >, >&) is retained. Unlike the real shell, the
+    intermediate files are not created. Inputs of >> are treated like > for this
+    purpose as both redirect the output.
+    The & symbol is paritally handled. It is parsed correctly only for the pipe
+    separated segment of the command string, i.e. "a|b&" would have it only on
+    the "b" command. Regardless, the shell ignores the flag this sets and runs
+    the command in the foreground anyway.
+    Readlines is implemented, and the history command is functional as is the
+    "!" command. The "!" command does not accept piping or anything else after
+    it, but it can come at the end of a piping chain. Additionally, these
+    commands do not work with redirects, which are just ignored. 
+
 >> Please cite any offline or online sources you consulted while
 >> preparing your submission, other than the Pintos documentation, course
 >> text, lecture notes, and course staff.
+The sources used are:
+    For design decisions:
+        http://www.gnu.org/software/bash/manual/bashref.html
+        Checking behavior in the BASH shell
+    For coding problems:
+        Various man pages for the linux commands called
+        Various websites for minor syntax errors
 
 			   COMMAND SHELL
 			   =============
@@ -40,16 +61,88 @@ Late tokens: 0
 >> parsed by the shell process, or are child processes responsible
 >> for parsing portions of the command?
 
+The interpretation of commands occurs in several stages. First, a splitter takes
+the entire string and starts to tokenize it up to the first '|' symbol, or
+string end. This split string is then parsed into a command structure which
+pulls out the redirects and other special commands. Finally, this is executed.
+After execution, the process repeats from where the splitter stopped it's
+parsing. If the end of string was reached, then new user input is requested. All
+of this is done by the parent shell process.
+To give an example (with only relevant cmd_struct elements shown):
+Itaration 1:
+    Split into: "a" -> "arg1" -> "arg2" -> "|" -> ASCII_NULL
+    Parsed into: {"a", "arg1", "arg2", NULL}
+                 pipe_flag set to true
+    Executed
+Itaration 2:
+    Split into: "b -> "arg1" -> "|" -> ASCII_NULL
+    Parsed into: {"b", "arg1", NULL}
+                 pipe_flag set to true
+                 input_pipe already defined from last pass
+    Executed
+Itaration 3:
+    Split into: "c -> "arg1" -> "arg2" -> "arg3" -> ASCII_NULL
+    Parsed into: {"c", "arg1", "arg2", "arg3", NULL}
+                 pipe_flag remains as default false
+                 input_pipe already defined from last pass
+    Executed
+Iteration 4:
+    New user input requested
+    
 >> A2: Now, given the command:
 >> "a arg1 arg2 < inp.txt | b arg1 | c arg1 arg2 arg3 > out.txt"
 >> Briefly explain specifically how the redirections are parsed and
 >> represented, and by what processes.
 
+The overall process follows as above. The splitter acts on this 3 times, which
+result in the following linked lists:
+    "a" -> "arg1" -> "arg2" -> "<" -> "inp.txt" -> "|" -> ASCII_NULL
+    "b" -> "arg1" -> "|" -> ASCII_NULL
+    "c" -> "arg1" -> "arg2" -> "arg3" -> ">" -> "out.txt" -> ASCII_NULL
+After the first one is obtained, the parser first goes through and checks for
+any redirections that are given. It will always take the element directly after
+the "<" or ">" as the filename (parser has already ensured they are not special
+symbols), and updates those values in the cmd_struct element. These elements in
+the linked list are now marked as deleted. The linked lists are then:
+    "a" -> "arg1" -> "arg2" -> NULL -> NULL -> NULL -> ASCII_NULL
+        input value set to "inp.txt"
+    "b" -> "arg1" -> NULL -> ASCII_NULL
+    "c" -> "arg1" -> "arg2" -> "arg3" -> NULL -> NULL -> ASCII_NULL
+        output value set to "out.txt"
+These are now turned into argument arrays as before giving:
+    {"a", "arg1", "arg2", NULL}
+    {"b", "arg1", NULL}
+    {"c", "arg1", "arg2", "arg3", NULL}
+The completed command struct is now passed on to be executed. As with the pipes,
+the appropriate redirections are done before execution.
+Note: The linked list elements are not actually deleted but marked NULL so that
+    the special condition of "a 1 > a.txt >&2" can be detected as invalid and
+    not the same as "a > a.txt 1>&2".
+    
 ---- ALGORITHMS ----
 
 >> A3: Illustrate how you solved the problem of setting up
 >> redirection in a simple command like "a < inp.txt > out.txt", by
 >> describing what process takes care of the redirection and when.
+
+After the creation of the cmd_struct, which here would have both the input and
+output elements changed from the default from the splitter/parser. The child is
+created, and before it executes the command "a", it will handle the redirection.
+This is done as the parent has no need to change the pointers it has to stdin
+and stdout, only the process that will run "a" needs them. Thus the parent
+determines if any redirection is needed when parsing, which is actually done in
+the child.
+Sketched out:
+    Parent:
+        Linked list: "a" -> "<" -> "inp.txt" -> "<" -> "out.txt" -> ASCII_NULL
+        cmd_struct: {"a",  NULL}, input="inp.txt", output="out.txt"
+        fork
+    Child:
+        Redirect input
+        Redirect output
+        Execute "a"
+    Parent:
+        Next command
 
 >> A4: Illustrate how you solved the problem of setting up the pipes
 >> between multiple operations in a single command, by describing
@@ -72,8 +165,40 @@ Late tokens: 0
 >> A?: Why do the chdir and exit commands have to be implemented as
 >> built-in functions, rather than external programs?
 
+The external programs are handled by forking to create a child process, which
+then uses execvp to start the external program. Any changes to the current
+directory in the child process is local to that process, and does not affect the
+parent process which is running the shell. Also, exiting the child process would
+not close the parent shell. Thus both of these commands must be handled directly
+in the parent process for the change to persist the next time the user inputs a
+command in that shell session.
+
 >> A6: Why did you choose this design?  In what ways is it superior to
 >> another design you considered?
+
+For the parsing, it seemed most natural to first tokenize the inputs, which
+takes care of all the special interations between the symbols, particularly ">",
+">>", and ">&", along with whitespace and quotes to complicate matters. Once
+tokenized, it became a much simpler matter to pull out the various components
+that make up the cmd_struct which contains all the necessary information on the
+command to execute.
+This also allowed the parsing to easily be done as a finite state machine, which
+proved useful with the special cases to extend the functionality and correct
+minor parsing errors. The FSM design lended itself to handle multiple special
+symbols as parsing errors, along with extra commands after & or !.
+The alternative would be to attempt to directly parse the entire string (up to a
+pipe or at once). This would have had a large complication with special chars
+like "<" inside of quotes, which could be separated in our design.
+Following the splitting and parsing, we had a filled in cmd_struct that had the
+details of the command. This allowed for very easy casing out for handling the
+redirection, along with checking if a ! command was given. The ">>" was now
+simply an extra flag that went into the redirection code.
+Partially this overall design was chosen for the ease of extending it with more
+functionality. As can be seen, the splitter catches "&" partially correctly, as
+it does not check past a pipe. Even so, this fix can be done quickly, and then
+just the shell top layer needs to handle the background exection. Other updates
+can similarly be done by expanding the parameters in the cmd_struct to be cased
+out in the parent/child when executing the command.
 
 			  SURVEY QUESTIONS
 			  ================
@@ -87,12 +212,29 @@ website.
 >> In your opinion, was this assignment, or any one of the three problems
 >> in it, too easy or too hard?  Did it take too long or too little time?
 
+Overall, we did not find the assignment extremely hard, just very involved and
+time consuming. Handling the many special cases took time in deciding what the
+correct functionality should be (typically based on the actual BASH shell, often
+simplified to allow for simpler implementation). A more comprehensive set of
+examples of the expected behavior, particularly edge cases would have been
+helpful in directing this portion of the design.
+In terms of the system calls, the main challenge was finding correct
+documentation and the correct functions to use.
+
 >> Did you find that working on a particular part of the assignment gave
 >> you greater insight into some aspect of OS design?
+
+Designing the parsing, particularly handling the various special conditions that
+can occur proved interesting in showing the complexity that the real BASH shell
+has in order to support so many features in all the permutations. 
 
 >> Is there some particular fact or hint we should give students in
 >> future quarters to help them solve the problems?  Conversely, did you
 >> find any of our guidance to be misleading?
+
+We found that trusting the man pages was much better than google searches at
+times, and that some of the documentation given in the problem set on system
+calls to make was incorrect or did not lead to a clean workable design.
 
 >> Do you have any suggestions for the TAs to more effectively assist
 >> students, either for future quarters or the remaining projects?
