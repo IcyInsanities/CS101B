@@ -17,16 +17,17 @@ enum split_states
     WHITE_SP,       // White space
     QUOTE,          // Quotation received
     QUOTE_END,      // End of quotation
-    LT_CHAR,
-    GT_CHAR,
-    PIPE_CHAR,
-    EXC_CHAR,
+    LT_CHAR,        // <
+    GT_CHAR,        // >
+    GT_WHITE,       // Whitespace after a >
+    PIPE_CHAR,      // Pipe
+    EXC_CHAR,       // ! character
     EXC_NUM,        // Number after ! character
-    AMP_CHAR,
+    AMP_CHAR,       // Single & (not >&)
     DUP_REDIR_CHAR, // Duplicate redirection char >&
     APPEND_CHAR,    // Append character >>
-    ERROR_STATE,
-    DONE
+    ERROR_STATE,    // Encountered an error
+    DONE            // Finished with no error
 };
 
 uint8_t* parse(uint8_t*, cmd_struct*);
