@@ -1,11 +1,12 @@
 # Define constants
 OBJS = mysh.o parser.o builtin_cmd.o shell_cmd.o
 CC = gcc
-CFLAGS = -Wall -W
+CFLAGS = -Wall -W -lreadline
 
 all: mysh
 
 mysh: $(OBJS)
+	$(CC) $(CFLAGS) $(OBJS) -o mysh
 
 %.o: %.c
 	$(CC) $(CFLAGS) -c $< -o $@

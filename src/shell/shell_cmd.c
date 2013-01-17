@@ -15,20 +15,21 @@
 ////#include <fcntl.h>
 #include <stdlib.h>
 #include <errno.h>
+#include <readline/readline.h>
+#include <readline/history.h>
 
 // This function prints out the shell history
-void print_history(uint8_t cmd_history[HISTORY_LENGTH][MAX_CMD_LENGTH],
-                   int32_t cmd_history_idx) {
-    int32_t i;                           // Loop variable
-    int32_t curr_idx = cmd_history_idx;  // Index of current command in history
-    int32_t cmd_count = 1;               // Count of commands printed
-    for (i = 0; i < HISTORY_LENGTH; i++) {
-        if (cmd_history[curr_idx][0] != 0) {
-            printf("%2d: %s", cmd_count, cmd_history[curr_idx]);
-            cmd_count++;
-        }
-        curr_idx++;
-        if (curr_idx == HISTORY_LENGTH) {curr_idx = 0;}
+void print_history() {
+    int32_t i;                          // Loop variable
+    HIST_ENTRY* hist_entry;             // Pointer to history construct
+    
+    i = where_history;
+
+    while(i >= history_base)
+    {
+        hist_entry = history_get(i);
+        printf("%2d: %s", i - history_base + 1, hist_entry->line);
+        i --;
     }
 }
 
@@ -72,9 +73,7 @@ bool check_shell_cmd(cmd_struct *cmd) {
 
 // Executes command based on passed command struct which is an internal shell
 // command
-int32_t exec_shell_cmd(cmd_struct *cmd,
-                       uint8_t cmd_history[HISTORY_LENGTH][MAX_CMD_LENGTH],
-                       int32_t cmd_history_idx) {
+int32_t exec_shell_cmd(cmd_struct *cmd) {
     // Got exit command
     if (strcmp((char*) cmd->arg_array[0], "exit") == 0) {
         exit(0);
@@ -85,7 +84,7 @@ int32_t exec_shell_cmd(cmd_struct *cmd,
             fprintf(stderr, "Too many arguments to history\n");
             return ERROR;
         }
-        print_history(cmd_history, cmd_history_idx);
+        print_history();
         return NO_ERROR;
     }
     // Got rerun command, reset execution to that command
