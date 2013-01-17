@@ -1,3 +1,8 @@
+/* This file contains the code for handling the built in shell command
+ *
+ * Team: Shir, Steven, Reggie
+*/
+
 #include <stdbool.h>
 #include <stdint.h>
 #include <unistd.h>
@@ -7,12 +12,7 @@
 #include "mysh.h"
 #include "gen.h"
 #include "shell_cmd.h"
-////#include "builtin_cmd.h"
 
-
-////#include <sys/types.h>
-////#include <sys/stat.h>
-////#include <fcntl.h>
 #include <stdlib.h>
 #include <errno.h>
 #include <readline/readline.h>
@@ -36,6 +36,8 @@ void print_history() {
     }
 }
 
+// This function changes directories to the given directory, if no argument is
+// given then it defaults to the home directory
 int32_t change_dir(uint8_t* new_dir) {
     // Hold the error code if any
     int32_t error_code;
@@ -61,8 +63,8 @@ int32_t change_dir(uint8_t* new_dir) {
     return NO_ERROR;
 }
 
-
 // Checks if the command given is a shell command
+// Note that ! is not here as it is run in the main shell for access to vars
 bool check_shell_cmd(cmd_struct *cmd) {
     // Check if the first argument is an internal shell command and return true
     if ((strcmp((char*) cmd->arg_array[0], "exit")    == 0) ||
@@ -83,16 +85,19 @@ int32_t exec_shell_cmd(cmd_struct *cmd) {
     }
     // Got history command
     else if (strcmp((char*) cmd->arg_array[0], "history") == 0) {
+        // Check for extraneous arguments
         if (cmd->arg_array[1] != NULL) {
             fprintf(stderr, "Too many arguments to history\n");
             return ERROR;
         }
+        // Print history and return without error
         print_history();
         return NO_ERROR;
     }
     // Got rerun command, reset execution to that command
     else if ((strcmp((char*) cmd->arg_array[0], "cd")    == 0) ||
              (strcmp((char*) cmd->arg_array[0], "chdir") == 0)) {
+        // Check for extraneous arguments
         if ((cmd->arg_array[1] != NULL) && (cmd->arg_array[2] != NULL)) {
             fprintf(stderr, "Too many arguments to cd or chdir\n");
             return ERROR;
