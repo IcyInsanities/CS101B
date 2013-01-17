@@ -20,22 +20,24 @@
 #include "parser.h"
 #include "builtin_cmd.h"
 #include "shell_cmd.h"
+#include <readline/readline.h>
+#include <readline/history.h>
 
 #define PARENT_OUTPUT_PIPE_ERROR   1
 
-// Print the shell prompt in the format username:current/directory>
-void print_prompt() {
+// Return the shell prompt in the format username:current/directory>
+void get_prompt(uint8_t* prompt) {
     // Allocate space for username and current path
-    uint8_t* username;
     uint8_t curr_path[PATH_MAX]; // Use maximum system path length
 
-    // System calls to obtain username and path
-    username = (uint8_t*) getlogin();
+    // Copy the username into the prompt
+    strcpy(prompt, getlogin());
     getcwd( (char*) curr_path, PATH_MAX);
-
-    // Print out prompt and return1
-    printf("%s:%s> ", username, curr_path);
-    return;
+    
+    // Concatenate strings
+    strcat(prompt, ":");
+    strcat(prompt, curr_path);
+    strcat(prompt, "> ");
 }
 
 void handle_errors(int32_t error_code) {
@@ -130,12 +132,8 @@ void handle_errors(int32_t error_code) {
 }
 // Main function to run shell
 int main() {
-    // Allocate a history buffer
-    uint8_t cmd_history[HISTORY_LENGTH][MAX_CMD_LENGTH];
-    // Index to the current location in the command history for cicular array
-    int32_t cmd_history_idx = 0;
     // Current command string
-    uint8_t cmd_str[MAX_CMD_LENGTH];
+    uint8_t* cmd_str = NULL;
     // Location of parsing (for piped commands)
     uint8_t* curr_str = NULL;
     // Command struct to hold parsed details
@@ -155,33 +153,35 @@ int main() {
     // Child error code
     int32_t err_code_child = 0;
     // Variables for use in rerun
-    int32_t i, curr_idx, cmd_count;
+    int32_t i;
     // Error value for parent pipes
     int32_t pipe_error = 0;
     // Flag for whether some error was seen
     bool err_flag;
+    // Entry in the history table
+    HIST_ENTRY* hist_entry;
+    // Prompt for user
+    uint8_t prompt[PATH_MAX];
 
     int offset;
     str_ll* list;
-
-    // Initialize command to NULL
-    cmd_str[0] = ASCII_NULL;
-    // Initialize cmd_history to null command strings (i.e. no past commands)
-    memset(cmd_history, HISTORY_LENGTH * MAX_CMD_LENGTH, ASCII_NULL);
 
     // Run the shell loop of getting user input and handling it
     while (true) {
         // Get command from user if nothing left to parse
         if ((curr_str == NULL) || (*curr_str == ASCII_NULL)) {
-            // Save previous command to history first
-            strcpy((char*) cmd_history[cmd_history_idx], (char*) cmd_str);
-            cmd_history_idx++;
-            if (cmd_history_idx == HISTORY_LENGTH) {
-                cmd_history_idx = 0;    // Wrap around when needed
+            // Save previous command to history if it is non-zero
+            if(cmd_str != NULL)
+            {
+                if(strlen(cmd_str) > 0)
+                {
+                    add_history(cmd_str);
+                }
             }
+
             // Get new command
-            print_prompt();
-            fgets((char*) cmd_str, MAX_CMD_LENGTH, stdin);
+            get_prompt(prompt);
+            cmd_str = readline(prompt);
             curr_str = cmd_str;
         }
         
@@ -207,6 +207,11 @@ int main() {
             curr_str = NULL;
             err_flag = true;
         }
+        // Check for null command
+        if (cmd.arg_array[0] == NULL) {
+            curr_str = NULL;
+            continue;
+        }
         
         // WHEEEEEEEEEEEEEEEEEEEEEE
         if (!err_flag) {
@@ -229,23 +234,9 @@ int main() {
         // Catch rerun command here, errors already parsed out
         if ((!err_flag) && (cmd.history_num != 0)) {
             // Search for command (accounts for partially filled history)
-            curr_str = NULL;    // Set to default as not found
-            cmd_count = 0;
-            curr_idx = cmd_history_idx;
-            for (i = 0; i < HISTORY_LENGTH; i++) {
-                if (cmd_history[curr_idx][0] != 0) {
-                    cmd_count++;
-                    printf("%2d: %s", cmd_count, cmd_history[curr_idx]);
-                    // Command found
-                    if (cmd_count == cmd.history_num) {
-                        // Set curr_str to command to rerun and then continue
-                        curr_str = cmd_history[curr_idx];
-                        break;
-                    }
-                }
-                curr_idx++;
-                if (curr_idx == HISTORY_LENGTH) {curr_idx = 0;}
-            }
+            hist_entry = history_get(cmd.history_num + history_base - 1);
+            curr_str = hist_entry == NULL ? NULL : hist_entry->line;
+
             if (curr_str == NULL) {
                 fprintf(stderr, "ERROR: Command requested not in history\n");
             }            
@@ -271,7 +262,7 @@ int main() {
             // Redirect input as needed
             // TODO
             // Execute internal command
-            exec_shell_cmd(&cmd, cmd_history, cmd_history_idx);
+            exec_shell_cmd(&cmd);
             // Restore stdin, stdout, and stderr to original
             // TODO
         }
