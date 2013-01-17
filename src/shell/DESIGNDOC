@@ -38,6 +38,12 @@ Notes on extra credit and special cases:
     it, but it can come at the end of a piping chain. Additionally, these
     commands do not work with redirects, which are just ignored. 
 
+Extra Credit Implemented:
+    Append (>>)                 +5
+    Duplicate redirection (>&)  +10
+    Readline and History        +10
+    !n command                  +5
+
 >> Please cite any offline or online sources you consulted while
 >> preparing your submission, other than the Pintos documentation, course
 >> text, lecture notes, and course staff.
