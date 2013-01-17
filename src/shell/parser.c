@@ -490,6 +490,10 @@ str_ll* split(uint8_t* cmd, uint32_t* offset) {
                         state = QUOTE;
                         break;
                     case ' ':
+                        // Add string to list when leaving state
+                        temp_off = 0;
+                        cur_elem = append(cur_elem, temp, null_end);
+
                         // Eat away white space
                         state = GT_WHITE;
                         break;
