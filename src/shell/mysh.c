@@ -65,7 +65,8 @@ int main() {
     int32_t i, curr_idx, cmd_count;
     // Error value for parent pipes
     int32_t pipe_error = 0;
-
+    // Flag for whether some error was seen
+    bool err_flag;
 
     int offset;
     str_ll* list;
@@ -90,6 +91,9 @@ int main() {
             fgets((char*) cmd_str, MAX_CMD_LENGTH, stdin);
             curr_str = cmd_str;
         }
+        
+        // Start with no errors seen
+        err_flag = false;
 
         // WHEEEEEEEEEEEEEEEEEEEEEE
         printf("Split function test\n");
@@ -108,27 +112,29 @@ int main() {
         if (cmd.error_code != NO_ERROR) {
             printf("Parsing error: %d\n", cmd.error_code);
             curr_str = NULL;
-            continue;
+            err_flag = true;
         }
         
         // WHEEEEEEEEEEEEEEEEEEEEEE
-        printf("Parse function test\n");
-        i = 0;
-        while (cmd.arg_array[i] != NULL) {
-            printf("Arg %d: %s\n", i, (char*) cmd.arg_array[i]);
-            i++;
+        if (!err_flag) {
+            printf("Parse function test\n");
+            i = 0;
+            while (cmd.arg_array[i] != NULL) {
+                printf("Arg %d: %s\n", i, (char*) cmd.arg_array[i]);
+                i++;
+            }
+            printf("In file:   %s\n", (char*) cmd.input);
+            printf("Out file:  %s\n", (char*) cmd.output);
+            printf("Double redir:  %d >& %d\n", cmd.redir_desc1, cmd.redir_desc2);
+            printf("Reder first:   %d\n", cmd.redir_desc_first);
+            printf("Pipe:    %d\n", cmd.pipe_flag);
+            printf("Trun:    %d\n", cmd.trun_flag);
+            printf("Bkgd:    %d\n", cmd.bkgd_flag);
+            printf("History: %d\n", cmd.history_num);
         }
-        printf("In file:   %s\n", (char*) cmd.input);
-        printf("Out file:  %s\n", (char*) cmd.output);
-        printf("Double redir:  %d >& %d\n", cmd.redir_desc1, cmd.redir_desc2);
-        printf("Reder first:   %d\n", cmd.redir_desc_first);
-        printf("Pipe:    %d\n", cmd.pipe_flag);
-        printf("Trun:    %d\n", cmd.trun_flag);
-        printf("Bkgd:    %d\n", cmd.bkgd_flag);
-        printf("History: %d\n", cmd.history_num);
         
         // Catch rerun command here, errors already parsed out
-        if (cmd.history_num != 0) {
+        if ((!err_flag) && (cmd.history_num != 0)) {
             // Search for command (accounts for partially filled history)
             curr_str = NULL;    // Set to default as not found
             cmd_count = 0;
@@ -154,7 +160,7 @@ int main() {
         }
 
         // Set up output pipe if needed
-        if (cmd.pipe_flag) {
+        if ((!err_flag) && (cmd.pipe_flag)) {
             if(pipe(output_pipe) != -1) {
                 output_pipe_pass = output_pipe; // Open output pipe if needed
             }
@@ -163,12 +169,12 @@ int main() {
                 pipe_error = PARENT_OUTPUT_PIPE_ERROR;
             }
         }
-        else {
+        else if (!err_flag) {
             output_pipe_pass = NULL;
         }
         
         // Check for internal commands and handle them
-        if (check_shell_cmd(&cmd)) {
+        if ((!err_flag) && (check_shell_cmd(&cmd))) {
             // Redirect input as needed
             // TODO
             // Execute internal command
@@ -177,7 +183,7 @@ int main() {
             // TODO
         }
         // Run external commands
-        else {
+        else if (!err_flag) {
             proc_ID = fork();       // Fork off the child process to run command
             if (proc_ID == 0) {     // Call child process function if child
                 fprintf(stdout, "Child says hi\n");
@@ -217,8 +223,12 @@ int main() {
             input_pipe_pass = input_pipe;
             close(input_pipe[PIPE_WRITE_SIDE]);
         }
+        else {
+            input_pipe_pass = NULL;
+        }
 
-        //// NEED TO CLOSE ALL PIPES IF ERROR SEEN
+        // Close and reset all pipes if error seen or done with command
+        ////if ((err_code_child != NO_ERROR) && ())
         
         // Clean up memory allocated
         if (cmd.arg_array != NULL) {
