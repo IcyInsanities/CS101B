@@ -2,7 +2,7 @@
  *
  * Team: Shir, Steven, Reggie
 */
- // TODO: handle close and pipe errors
+
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -10,121 +10,129 @@
 #include <string.h>
 #include <unistd.h>
 #include <limits.h>
+#include <fcntl.h>
+#include <errno.h>
+#include <readline/readline.h>
+#include <readline/history.h>
 #include <sys/types.h>
 #include <sys/wait.h>
 #include <sys/stat.h>
-#include <fcntl.h>
-#include <errno.h>
 #include "gen.h"
 #include "mysh.h"
 #include "parser.h"
 #include "builtin_cmd.h"
 #include "shell_cmd.h"
-#include <readline/readline.h>
-#include <readline/history.h>
-
-#define PARENT_OUTPUT_PIPE_ERROR   1
 
 // Return the shell prompt in the format username:current/directory>
 void get_prompt(uint8_t* prompt) {
     // Allocate space for username and current path
     uint8_t curr_path[PATH_MAX]; // Use maximum system path length
     // Copy the username into the prompt
-    strcpy(prompt, getlogin());
-    getcwd( (char*) curr_path, PATH_MAX);
-    
+    strcpy((char*) prompt, getlogin());
+    getcwd((char*) curr_path, PATH_MAX);
+
     // Concatenate strings
-    strcat(prompt, ":");
-    strcat(prompt, curr_path);
-    strcat(prompt, "> ");
+    strcat((char*) prompt, ":");
+    strcat((char*) prompt, (char*) curr_path);
+    strcat((char*) prompt, "> ");
 }
 
+// This function prints out human readable error messages for any errors that
+// occur
 void handle_errors(int32_t error_code) {
 
     switch (error_code) {
-    
+
         // No error, do nothing
         case 0:
             break;
-            
+
         case EACCES:
             fprintf(stderr, "Error:%d File access denied.\n", error_code);
             break;
-            
+
         case EEXIST:
             fprintf(stderr, "Error:%d Path already exists.\n", error_code);
             break;
-            
+
         case EISDIR:
             fprintf(stderr, "Error:%d Path is not a file.\n", error_code);
             break;
-            
+
         case EMFILE:
-            fprintf(stderr, "Error:%d Maximum number of open files reached.\n", error_code);
+            fprintf(stderr, "Error:%d Maximum number of open files reached.\n",
+                    error_code);
             break;
-            
+
         case ENAMETOOLONG:
             fprintf(stderr, "Error:%d Pathname is too long.\n", error_code);
             break;
-            
+
         case ENFILE:
-            fprintf(stderr, "Error:%d Maximum number of open files reached.\n", error_code);
+            fprintf(stderr, "Error:%d Maximum number of open files reached.\n",
+                    error_code);
             break;
-            
+
         case ENOENT:
             fprintf(stderr, "Error:%d File does not exist.\n", error_code);
             break;
-            
+
         case ENOSPC:
             fprintf(stderr, "Error:%d Device out of space.\n", error_code);
             break;
-            
+
         case ENOTDIR:
             fprintf(stderr, "Error:%d Path is not a directory.\n", error_code);
             break;
-            
+
         case EOVERFLOW:
             fprintf(stderr, "Error:%d File too large.\n", error_code);
             break;
-            
+
         case EROFS:
             fprintf(stderr, "Error:%d Path is read-only.\n", error_code);
             break;
-            
+
         case ETXTBSY:
             fprintf(stderr, "Error:%d Requested path busy.\n", error_code);
             break;
-            
+
         case EBADF:
             fprintf(stderr, "Error:%d Invali file descriptor.\n", error_code);
             break;
-            
+
         case EINTR:
             fprintf(stderr, "Error:%d Close interrupted.\n", error_code);
             break;
-            
+
         case EIO:
             fprintf(stderr, "Error:%d I/O error.\n", error_code);
             break;
-            
+
         case EFAULT:
-            fprintf(stderr, "Error:%d Invalid pipe file descriptor.\n", error_code);
+            fprintf(stderr, "Error:%d Invalid pipe file descriptor.\n",
+                    error_code);
             break;
-            
+
         case EINVAL:
-            fprintf(stderr, "Error:%d (pipe2()) Invalid flag value.\n", error_code);
+            fprintf(stderr, "Error:%d (pipe2()) Invalid flag value.\n",
+                    error_code);
             break;
-            
+
         case E2BIG:
-            fprintf(stderr, "Error:%d Environment and/or argument list too large.\n", error_code);
+            fprintf(stderr,
+                    "Error:%d Environment and/or argument list too large.\n",
+                    error_code);
             break;
-            
+
         case ECHILD:
-            fprintf(stderr, "Error:%d Liar, waitpid() does not work!!!\n", error_code);
+            fprintf(stderr, "Error:%d Liar, waitpid() does not work!!!\n",
+                    error_code);
             break;
-            
+
         default:
-            fprintf(stderr, "Error:%d Liar, waitpid() does not work!!!\n", error_code);
+            fprintf(stderr, "Error:%d Liar, waitpid() does not work!!!\n",
+                    error_code);
             break;
     }
     return;
@@ -153,17 +161,12 @@ int main() {
     int32_t err_code_child = 0;
     // Variables for use in rerun
     int32_t i;
-    // Error value for parent pipes
-    int32_t pipe_error = 0;
     // Flag for whether some error was seen
     bool err_flag;
     // Entry in the history table
     HIST_ENTRY* hist_entry;
     // Prompt for user
     uint8_t prompt[PATH_MAX];
-
-    int offset;
-    str_ll* list;
 
     // Run the shell loop of getting user input and handling it
     while (true) {
@@ -172,73 +175,47 @@ int main() {
             // Save previous command to history if it is non-zero
             if(cmd_str != NULL)
             {
-                if(strlen(cmd_str) > 0)
+                if(strlen((char*) cmd_str) > 0)
                 {
-                    add_history(cmd_str);
+                    add_history((char*) cmd_str);
                 }
             }
 
             // Get new command
             get_prompt(prompt);
-            cmd_str = readline(prompt);
+            cmd_str = (uint8_t*) readline((char*) prompt);
             curr_str = cmd_str;
         }
-        
+
         // Start with no errors seen
         err_flag = false;
-
-         // WHEEEEEEEEEEEEEEEEEEEEEE
-         printf("Split function test\n");
-         offset = 0;
-         list = split(curr_str, &offset);
-         while(list != NULL)
-         {
-             printf("%s\n", (char*) list->str);
-             list = list->next;
-         }
-         printf("Offset: %d\n", offset);
 
         // Parse command and get location to continue from
         curr_str = parse(curr_str, &cmd);
         // If parsing had an error, inform user and get new input
         if (cmd.error_code != NO_ERROR) {
-            printf("Parsing error: %d\n", cmd.error_code);
+            fprintf(stderr, "Parsing error: %d\n", cmd.error_code);
             curr_str = NULL;
             err_flag = true;
         }
-        // Check for null command
+
+        // Check for null command, and ensure that its not a ! command which
+        // will have no arg_array
         if (cmd.arg_array[0] == NULL && cmd.history_num == 0) {
             curr_str = NULL;
             continue;
         }
-        
-         // WHEEEEEEEEEEEEEEEEEEEEEE
-         if (!err_flag) {
-             printf("Parse function test\n");
-             i = 0;
-             while (cmd.arg_array[i] != NULL) {
-                 printf("Arg %d: %s\n", i, (char*) cmd.arg_array[i]);
-                 i++;
-             }
-             printf("In file:   %s\n", (char*) cmd.input);
-             printf("Out file:  %s\n", (char*) cmd.output);
-             printf("Double redir:  %d >& %d\n", cmd.redir_desc1, cmd.redir_desc2);
-             printf("Reder first:   %d\n", cmd.redir_desc_first);
-             printf("Pipe:    %d\n", cmd.pipe_flag);
-             printf("Trun:    %d\n", cmd.trun_flag);
-             printf("Bkgd:    %d\n", cmd.bkgd_flag);
-             printf("History: %d\n", cmd.history_num);
-         }
-        
+
         // Catch rerun command here, errors already parsed out
         if ((!err_flag) && (cmd.history_num != 0)) {
             // Search for command (accounts for partially filled history)
             hist_entry = history_get(cmd.history_num + history_base - 1);
-            curr_str = hist_entry == NULL ? NULL : hist_entry->line;
+            curr_str = hist_entry == NULL ? NULL : (uint8_t*) hist_entry->line;
 
             if (curr_str == NULL) {
                 fprintf(stderr, "ERROR: Command requested not in history\n");
-            }            
+                err_flag = true;
+            }
             continue;
         }
 
@@ -248,59 +225,52 @@ int main() {
                 output_pipe_pass = output_pipe; // Open output pipe if needed
             }
             else { // In case of error openning output pipe, report
-                fprintf(stderr, "Parent: failed to setup output pipe\n");
+                fprintf(stderr, "ERROR: Parent: failed to setup output pipe\n");
                 err_flag = true;
-                pipe_error = PARENT_OUTPUT_PIPE_ERROR;
             }
         }
         else if (!err_flag) {
             output_pipe_pass = NULL;
         }
-        
+
         // Check for internal commands and handle them
+        // Ignores redirects
         if ((!err_flag) && (check_shell_cmd(&cmd))) {
-            // Redirect input as needed
-            // TODO
             // Execute internal command
             exec_shell_cmd(&cmd);
-            // Restore stdin, stdout, and stderr to original
-            // TODO
         }
         // Run external commands
         else if (!err_flag) {
             proc_ID = fork();       // Fork off the child process to run command
             if (proc_ID == 0) {     // Call child process function if child
-                fprintf(stdout, "Child says hi\n");
-                err_code_child = ExecCommand(&cmd, input_pipe_pass, output_pipe_pass);
+                err_code_child = ExecCommand(&cmd, input_pipe_pass,
+                                             output_pipe_pass);
                 // child terminates here, so it returns the error code it has
-                fprintf(stdout, "Child: %d\n", err_code_child);
                 if (err_code_child != 0) {
                     err_flag = true;
                 }
                 exit(err_code_child);
             }
             else if (proc_ID > 0) { // Parent code
-                fprintf(stdout, "Parent says hi %d\n", err_code_child);
-                proc_ID = wait(&err_code_child); // Wait for child executing to terminate
-                fprintf(stdout, "Parent testing %d\n", err_code_child);
+                // Wait for child executing to terminate
+                proc_ID = wait(&err_code_child);
                 WEXITSTATUS(err_code_child);    // Get child return value
-                fprintf(stdout, "Parent says bye %d\n", err_code_child);
                 if (err_code_child != 0) {
                     err_flag = true;
                 }
             }
             else {                      // Fork failed, give error message
-                fprintf(stderr, "Forking error: %d\n", proc_ID);
+                fprintf(stderr, "ERROR: Forking: %d\n", proc_ID);
                 err_flag = true;
                 curr_str = NULL;        // Get new user input
             }
             if (err_code_child != NO_ERROR) {
-                fprintf(stderr, "Process error: %d\n", err_code_child);
+                fprintf(stderr, "ERROR: Process: %d\n", err_code_child);
                 err_flag = true;
                 curr_str = NULL;        // Get new user input
             }
         }
-        
+
         // Set up pipes for next iteration
         if (input_pipe_pass != NULL) {
             // Close remaining handle
@@ -318,22 +288,19 @@ int main() {
         else {
             input_pipe_pass = NULL;
         }
-        
+
         // If at the end of the string, or n error occured, close all pipes
         if ((curr_str == NULL) || (*curr_str == ASCII_NULL) || err_flag) {
-        
+
             // Print errors if present
             if (err_flag == true) {
                 handle_errors(err_code_child);
-                handle_errors(pipe_error);
                 err_flag = false;
                 err_code_child = 0;
-                pipe_error = 0;
                 curr_str = NULL;
             }
-            
+
             for (i = 0; i < 2; i++) {
-                
                 if (input_pipe[i] != NULL) {
                     close(input_pipe[i]);
                 }
@@ -343,9 +310,6 @@ int main() {
             }
         }
 
-        // Close and reset all pipes if error seen or done with command
-        ////if ((err_code_child != NO_ERROR) && ())
-        
         // Clean up memory allocated
         if (cmd.arg_array != NULL) {
             free(cmd.arg_array);
