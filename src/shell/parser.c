@@ -741,6 +741,7 @@ str_ll* append(str_ll* cur_end, uint8_t* new_val, uint8_t* null_val) {
     // Null terminate list
     next_end = cur_end->next;
     next_end->str = null_val;
+    next_end->next = NULL;
 
     return next_end;
 }
