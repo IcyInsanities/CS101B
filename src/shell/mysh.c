@@ -154,7 +154,7 @@ int main() {
                 if (curr_idx == HISTORY_LENGTH) {curr_idx = 0;}
             }
             if (curr_str == NULL) {
-                printf("ERROR: Command requested not in history\n");
+                fprintf(stderr, "ERROR: Command requested not in history\n");
             }            
             continue;
         }
@@ -200,11 +200,11 @@ int main() {
                 fprintf(stdout, "Parent says bye %d\n", err_code_child);
             }
             else {                      // Fork failed, give error message
-                printf("Forking error: %d\n", proc_ID);
+                fprintf(stderr, "Forking error: %d\n", proc_ID);
                 curr_str = NULL;        // Get new user input
             }
             if (err_code_child != NO_ERROR) {
-                printf("Process error: %d\n", err_code_child);
+                fprintf(stderr, "Process error: %d\n", err_code_child);
                 curr_str = NULL;        // Get new user input
             }
         }
