@@ -12,7 +12,14 @@
 #include <stdlib.h>
 #include <errno.h>
 
-#define NO_DUP_REDIR    0
+#define NO_DUP_REDIR            0
+#define CHILD_COMMAND_ERROR     1
+#define CHILD_INPUT_PIPE_ERROR  2
+#define CHILD_INPUT_FILE_ERROR  3
+#define CHILD_OUTPUT_PIPE_ERROR 4
+#define CHILD_OUTPUT_FILE_ERROR 5
+#define CHILD_OUTPUT_DUP_ERROR  6
+
 #define _GNU_SOURCE
 
 /*
@@ -22,12 +29,12 @@
  *  - Implement append redirection instead of truncation (DONE)
  *  - Implement output duplication
  *  - Error handling
- *      - Executed command throws error
- *      - Fork fails
- *      - Creating pipe fails
- *      - dup fails?
+ *      - Executed command throws error (DONE)
+ *      - Fork fails (DONE)
+ *      - Creating pipe fails (DONE)
+ *      - dup fails (DONE)
  *      - open/close fails
- *      - wait throws error
+ *      - wait throws error (DONE)
  *
  */
 
@@ -75,7 +82,11 @@ int32_t ExecCommand(cmd_struct *cmd, int32_t *inputPipe, int32_t *outputPipe) {
         close(inputPipe[PIPE_WRITE_SIDE]);
 
         // Set read end of pipe to standard input
-        dup2(inputPipe[PIPE_READ_SIDE], STDIN_FILENO);
+        if(dup2(inputPipe[PIPE_READ_SIDE], STDIN_FILENO) == -1) {
+            // Failed to setup input pipe
+            fprintf(stderr, "Child: failed to setup input pipe\n");
+            return CHILD_INPUT_PIPE_ERROR;
+        }
     }
     // If there is a file specified for redirection of stdin, use it
     else if ((cmd->input != NULL) && (*(cmd->input) != ASCII_NULL)) {
@@ -84,7 +95,11 @@ int32_t ExecCommand(cmd_struct *cmd, int32_t *inputPipe, int32_t *outputPipe) {
         inputFile = open((char*) cmd->input, O_RDONLY);
 
         // Set STDIN to use input file
-        dup2(inputFile, STDIN_FILENO);
+        if(dup2(inputFile, STDIN_FILENO)) {
+            // Failed to setup input file
+            fprintf(stderr, "Child: failed to setup input file\n");
+            return CHILD_INPUT_FILE_ERROR;
+        }
     }
     // If there is no redirection or piping then use STDIN, no code needed
     else {fprintf(stdout, "Child: no input!\n");}
@@ -97,7 +112,9 @@ int32_t ExecCommand(cmd_struct *cmd, int32_t *inputPipe, int32_t *outputPipe) {
 
         // Set write end of pipe to standard output
         if (dup2(outputPipe[PIPE_WRITE_SIDE], STDOUT_FILENO) == -1) {
-            // ERROR HANDLING HERE
+            // Failed to setup output pipe from child
+            fprintf(stderr, "Child: failed to setup output pipe\n");
+            return CHILD_OUTPUT_PIPE_ERROR;
         }
     }
     // If there is a file specified for redirection of stdout, use it
@@ -115,7 +132,11 @@ int32_t ExecCommand(cmd_struct *cmd, int32_t *inputPipe, int32_t *outputPipe) {
         outputFile = open((char*) cmd->output, O_CREAT | O_WRONLY | appendFlag);
 
         // Set STDOUT to use the output file
-        dup2(outputFile, STDOUT_FILENO);
+        if (dup2(outputFile, STDOUT_FILENO) == -1) {
+            // Failed to setup output file
+            fprintf(stderr, "Child: failed to setup output file.\n");
+            return CHILD_OUTPUT_FILE_ERROR;
+        }
     }
     // if there is duplication redirection, handle it
     else if (cmd->redir_desc1 > NO_DUP_REDIR && cmd->redir_desc2 > NO_DUP_REDIR) {
@@ -124,14 +145,22 @@ int32_t ExecCommand(cmd_struct *cmd, int32_t *inputPipe, int32_t *outputPipe) {
         outputFile = open("dup_test.txt", O_CREAT | O_WRONLY | O_TRUNC);
 
         // Duplicate the output
-        dup2(cmd->redir_desc2, cmd->redir_desc1);
+        if(dup2(cmd->redir_desc2, cmd->redir_desc1) == -1) {
+            // Failed to setup duplicate redirection
+            fprintf(stderr, "Child: failed to setup dup redirection.\n");
+            return CHILD_OUTPUT_DUP_ERROR;
+        };
     }
     // If there is no redirection or piping, the use normal STDOUT, no code here
     else {fprintf(stdout, "Child: no output!\n");}
     
     // Run the command, returning any errors
     fprintf(stdout, "Child: executing\n");
-    execvp((char*) cmd->arg_array[0], (char**) cmd->arg_array);
+    if (execvp((char*) cmd->arg_array[0], (char**) cmd->arg_array) == -1) {
+        // Failed to execute command
+        fprintf(stderr, "Child: failed to execute command.\n");
+        return CHILD_COMMAND_ERROR;
+    }
     fprintf(stdout, "Child: I live!\n");
 
     // Close input file
@@ -142,7 +171,7 @@ int32_t ExecCommand(cmd_struct *cmd, int32_t *inputPipe, int32_t *outputPipe) {
     if (outputFile != -1) {
         close(outputFile);
     }
-
+    
     return execError;
 }
 
