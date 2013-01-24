@@ -48,51 +48,52 @@
 ####;        the end of this file that shows where they should go.
 .intel_syntax noprefix
 setup_os_mem:       #; Set up ES:DI to 0x20000 to dump harddrive data
-    MOV     AX, 0x2000
+    MOV     AX, 0x0 #;2000  #; TEMP, SET AT 0:0
     MOV     ES, AX      #; Top 16 bits of memory
     XOR     DI, DI      #; Clear offset
+    MOV     DI, 0x9000  #; TEMP
 
 hd_search_start:
-    SUB     ESP, 16                     #; Allocate disk access packet on stack
+    SUB     ESP, 32                     #; Allocate disk access packet on stack
     MOV     ESI, ESP                    #; Set SI to point to disk access packet
                                         #; DS is already SS, so DS:SI points here
     MOV     DWORD PTR [SI   ], 0x00010010   #; Write 0x10 as size and 0x00 for second byte
                                             #; Read 8 segments of 512 bytes (4KiB)
-    MOV     DWORD PTR [SI+ 4], 0x00020000   #; segment:offset of buffer
+    MOV     DWORD PTR [SI+ 4], 0x00009000   #; segment:offset of buffer
     MOV     DWORD PTR [SI+ 8],        0x0   #; Read at 0 index sector
     MOV     DWORD PTR [SI+12],        0x0   #;
     MOV     DL, 0x80                    #; Set to read from first harddrive
 hd_search_body:
     MOV     AH, 0x42        #; Set to use extended read-sector
     INT     0x13            #; Call system to read harddrive
-##;;     JMP     hd_search_fail  #; Check carry flag for an error, assume no more hds
-##;;                             #; so terminate system by indicating failure
-##;;     CMP     WORD PTR DS:[SI+0x1FE], 0xAA55    #; Check drive signature for boot
-##;;     JNE     hd_search_next
-##;;   part_search_start:        #; Iterate over 4 partitions for boot
-##;;     MOV     BX, 0x01BE      #; Set to start at partition entry #1
-##;;   part_search_body:         #; Check current partition for boot
-##;;     CMP     BYTE PTR ES:[BX  ], 0x80  #; Check if boot partition
-##;;     JNE     part_search_next        #; Not boot partition, continue search
-##;;     CMP     BYTE PTR ES:[BX+4], 0x20  #; Check if pintos partition
-##;;     JE      hd_boot_found       #; Found pintos partition, start boot process
-##;;     #;JMP   part_search_next    #; Fall through to check next partition
-##;;   part_search_next:
-##;;     ADD     BX, 0x10        #; Skip to next partition
-##;;     CMP     BX, 0x01FE      #; 5th partition location, invalid so end loop on hd
-##;;     JAE     hd_search_next  #; Out of partitions, go to next harddrive
-##;;     JMP     part_search_body    #; Otherwise, go to next partition
-##;;
-##;; hd_search_next:
-##;;     INC     DL              #; Move to next harddrive
-##;;     JZ      hd_search_fail  #; Failure if DL overflows
-##;;     JMP     hd_search_body  #; Check next harddrive
-##;;
-##;; hd_search_fail:     #; Ran out of hds before finding boot partition, halt system
-##;;     CALL    puts
-##;;     .string "\rNo boot hd found\r\r"
-##;;     INT     0x18    #; Inform system that no boot partition exists
-##;;
+    JC      hd_search_fail  #; Check carry flag for an error, assume no more hds
+                            #; so terminate system by indicating failure
+    CMP     WORD PTR ES:[DI+0x1FE], 0xAA55    #; Check drive signature for boot
+    JNE     hd_search_next
+  part_search_start:        #; Iterate over 4 partitions for boot
+    MOV     BX, 0x01BE      #; Set to start at partition entry #1
+  part_search_body:         #; Check current partition for boot
+    CMP     BYTE PTR ES:[DI+BX  ], 0x80  #; Check if boot partition
+    JNE     part_search_next        #; Not boot partition, continue search
+    CMP     BYTE PTR ES:[DI+BX+4], 0x20  #; Check if pintos partition
+    JE      hd_boot_found       #; Found pintos partition, start boot process
+    #;JMP   part_search_next    #; Fall through to check next partition
+  part_search_next:
+    ADD     BX, 0x10        #; Skip to next partition
+    CMP     BX, 0x01FE      #; 5th partition location, invalid so end loop on hd
+    JAE     hd_search_next  #; Out of partitions, go to next harddrive
+    JMP     part_search_body    #; Otherwise, go to next partition
+
+hd_search_next:
+    INC     DL              #; Move to next harddrive
+    JZ      hd_search_fail  #; Failure if DL overflows
+    JMP     hd_search_body  #; Check next harddrive
+
+hd_search_fail:     #; Ran out of hds before finding boot partition, halt system
+    CALL    puts
+    .string "\rNo boot hd found\r\r"
+    INT     0x18    #; Inform system that no boot partition exists
+
 hd_boot_found:
     CALL    puts
     .string "\r\rBoot hd found!!!!\r\r"
