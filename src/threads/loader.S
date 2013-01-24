@@ -48,18 +48,17 @@
 ####;        the end of this file that shows where they should go.
 .intel_syntax noprefix
 setup_os_mem:       #; Set up ES:DI to 0x20000 to dump harddrive data
-    MOV     AX, 0x0 #;2000  #; TEMP, SET AT 0:0
+    MOV     AX, 0x2000  #; TEMP, SET AT 0:0
     MOV     ES, AX      #; Top 16 bits of memory
     XOR     DI, DI      #; Clear offset
-    MOV     DI, 0x9000  #; TEMP
 
 hd_search_start:
     SUB     ESP, 32                     #; Allocate disk access packet on stack
     MOV     ESI, ESP                    #; Set SI to point to disk access packet
                                         #; DS is already SS, so DS:SI points here
     MOV     DWORD PTR [SI   ], 0x00010010   #; Write 0x10 as size and 0x00 for second byte
-                                            #; Read 8 segments of 512 bytes (4KiB)
-    MOV     DWORD PTR [SI+ 4], 0x00009000   #; segment:offset of buffer
+                                            #; Read MBR (1 block of 512 bytes)
+    MOV     DWORD PTR [SI+ 4], 0x20000000   #; segment:offset of buffer
     MOV     DWORD PTR [SI+ 8],        0x0   #; Read at 0 index sector
     MOV     DWORD PTR [SI+12],        0x0   #;
     MOV     DL, 0x80                    #; Set to read from first harddrive
@@ -91,13 +90,47 @@ hd_search_next:
 
 hd_search_fail:     #; Ran out of hds before finding boot partition, halt system
     CALL    puts
-    .string "\rNo boot hd found\r\r"
+    .string "\r"#No boot hd found\r\r"
     INT     0x18    #; Inform system that no boot partition exists
 
-hd_boot_found:
+hd_boot_found:      #; Notify user that hd found, start loading
     CALL    puts
-    .string "\r\rBoot hd found!!!!\r\r"
+    .string "\r"#\rBoot hd found!!!!\r\r"
+
+part_load_start:
+    MOV     DWORD PTR [SI   ], 0x00010010   #; Write 0x10 as size and 0x00 for second byte
+                                            #; Read 8 block of 512 bytes (4KiB)
+    MOV     ECX, ES:[DI+BX+ 8]  #; Get the LBA address of starting sector
+    MOV     [SI+ 8], ECX        #; Update disk access packet with LBA address
+    MOV     ECX, ES:[DI+BX+12]  #; Get the number of sectors in partition
+    CMP     ECX, 1024            #; Check if more sectors than 512kb
+    JB      part_load_sectors   #; If less than 512kb, start loading
+    #;JMP   bound_sector_size   #: Otherwise need to bound read size to 512kb
+  bound_sector_size:            #; Cap at 512kb, or 128 4KiB chunks
+    MOV     ECX, 1024            #; 
+    #;JMP   part_load_start2    #; Now continue with setup
+part_load_sectors:
+    MOV     AH, 0x42        #; Set to use extended read-sector
+    INT     0x13            #; Call system to read harddrive
+    JC      sector_fail     #; Check carry flag for an error, indicates sector
+                            #; failure in loading
+part_load_next:             #; Move to load next block of sectors
+    CALL    puts            #; Output a "." to indicate progress
+    .string "."
+    ADD     DWORD PTR [SI+8], 1         #; Move LBA by 1 sectors
+    ADD     WORD PTR  [SI+6], 0x0020    #; Increment segment by 4KiB
+    LOOP    part_load_sectors       #; Check if done loading, otherwise load next
+    JMP     loading_done            #; Out of sectors to load, finished
+    
+sector_fail:        #; Error reading sectors, halt system
+    CALL    puts
+    .string "\rs l err\r\r"
     INT     0x18    #; Inform system that no boot partition exists
+    
+loading_done:       #; Finished loading, transfer control after telling user
+    CALL    puts
+    .string "\rD l part\r\r"
+
 .att_syntax
 
 ####; TODO:  LOADING CODE ENDS HERE!
