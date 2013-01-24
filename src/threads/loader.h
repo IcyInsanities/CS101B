@@ -1,6 +1,29 @@
 #ifndef THREADS_LOADER_H
 #define THREADS_LOADER_H
 
+/* Constant for offset of the bottom of the stack. */
+#define LOADER_STACK_OFFSET     0xf000  /* Base offset of the stack */
+
+/* Constant for hard drive read buffer. */
+#define LOADER_HD_RD_BUF_SEG    0x2000  /* Address of HD read buffer */
+
+/* Constants for disk access packet. */
+#define DISK_ACCESS_PACKET_SIZE 16  /* Size of disk access packet in bytes */
+#define EXTENDED_READ_SECTOR  0x42  /* Value to pass int 13 to use extended
+                                     * read sector
+                                     */
+
+/* Constant for boot signature */
+#define DRIVE_SIG_OFFSET    0x01fe  /* Offset of drive signature */
+#define BOOT_SIG            0xaa55  /* Signature for bootable drive */
+
+/* Constants for partitions */
+#define FIRST_PART_OFFSET   0x01be  /* Offset of the first partition */
+#define LAST_PART_OFFSET    0x01fe  /* Offset of the last partition */
+#define PART_ENTRY_SIZE     0x10    /* Partition entry size */
+#define BOOT_PART           0x80    /* Value for a boot partition */
+#define PINTOS_PART         0x20    /* Value for a Pintos partition */
+
 /* Constants fixed by the PC BIOS. */
 #define LOADER_BASE 0x7c00      /* Physical address of loader's base. */
 #define LOADER_END  0x7e00      /* Physical address of end of loader. */

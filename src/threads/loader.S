@@ -27,7 +27,7 @@
     XOR     AX, AX
     MOV     DS, AX
     MOV     SS, AX
-    MOV     ESP, 0xF000
+    MOV     ESP, LOADER_STACK_OFFSET
 
 #; Configure serial port so we can report progress without connected VGA.
 #; See [IntrList] for details.
@@ -39,90 +39,89 @@
     CALL    puts
     .string "PiLo"
 
-####; TODO:  ITERATE THROUGH ALL HARD DISKS IN THE SYSTEM, LOOKING FOR A
-####;        BOOTABLE PINTOS PARTITION TO LOAD AND START.
-####;
-####;        Note that there are only ~300 bytes available for the entire
-####;        Pintos bootloader, as Pintos commands are stored in the
-####;        region immediately before the partition table in the sector.
-####;        Sooo... be concise!
-####;
-####;        If you want to create helper routines, there is a TODO toward
-####;        the end of this file that shows where they should go.
-
+#;  Look through hard disks looking for a bootable Pintos partition.  If
+#;  found, load it.
 setup_os_mem:       #; Set up ES:DI to 0x20000 to dump harddrive data
-    MOV     AX, 0x2000  #; TEMP, SET AT 0:0
-    MOV     ES, AX      #; Top 16 bits of memory
+    MOV     AX, LOADER_HD_RD_BUF_SEG    #; Setup ES to for dump buffer
+    MOV     ES, AX                      #; Set the segment for the dump buffer
 
 hd_search_start:
     MOV     ESI, ESP                    #; Set SI to point to disk access packet
+                                        #; on the stack.
                                         #; DS is already SS, so DS:SI points here
-    SUB     ESP, 16                     #; Allocate disk access packet on stack
-  zero_dap:         #; Set disk access packet to 0s to save bytes
-    MOV     CX, 16  #; Set to clear 16 bytes of 0s
-  zero_dap_body:    #; Loop body clearing 0s
+    SUB     ESP, DISK_ACCESS_PACKET_SIZE    #; Allocate disk access packet on 
+                                            #; stack
+  zero_dap:         #; Clear values in disk access packet to minize write
+                    #; instructions
+    MOV     CX, DISK_ACCESS_PACKET_SIZE #; Set to clear 16 bytes of 0s
+  zero_dap_body:    #; Loop body clearing disk access packet
     MOV     BYTE PTR [SI-1], 0x00       #; Clear current byte
     DEC     SI                          #; Move SI back one
     LOOP    zero_dap_body               #; Go to next byte if not done clearing
     #;        zero_dap_done             #; Done clearing, continue
   zero_dap_done:
-    MOV     BYTE PTR [SI   ], 0x10      #; Write 0x10 as size
-    MOV     BYTE PTR [SI+ 2], 0x01      #; Read MBR (1 block of 512 bytes)
-    MOV     BYTE PTR [SI+ 7], 0x20      #; segment:offset of buffer
+    MOV     BYTE PTR [SI   ], DISK_ACCESS_PACKET_SIZE   #; Set the packet size 
+                                                        #; in bytes 
+    MOV     BYTE PTR [SI+ 2], 0x01      #; Set read size (1 block of 512 bytes)
+    MOV     BYTE PTR [SI+ 7], 0x20      #; Pass buffer to dump read data
     MOV     DL, 0x80                    #; Set to read from first harddrive
 hd_search_body:
-    MOV     AH, 0x42        #; Set to use extended read-sector
+    MOV     AH, EXTENDED_READ_SECTOR    #; Set to use extended read-sector
     INT     0x13            #; Call system to read harddrive
-    JC      hd_search_fail  #; Check carry flag for an error, assume no more hds
+    JC      hd_search_fail  #; Check carry flag for an error, assume no more HDs
                             #; so terminate system by indicating failure
-    CMP     WORD PTR ES:[0x1FE], 0xAA55    #; Check drive signature for boot
-    JNE     hd_search_next
+    CMP     WORD PTR ES:[DRIVE_SIG_OFFSET], BOOT_SIG    #; Check drive signature 
+                                                        #; to see
+                                           #; if it is bootable
+    JNE     hd_search_next                 #; If it isn't, check next drive
   part_search_start:        #; Iterate over 4 partitions for boot
-    MOV     BX, 0x01BE      #; Set to start at partition entry #1
-  part_search_body:         #; Check current partition for boot
-    CMP     BYTE PTR ES:[BX  ], 0x80  #; Check if boot partition
-    JNE     part_search_next        #; Not boot partition, continue search
-    CMP     BYTE PTR ES:[BX+4], 0x20  #; Check if pintos partition
+    MOV     BX, FIRST_PART_OFFSET       #; Set to start at partition entry #1
+  part_search_body:         #; Check if current partition is bootable
+    CMP     BYTE PTR ES:[BX  ], BOOT_PART   #; Check if boot partition
+    JNE     part_search_next                #; Not boot partition, continue 
+                                            #; search
+    CMP     BYTE PTR ES:[BX+4], PINTOS_PART #; Check if pintos partition
     JE      hd_boot_found       #; Found pintos partition, start boot process
     #;JMP   part_search_next    #; Fall through to check next partition
   part_search_next:
-    ADD     BX, 0x10        #; Skip to next partition
-    CMP     BX, 0x01FE      #; 5th partition location, invalid so end loop on hd
-    JB      part_search_body  #; Not at end, go to next partition
+    ADD     BX, PART_ENTRY_SIZE #; Skip to next partition
+    CMP     BX, LAST_PART_OFFSET + PART_ENTRY_SIZE  #; Passed last partition, 
+                                                    #; invalid so end loop on HD
+    JB      part_search_body    #; Not at end, go to next partition
     #;JMP     hd_search_next    #; Otherwise, go to next harddrive
 
 hd_search_next:
-    INC     DL              #; Move to next harddrive
-    JNZ     hd_search_body  #; Check next harddrive if DL did not overflow
-    ;#JMP     hd_search_fail  #; Otherwise, error in finding boot
+    INC     DL                  #; Move to next harddrive
+    JNZ     hd_search_body      #; Check next harddrive if DL did not overflow
+    ;#JMP     hd_search_fail    #; Otherwise, error in finding boot partition
 
 hd_search_fail:     #; Ran out of hds before finding boot partition, halt system
     CALL    puts
     .string "\rNo boot HD\r"
     INT     0x18    #; Inform system that no boot partition exists
 
-hd_boot_found:      #; Notify user that hd found, start loading
+hd_boot_found:      #; Notify user that HD found, start loading
     CALL    puts
-    .string "\rOn hd"
-    MOV     AL, DL
-    SUB     AL, 0x80-'a'
-    CALL    putc
-    LEA     AX, [BX - 0x01BE + '1'*16]
-    SHR     AX, 4
+    .string "\rLoading hd"
+    MOV     AL, DL                      #; Convert drive number with Pintos
+    SUB     AL, 0x80-'a'                #; on it to a letter
+    CALL    putc                        #; Print drive letter to user
+    LEA     AX, [BX - 0x01BE + '1'*16]  #; Get the number of the partition
+    SHR     AX, 4                       #; containing Pintos
     CALL    putc
 
 part_load_start:
-    MOV     ECX, ES:[BX+ 8]  #; Get the LBA address of starting sector
+    MOV     ECX, ES:[BX+ 8]     #; Get the LBA address of starting sector
     MOV     [SI+8], ECX         #; Update disk access packet with LBA address
-    MOV     ECX, ES:[BX+12]  #; Get the number of sectors in partition
-    CMP     ECX, 1024            #; Check if more sectors than 512kb
+    MOV     ECX, ES:[BX+12]     #; Get the number of sectors in partition
+    CMP     ECX, 1024           #; Check if more sectors than 512kb
     JB      part_load_sectors   #; If less than 512kb, start loading
     #;JMP   bound_sector_size   #: Otherwise need to bound read size to 512kb
   bound_sector_size:            #; Cap at 512kb, or 1024 512B chunks
-    MOV     ECX, 1024            #; 
-    #;JMP   part_load_start2    #; Now continue with setup
+    MOV     ECX, 1024           #; 
+    #;JMP   part_load_sectors   #; Now continue with setup, load sectors
 part_load_sectors:
-    MOV     AH, 0x42        #; Set to use extended read-sector
+    MOV     AH, EXTENDED_READ_SECTOR    #; Set to use extended read-sector
     INT     0x13            #; Call system to read harddrive
     JC      sector_fail     #; Check carry flag for an error, indicates sector
                             #; failure in loading
@@ -131,20 +130,19 @@ part_load_next:             #; Move to load next block of sectors
     .string "."
     INC     DWORD PTR [SI+8]            #; Move LBA by 1 sectors
     ADD     WORD PTR  [SI+6], 0x0020    #; Increment segment by 512B
-    LOOP    part_load_sectors       #; Check if done loading, otherwise load next
-    JMP     loading_done            #; Out of sectors to load, finished
+    LOOP    part_load_sectors   #; Check if done loading, otherwise load next
+                                #; sector
+    JMP     loading_done        #; Out of sectors to load, finished
     
 sector_fail:        #; Error reading sectors, halt system
     CALL    puts
-    .string "\rSector load fail\r"
+    .string "\rLoad failed\r"
     INT     0x18    #; Inform system that no boot partition exists
     
 loading_done:       #; Finished loading, transfer control after telling user
     CALL    puts
     .string "\rDONE\r"
-    NOP             #; Just because we have a byte
-
-####; TODO:  LOADING CODE ENDS HERE!
+    NOP             #; Just because we have an extra byte
 
 ####; Transfer control to the kernel that we loaded.  We read the start
 ####; address out of the ELF header (see [ELF1]) and convert it from a
