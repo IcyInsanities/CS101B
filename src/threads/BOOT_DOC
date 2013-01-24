@@ -1,0 +1,144 @@
+			+-----------------------+
+			|        CS 101OS       |
+			| PROJECT 2: BOOTLOADER |
+			|    DESIGN DOCUMENT    |
+			+-----------------------+
+
+---- GROUP ----
+
+>> Fill in the names and email addresses of your group members.
+
+Shir Aharon <saharon@caltech.edu>
+Steven Okai <codered657@gmail.com>
+Reggie Wilcox <reggie.chaos9@gmail.com>
+
+>> Specify how many late tokens you are using on this assignment:  
+Late tokens: 0
+
+>> What is the Git repository and commit hash for your submission?
+
+   Repository URL:  https://github.com/IcyInsanities/CS101B
+   commit ...
+   tag is project2_bootloader
+
+---- PRELIMINARIES ----
+
+>> If you have any preliminary comments on your submission, notes for the
+>> TAs, or extra credit, please give them here.
+
+>> Please cite any offline or online sources you consulted while
+>> preparing your submission, other than the Pintos documentation, course
+>> text, lecture notes, and course staff.
+Assembly syntax:
+    http://download.intel.com/products/processor/manual/325462.pdf
+    http://wolverine.caltech.edu/eecs51/general/refs/tricks.htm
+INT 0x13 details:
+    http://www.ctyme.com
+
+			     BOOTLOADER
+			     ==========
+
+---- DATA STRUCTURES ----
+
+>> A1: In the order that they are used, specify the areas of memory that
+>> your bootloader code uses (both starting address and size) during the
+>> bootstrap process.  Briefly describe the purpose of each memory area.
+>> Note that you do not have to enumerate the structure of sector data or
+>> anything like that; simply state the general purpose of the various
+>> memory areas used by your bootload code.
+
+    0xEFF0-0xEFFF (16 bytes): Disk access packet
+        This is stored at the very beginning of the stack space. It conforms to
+        the requirements of a disk access packet that is passed to INT 0x13 in
+        order to read from a hard drive.
+    0x20000-0x2001FF (512 bytes): MBR
+        When the first segment of the harddrive is loaded, we located it here
+        while we access the parameters to determine if we have a boot partition.
+        Note: this is not a true structure we use.
+
+---- ALGORITHMS ----
+
+>> A2: Write a pseudocode description (e.g. at the level of Python and
+>> English phrases) of the sequence of operations that your bootloader
+>> performs when searching for, and then loading, the Pintos kernel.
+
+initialize dap
+hd_num = 0x80
+while True:
+    mbr = get_mbr(hd_num)
+    if (hd_num does not exist):
+        print("No boot HD")
+        INT 0x18
+    if (mbr has boot_signature):
+        for partition in range(4):
+            if (partition is bootable) && (partition is pintos):
+                break to top
+    hd_num++
+num_sectors = read partition table of current partition
+num_sectors = max(num_sectors, 1024)
+curr_adr = 0x20000
+for sector in range(num_sectors):
+    load sector at curr_adr
+    if load failed:
+        print("Load failed")
+        INT 0x18
+    curr_adr += sizeof(sector)
+switch to execute from loaded partition
+
+>> A3: Did you have any difficulties making the entire bootloader fit
+>> within the space allotted?  If so, what steps did you take to reduce
+>> the size of your bootstrap code?
+
+Not much. We completed the basic bootloader code in almost exactly 300 bytes,
+and we had to make some small changes in order to fit the error strings more
+cleanly. In particular, fitting the computations to generate the "hda1" format
+required us to cut out ~6 bytes which was done by 0ing the disk access packet
+and then writing only to the necessary bytes (saving space in constants).
+
+---- RATIONALE ----
+
+>> A4: Why did you choose your final implementation?  Did you encounter
+>> any major obstacles or difficulties that forced you to change your
+>> approach?  If so, describe the obstacles and how you overcame them.
+
+Our biggest obstacle was the segment offset for the INT 0x13 command, where it
+would just hang when we gave it invalid locations it couldn't overwrite. We 
+forgot to give it correctly as segment:offset and gave it a flat address
+instead.
+In terms of the design, we kept our original design entirely. We had planned a
+double loop over the harddrive numbers and then partitions followed by a
+separate loop to read in all of the sectors. The main design change was in the
+disk access packet where we went from writing all of it to clearing and then
+setting necessary bytes.
+
+			   SURVEY QUESTIONS
+			   ================
+
+Answering these questions is optional, but it will help us improve the
+course in future quarters.  Feel free to tell us anything you
+want--these questions are just to spur your thoughts.  You may also
+choose to respond anonymously in the feedback survey on the course
+website.
+
+>> In your opinion, was this assignment, or any one of the three problems
+>> in it, too easy or too hard?  Did it take too long or too little time?
+
+This one took about the right time, the main time sink was setup of the
+environment to debug/test in along with debugging without a true debugger.
+
+>> Did you find that working on a particular part of the assignment gave
+>> you greater insight into some aspect of OS design?
+
+>> Is there some particular fact or hint we should give students in
+>> future quarters to help them solve the problems?  Conversely, did you
+>> find any of our guidance to be misleading?
+
+>> Do you have any suggestions for the TAs to more effectively assist
+>> students, either for future quarters or the remaining projects?
+
+It might be helpful to just reference documentation for INT 0x13 to help in
+understanding what it does, the arguments, and return format/values.
+
+>> Any other comments?
+
+We liked the assignment and thought it was interesting.
