@@ -160,7 +160,8 @@ void thread_foreach(thread_action_func *, void *);
 
 int thread_get_priority(void);
 void thread_set_priority(int);
-void lock_thread_set_priority(int, struct thread*);
+void thread_lock_set_priority(int, struct thread *);
+int thread_get_donations (struct thread *);
 
 int thread_get_nice(void);
 void thread_set_nice(int);
