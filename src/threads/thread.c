@@ -28,6 +28,9 @@ static struct list ready_list;
    when they are first scheduled and removed when they exit. */
 static struct list all_list;
 
+/* List of all processes that are blocked from a sleep call. */
+static struct list sleep_list;
+
 /* Idle thread. */
 static struct thread *idle_thread;
 
@@ -92,12 +95,14 @@ thread_init (void)
   lock_init (&tid_lock);
   list_init (&ready_list);
   list_init (&all_list);
+  list_init (&sleep_list);
 
   /* Set up a thread structure for the running thread. */
   initial_thread = running_thread ();
   init_thread (initial_thread, "main", PRI_DEFAULT);
   initial_thread->status = THREAD_RUNNING;
   initial_thread->tid = allocate_tid ();
+  
 }
 
 /* Starts preemptive thread scheduling by enabling interrupts.
@@ -197,7 +202,7 @@ thread_create (const char *name, int priority,
   sf = alloc_frame (t, sizeof *sf);
   sf->eip = switch_entry;
   sf->ebp = 0;
-
+  
   /* Add to run queue. */
   thread_unblock (t);
 
@@ -240,6 +245,60 @@ thread_unblock (struct thread *t)
   list_push_back (&ready_list, &t->elem);
   t->status = THREAD_READY;
   intr_set_level (old_level);
+}
+
+/* Puts the current thread to sleep for the given amount of timer ticks. The
+   thread will be automatically awoken when that number of ticks has passed.
+   
+   Thus function expects to be called from timer_sleep generally.
+ */
+void
+thread_sleep (int64_t ticks)
+{
+  enum intr_level old_level;
+  struct thread *t = thread_current ();
+
+  ASSERT(intr_get_level() == INTR_ON);
+  
+  /* Set the sleep time in the current thread and add to sleeping list */
+  t->sleep_count = ticks;
+  old_level = intr_disable ();  /* Disable intr so timer won't start early */
+  list_push_back (&sleep_list, &t->elem);
+  
+  /* Set thread to blocked */
+  thread_block ();
+  
+  /* Restore previous interrupt setting */
+  intr_set_level (old_level);
+}
+
+/* Goes through the list of sleeping thread to decrement the time left to sleep
+   and awakens them automatically when the time expires. */
+void
+thread_check_awaken (void)
+{
+  struct thread *t;
+  struct list_elem *del, *curr = list_begin (&sleep_list);
+  
+  /* Go through list of sleeping threads */
+  while (curr != list_end (&sleep_list))
+  {
+    t = list_entry (curr, struct thread, elem);
+    --(t->sleep_count);
+    /* Remove thread if time expired and unblock*/
+    if (t->sleep_count == 0)
+    {
+      del = curr;
+      curr = list_next (curr);
+      list_remove(del);
+      thread_unblock(t);
+    }
+    /* Move to next thread otherwise */
+    else
+    {
+      curr = list_next (curr);
+    }
+  }
 }
 
 /* Returns the name of the running thread. */
