@@ -176,6 +176,7 @@ void lock_init(struct lock *lock) {
 
     lock->holder = NULL;
     sema_init(&lock->semaphore, 1);
+    lock->priority = PRI_MIN;
 }
 
 /*! Acquires LOCK, sleeping until it becomes available if
@@ -211,6 +212,7 @@ void lock_acquire(struct lock *lock) {
 // TODO: MODIFY
 bool lock_try_acquire(struct lock *lock) {
     bool success;
+    struct thread *t = thread_current();
 
     // TODO: check if always update, or only on update
     ASSERT(lock != NULL);
@@ -219,15 +221,11 @@ bool lock_try_acquire(struct lock *lock) {
     success = sema_try_down(&lock->semaphore);
             
     if (success) {
-        lock->holder = thread_current();
-        
+        lock->holder = t;        
     }
     
-    // New priority of lock is highest of new priority and previous
-    lock->priority = max((lock->holder)->priority, lock->priority);
-    
-    // Update the priority of the holder
-    (lock->holder)->priority = lock->priority;
+    // Update the priority of the lock
+    lock_update_priority(lock, t->priority);
 
     return success;
 }
@@ -265,9 +263,9 @@ void lock_update_priority(struct lock *lock, int32_t priority) {
     lock->priority = max(priority, lock->priority);
 
     // Update the priority of the holder
-    (lock->holder)->priority = lock->priority;
+    thread_lock_set_priority(lock->priority, lock->holder);
     
-    // TODO: if no change, skip
+    // If no change, skip
     
 }
 

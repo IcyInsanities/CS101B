@@ -98,11 +98,16 @@ struct thread {
     enum thread_status status;          /*!< Thread state. */
     char name[16];                      /*!< Name (for debugging purposes). */
     uint8_t *stack;                     /*!< Saved stack pointer. */
+    int orig_priority;                  /*!< Original priority. */
     int priority;                       /*!< Priority. */
     struct list_elem allelem;           /*!< List element for all threads list. */
     int64_t sleep_count;                /*!< Time remaining for sleep. */
     /**@}*/
 
+    struct list locks_held;             // List of locks owned
+    struct lock *lock_to_acquire;       // Lock attempting to acquire
+    
+    
     /*! Shared between thread.c and synch.c. */
     /**@{*/
     struct list_elem elem;              /*!< List element. */
@@ -155,6 +160,7 @@ void thread_foreach(thread_action_func *, void *);
 
 int thread_get_priority(void);
 void thread_set_priority(int);
+void lock_thread_set_priority(int, struct thread*);
 
 int thread_get_nice(void);
 void thread_set_nice(int);

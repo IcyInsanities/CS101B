@@ -87,6 +87,8 @@ static tid_t allocate_tid (void);
 
    It is not safe to call thread_current() until this function
    finishes. */
+   
+// TODO: update to match struct
 void
 thread_init (void) 
 {
@@ -393,8 +395,39 @@ thread_foreach (thread_action_func *func, void *aux)
 /* Sets the current thread's priority to NEW_PRIORITY. */
 void
 thread_set_priority (int new_priority) 
+{ 
+    
+    struct thread *t = thread_current();
+    
+    // Update the priority of the thread
+    t->orig_priority = new_priority;
+    
+    // If the priority has changed, propagate it to acquiring lock
+    if (new_priority > t->priority) {
+        t->priority = new_priority;
+        
+        // If there is a lock to aquire, update its priority
+        if (t->lock_to_acquire != NULL) {
+            lock_update_priority(t->lock_to_acquire, t->priority);
+        }
+    }
+}
+
+/* Sets the current thread's acting priority to NEW_PRIORITY. */
+void
+thread_lock_set_priority (int new_priority, struct thread *t) 
 {
-  thread_current ()->priority = new_priority;
+    
+    // If the priority has changed, propagate it to acquiring lock
+    if (new_priority > t->priority) {
+        // Update the priority of the thread
+        t->priority = new_priority;
+        
+        // If there is a lock to aquire, update its priority
+        if (t->lock_to_acquire != NULL) {
+            lock_update_priority(t->lock_to_acquire, new_priority);
+        }
+    }
 }
 
 /* Returns the current thread's priority. */
