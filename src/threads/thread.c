@@ -423,24 +423,17 @@ thread_set_priority (int new_priority)
     // Update the priority of the thread
     t_curr->orig_priority = new_priority;
     
-    new_priority = thread_get_donations(t_curr);
-    t_curr->priority = new_priority;
+    // Set priority to max of donations or the actual priority
+    t_curr->priority = thread_lock_max_priority(t_curr);
+    t_curr->priority = (new_priority > t_curr->priority) ? new_priority : t_curr->priority;
+    
     // If there is a lock to aquire, update its priority
     if (t_curr->lock_to_acquire != NULL) {
-        //lock_update_priority(t_curr->lock_to_acquire, t_curr->priority);
+        lock_update_priority(t_curr->lock_to_acquire, t_curr->priority);
     }
     
     /* Find highest priority thread */
-    // TODO: CHECK IF SCHEDULE WILL DO IT
     thread_yield();
-}
-
-/* Search over owned locks for maximum priority donated */
-int
-thread_get_donations (struct thread *t)
-{
-    //  TODO!!!!
-    return t->orig_priority;
 }
 
 /* Sets the current thread's acting priority to NEW_PRIORITY. */
@@ -841,6 +834,7 @@ thread_acquire_lock (struct lock *l)
 {
 
     struct thread *t = thread_current();
+    t->lock_to_acquire = NULL;
     
     // Add lock to the list of locks held
     list_push_back(&(t->locks_held), &(l->elem));
@@ -850,7 +844,14 @@ thread_acquire_lock (struct lock *l)
 void
 thread_release_lock (struct lock *l)
 {
+    // Only current thread could be releasing a lock
+    struct thread *t = thread_current();
+
     // Remove released lock from list of held locks
     ASSERT(l != NULL);
     list_remove(&(l->elem));
+    // Update priority based on remaining locks
+    t->priority = thread_lock_max_priority(t);
+    t->priority = (t->orig_priority > t->priority) ? t->orig_priority : t->priority;
+    //printf("Thread %d has priority %d\n", t->orig_priority, t->priority);
 }

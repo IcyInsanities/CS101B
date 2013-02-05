@@ -117,9 +117,25 @@ void sema_up(struct semaphore *sema) {
     ASSERT(sema != NULL);
 
     old_level = intr_disable();
+    // Ensure that highest priority waiting thread is unblocked.
     if (!list_empty(&sema->waiters)) {
-        thread_unblock(list_entry(list_pop_front(&sema->waiters),
-                                  struct thread, elem));
+        struct list_elem *curr, *max = NULL;
+        struct thread *t, *t_max;
+        
+        max = list_begin(&sema->waiters);
+        t_max = list_entry (max, struct thread, elem);
+        for (curr = list_next(max); curr != list_end(&sema->waiters);
+             curr = list_next(curr))
+        {
+            t = list_entry (curr, struct thread, elem);
+            if (t->priority > t_max->priority)
+            {
+                max = curr;
+                t_max = t;
+            }
+        }
+        list_remove(max);
+        thread_unblock(t_max);
     }
     sema->value++;
     intr_set_level(old_level);
@@ -196,18 +212,18 @@ void lock_acquire(struct lock *lock) {
     ASSERT(!intr_context());
     ASSERT(!lock_held_by_current_thread(lock));
 
-    // No longer attempting to acquire lock
+    // Attempting to acquire lock
     thread_update_lock_to_acquire(t, lock);
     ASSERT(t->lock_to_acquire != NULL); // DEBUG: 
 
     // If some one has a lock, donate priority to them
     if (lock->holder != NULL) {
         lock_update_priority(lock, t->priority);
-        
     }
     
     sema_down(&lock->semaphore);
     
+    // Have acquired lock
     lock->holder = t;
 
     // Update the lock priority to that of new holder, as it should be the
@@ -218,8 +234,7 @@ void lock_acquire(struct lock *lock) {
     // Add lock to list of locks held by current thread
     thread_acquire_lock(lock);
     
-    // No longer attempting to acquire lock
-    thread_update_lock_to_acquire(t, NULL);
+    // Ensure no longer attempting to acquire lock
     ASSERT(t->lock_to_acquire == NULL); // DEBUG: 
 
 }
@@ -241,21 +256,17 @@ bool lock_try_acquire(struct lock *lock) {
     success = sema_try_down(&lock->semaphore);
     
     if (success) {
+        // Have acquired lock
         lock->holder = t;
-    
+        // Update the lock priority to that of new holder, as it should be the
+        // highest prority
+        lock->priority = (lock->holder)->priority;
         // Add lock to list of locks held by current thread
         thread_acquire_lock(lock);
-        
-        // No longer attempting to acquire lock
-        thread_update_lock_to_acquire(t, NULL);
     } else {
     
-        // If failed, attempting to acquire lock
-        //thread_update_lock_to_acquire(t, lock);
+        // If failed to acquire, do nothing
     }
-    
-    // Update the priority of the lock
-    lock_update_priority(lock, t->priority);
 
     return success;
 }
@@ -292,6 +303,8 @@ void lock_release(struct lock *lock) {
     
     sema_up(&lock->semaphore);
     
+    // See if higher priority thread can now run
+    thread_yield();
 }
 
 /*! Returns true if the current thread holds LOCK, false
@@ -311,8 +324,6 @@ void lock_update_priority(struct lock *lock, int priority) {
 
     // Update the priority of the holder
     thread_lock_set_priority(lock->priority, lock->holder);
-    
-    // If no change, skip
 
 }
 
