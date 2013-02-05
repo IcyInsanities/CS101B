@@ -62,9 +62,14 @@ static unsigned thread_ticks;   /* # of timer ticks since last yield. */
    Controlled by kernel command-line option "-o mlfqs". */
 bool thread_mlfqs;
 
-// 
-static double load_avg;
-
+/* Store the average system load, done as a fixed point number */
+static int64_t load_avg = 0;
+#define DECIMAL_BITS    14
+/* Constants for convenient fixed point arithmetic and functions using constant
+   values */
+#define FIXP_F        (int64_t) (1 << DECIMAL_BITS) 
+#define FIXP_59DIV60  (int64_t) (0xFBBBBBBB >> (32-DECIMAL_BITS))
+#define FIXP_01DIV60  (int64_t) (0x04444444 >> (32-DECIMAL_BITS))
 
 static void kernel_thread (thread_func *, void *aux);
 
@@ -404,6 +409,12 @@ thread_foreach (thread_action_func *func, void *aux)
 void
 thread_set_priority (int new_priority)
 {
+    // Disable if advanced scheduler enabled
+    if (thread_mlfqs)
+    {
+        return;
+    }
+
     struct thread *t_curr = thread_current();
 
     // Update the priority of the thread
@@ -461,6 +472,10 @@ void thread_update_priority (void)
   priority -= thread_get_recent_cpu() / 4;
   priority -= thread_get_nice() * 2;
   
+  // Bound between PRI_MIN and PRI_MAX
+  priority = (priority < PRI_MIN) ? PRI_MIN : priority;
+  priority = (priority > PRI_MAX) ? PRI_MAX : priority;
+  
   thread_current()->priority = priority;
 }
 
@@ -483,22 +498,25 @@ thread_get_nice (void)
 int
 thread_get_load_avg (void)
 {
-    return 100*load_avg;
+    // Truncate down to integer and return
+    return 100 * load_avg / FIXP_F;
 }
 
 // Updates the value of load_avg
 void thread_update_load_avg (void)
 {
   // Compute new value of the system load average
-  load_avg *= (59./60.);
-  load_avg += 1/60. * (double)list_size(&ready_list);
+  load_avg *= FIXP_59DIV60; // load_avg *= 59/60 as fixed point
+  load_avg = load_avg / FIXP_F;
+  // load_avg += 1/60 * ready_theads
+  load_avg += FIXP_01DIV60 * (int64_t)list_size(&ready_list);
 
   // If we are currently running a thread
   // TODO: STEVEN CHECKS IF THIS WORKS
   if(is_thread(running_thread()))
   {
     // Account for the running thread
-    load_avg += 1/60.;
+    load_avg += FIXP_01DIV60;
   }
 }
 
@@ -506,7 +524,8 @@ void thread_update_load_avg (void)
 int
 thread_get_recent_cpu (void)
 {
-    return 100*thread_current()->recent_cpu;
+    // Truncate down to integer and return
+    return 100 * thread_current()->recent_cpu / FIXP_F;
 }
 
 // Update the value for recent_cpu
@@ -518,9 +537,9 @@ void thread_update_recent_cpu (void)
   recent_cpu = thread_current()->recent_cpu;
 
   // Update the value
-  recent_cpu *= (2*load_avg)/(2*load_avg + 1);
-  recent_cpu += thread_current()->nice;
-
+  recent_cpu *= (2*load_avg) / (2*load_avg + 1*FIXP_F);
+  recent_cpu += thread_current()->nice * FIXP_F;
+  
   // Put it back in the thread struct
   thread_current()->recent_cpu = recent_cpu;
 
@@ -614,6 +633,9 @@ init_thread (struct thread *t, const char *name, int priority)
   t->stack = (uint8_t *) t + PGSIZE;
   t->priority = priority;
   t->magic = THREAD_MAGIC;
+  
+  t->recent_cpu = 0;
+  t->nice = 0;
 
   old_level = intr_disable ();
   list_push_back (&all_list, &t->allelem);
@@ -646,6 +668,10 @@ next_thread_to_run (void)
   
   if (list_empty (&ready_list))
     return idle_thread;
+  // Use priority donation so take absolute maximum priority thread
+  // Works with advanced scheduler as takes first element of the highest
+  // priority level, which is removed. On yielding, it will be pushed onto the
+  // end of the list.
   else
   {
     // Search for maximum priority thread

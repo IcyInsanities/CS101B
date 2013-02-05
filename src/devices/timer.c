@@ -26,6 +26,9 @@ static int64_t ticks;
 /*! Number of loops per timer tick.  Initialized by timer_calibrate(). */
 static unsigned loops_per_tick;
 
+/*! Flag to control use of multi-level feedback queue scheduler*/
+extern bool thread_mlfqs;
+
 static intr_handler_func timer_interrupt;
 static bool too_many_loops(unsigned loops);
 static void busy_wait(int64_t loops);
@@ -152,13 +155,13 @@ void timer_print_stats(void) {
 static void timer_interrupt(struct intr_frame *args UNUSED) {
 
     // Update once per second
-    if(timer_ticks() % TIMER_FREQ == 0)
+    if ((thread_mlfqs) && (timer_ticks() % TIMER_FREQ == 0))
     {
         thread_update_load_avg();
         thread_update_recent_cpu();
     }
     // Update once every four clocks
-    if(timer_ticks() % 4 == 0)
+    if ((thread_mlfqs) && (timer_ticks() % 4 == 0))
     {
         thread_update_priority();
     }

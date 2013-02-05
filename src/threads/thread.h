@@ -93,7 +93,7 @@ typedef int tid_t;
 */
 struct thread {
 
-    int recent_cpu;
+    int64_t recent_cpu;
     int nice;
 
     /*! Owned by thread.c. */
