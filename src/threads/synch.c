@@ -290,15 +290,17 @@ void lock_release(struct lock *lock) {
     ASSERT(list_size(&((lock->holder)->locks_held)) != 0);
     // Release the lock
     thread_release_lock(lock);
+
     // Get the new highest priority and update the priority of the holder
     lock_priority = thread_lock_max_priority(t);
-    
+    /*
     if (lock_priority > t->orig_priority) {
         t->priority = lock->priority;
     } else {
         t->priority = t->orig_priority;
     }
-    
+    */
+
     // Set lock priority to lowest, since no one holds it
     lock->priority = PRI_MIN;
     

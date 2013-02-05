@@ -20,6 +20,14 @@
    of thread.h for details. */
 #define THREAD_MAGIC 0xcd6abf4b
 
+#ifndef max
+	#define max( a, b ) ( ((a) > (b)) ? (a) : (b) )
+#endif
+
+#ifndef min
+	#define min( a, b ) ( ((a) < (b)) ? (a) : (b) )
+#endif
+
 /* List of processes in THREAD_READY state, that is, processes
    that are ready to run but not actually running. */
 static struct list ready_list;
@@ -677,6 +685,7 @@ next_thread_to_run (void)
 {
   struct list_elem *curr, *max = NULL;
   struct thread *t, *t_max;
+  int priority;
   
   if (list_empty (&ready_list))
     return idle_thread;
@@ -852,6 +861,7 @@ thread_release_lock (struct lock *l)
     list_remove(&(l->elem));
     // Update priority based on remaining locks
     t->priority = thread_lock_max_priority(t);
+
     t->priority = (t->orig_priority > t->priority) ? t->orig_priority : t->priority;
-    //printf("Thread %d has priority %d\n", t->orig_priority, t->priority);
+
 }
