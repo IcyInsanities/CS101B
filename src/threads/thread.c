@@ -507,13 +507,13 @@ void thread_update_load_avg (void)
 {
   // Compute new value of the system load average
   load_avg *= FIXP_59DIV60; // load_avg *= 59/60 as fixed point
-  load_avg = load_avg / FIXP_F;
+  load_avg /= FIXP_F;
   // load_avg += 1/60 * ready_theads
   load_avg += FIXP_01DIV60 * (int64_t)list_size(&ready_list);
 
   // If we are currently running a thread
   // TODO: STEVEN CHECKS IF THIS WORKS
-  if(is_thread(running_thread()))
+  if(running_thread() != idle_thread)
   {
     // Account for the running thread
     load_avg += FIXP_01DIV60;
