@@ -92,6 +92,10 @@ typedef int tid_t;
    blocked state is on a semaphore wait list.
 */
 struct thread {
+
+    int64_t recent_cpu;
+    int nice;
+
     /*! Owned by thread.c. */
     /**@{*/
     tid_t tid;                          /*!< Thread identifier. */
@@ -159,13 +163,17 @@ typedef void thread_action_func(struct thread *t, void *aux);
 void thread_foreach(thread_action_func *, void *);
 
 int thread_get_priority(void);
+void thread_update_priority(void);
 void thread_set_priority(int);
-void thread_lock_set_priority(int, struct thread*);
+void thread_lock_set_priority(int, struct thread *);
+int thread_get_donations (struct thread *);
 
 int thread_get_nice(void);
 void thread_set_nice(int);
 int thread_get_recent_cpu(void);
+void thread_update_recent_cpu(void);
 int thread_get_load_avg(void);
+void thread_update_load_avg(void);
 
 
 // TODO: Debug this
