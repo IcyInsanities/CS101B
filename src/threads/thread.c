@@ -139,6 +139,9 @@ void
 thread_tick (void)
 {
   struct thread *t = thread_current ();
+  
+  /* Increment the recent_cpu for the running thread */
+  ++t->recent_cpu;
 
   /* Update statistics. */
   if (t == idle_thread)
@@ -531,18 +534,26 @@ thread_get_recent_cpu (void)
 // Update the value for recent_cpu
 void thread_update_recent_cpu (void)
 {
-  int recent_cpu;
+  int64_t recent_cpu;
+  struct list_elem *e;
+  struct thread *t;
   
-  // Fetch the current recent_cpu value
-  recent_cpu = thread_current()->recent_cpu;
-
-  // Update the value
-  recent_cpu *= (2*load_avg) / (2*load_avg + 1*FIXP_F);
-  recent_cpu += thread_current()->nice * FIXP_F;
-  
-  // Put it back in the thread struct
-  thread_current()->recent_cpu = recent_cpu;
-
+  // TODO: REIMPLEMENT WITH thread_foreach FUNCTION
+  for (e = list_begin (&all_list); e != list_end (&all_list);
+       e = list_next (e))
+  {
+    t = list_entry (e, struct thread, allelem);
+    
+    // Fetch the current recent_cpu value
+    recent_cpu = t->recent_cpu;
+    
+    // Update the value
+    recent_cpu *= (2*load_avg) / (2*load_avg + 1*FIXP_F);
+    recent_cpu += t->nice * FIXP_F;
+    
+    // Put it back in the thread struct
+    t->recent_cpu = recent_cpu;
+  }
 }
 
 
