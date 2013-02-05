@@ -148,6 +148,7 @@ thread_tick (void)
   /* Enforce preemption. */
   if (++thread_ticks >= TIME_SLICE)
     intr_yield_on_return ();
+
 }
 
 /* Prints thread statistics. */
@@ -448,49 +449,83 @@ thread_lock_set_priority (int new_priority, struct thread *t)
 /* Returns the current thread's priority. */
 int
 thread_get_priority (void)
-{
-  return thread_current ()->priority;
+{ 
+  return thread_current()->priority;
 }
+
+void thread_update_priority (void)
+{
+  int priority;
+
+  priority = PRI_MAX;
+  priority -= thread_get_recent_cpu() / 4;
+  priority -= thread_get_nice() * 2;
+  
+  thread_current()->priority = priority;
+}
+
 
 /* Sets the current thread's nice value to NICE. */
 void
-thread_set_nice (int nice UNUSED)
+thread_set_nice (int nice)
 {
-  /* Not yet implemented. */
+  thread_current()->nice = nice;
 }
 
 /* Returns the current thread's nice value. */
 int
 thread_get_nice (void)
 {
-  /* Not yet implemented. */
-  return 0;
+  return thread_current()->nice;
 }
 
 /* Returns 100 times the system load average. */
 int
 thread_get_load_avg (void)
 {
+    return 100*load_avg;
+}
+
+// Updates the value of load_avg
+void thread_update_load_avg (void)
+{
+  // Compute new value of the system load average
   load_avg *= (59./60.);
+  load_avg += 1/60. * (double)list_size(&ready_list);
 
-  load_avg -= 1/60. * (double)list_size(ready_list);
-
-  return load_avg;
+  // If we are currently running a thread
+  // TODO: STEVEN CHECKS IF THIS WORKS
+  if(is_thread(running_thread()))
+  {
+    // Account for the running thread
+    load_avg += 1/60.;
+  }
 }
 
 /* Returns 100 times the current thread's recent_cpu value. */
 int
 thread_get_recent_cpu (void)
 {
+    return 100*thread_current()->recent_cpu;
+}
+
+// Update the value for recent_cpu
+void thread_update_recent_cpu (void)
+{
   int recent_cpu;
   
+  // Fetch the current recent_cpu value
   recent_cpu = thread_current()->recent_cpu;
 
-  recent_cpu = (2*load_avg)/(2*load_avg + 1);
+  // Update the value
+  recent_cpu *= (2*load_avg)/(2*load_avg + 1);
   recent_cpu += thread_current()->nice;
 
-  return recent_cpu;
+  // Put it back in the thread struct
+  thread_current()->recent_cpu = recent_cpu;
+
 }
+
 
 /* Idle thread.  Executes when no other thread is ready to run.
 
