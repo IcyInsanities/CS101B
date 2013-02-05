@@ -139,6 +139,9 @@ void sema_up(struct semaphore *sema) {
     }
     sema->value++;
     intr_set_level(old_level);
+    
+    // See if higher priority thread can now run
+    thread_yield();
 }
 
 static void sema_test_helper(void *sema_);
@@ -302,9 +305,6 @@ void lock_release(struct lock *lock) {
     lock->holder = NULL;
     
     sema_up(&lock->semaphore);
-    
-    // See if higher priority thread can now run
-    thread_yield();
 }
 
 /*! Returns true if the current thread holds LOCK, false
