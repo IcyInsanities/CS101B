@@ -28,6 +28,9 @@ typedef int tid_t;
 #define PRI_DEFAULT 31                  /*!< Default priority. */
 #define PRI_MAX 63                      /*!< Highest priority. */
 
+/*! Check value for nonsleeping thread */
+#define NOT_SLEEPING
+
 /*! A kernel thread or user process.
 
    Each thread structure is stored in its own 4 kB page.  The
@@ -99,10 +102,16 @@ struct thread {
     enum thread_status status;          /*!< Thread state. */
     char name[16];                      /*!< Name (for debugging purposes). */
     uint8_t *stack;                     /*!< Saved stack pointer. */
+    int orig_priority;                  /*!< Original priority. */
     int priority;                       /*!< Priority. */
     struct list_elem allelem;           /*!< List element for all threads list. */
+    int64_t sleep_count;                /*!< Time remaining for sleep. */
     /**@}*/
 
+    struct list locks_held;             // List of locks owned
+    struct lock *lock_to_acquire;       // Lock attempting to acquire
+    
+    
     /*! Shared between thread.c and synch.c. */
     /**@{*/
     struct list_elem elem;              /*!< List element. */
@@ -138,6 +147,9 @@ tid_t thread_create(const char *name, int priority, thread_func *, void *);
 void thread_block(void);
 void thread_unblock(struct thread *);
 
+void thread_sleep(int64_t);
+void thread_check_awaken(void);
+
 struct thread *thread_current (void);
 tid_t thread_tid(void);
 const char *thread_name(void);
@@ -152,6 +164,8 @@ void thread_foreach(thread_action_func *, void *);
 
 int thread_get_priority(void);
 void thread_set_priority(int);
+void thread_lock_set_priority(int, struct thread *);
+int thread_get_donations (struct thread *);
 
 int thread_get_nice(void);
 void thread_set_nice(int);
