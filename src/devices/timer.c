@@ -151,6 +151,18 @@ void timer_print_stats(void) {
 /*! Timer interrupt handler. */
 static void timer_interrupt(struct intr_frame *args UNUSED) {
 
+    // Update once per second
+    if(timer_ticks() % TIMER_FREQ == 0)
+    {
+        thread_update_load_avg();
+        thread_update_recent_cpu();
+    }
+    // Update once every four clocks
+    if(timer_ticks() % 4 == 0)
+    {
+        thread_update_priority();
+    }
+    
     /* Update counters on sleeping threads and awaken as needed. */
     thread_check_awaken ();
 
