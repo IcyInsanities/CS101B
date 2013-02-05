@@ -851,5 +851,6 @@ void
 thread_release_lock (struct lock *l)
 {
     // Remove released lock from list of held locks
+    ASSERT(l != NULL);
     list_remove(&(l->elem));
 }

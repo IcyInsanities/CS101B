@@ -200,6 +200,12 @@ void lock_acquire(struct lock *lock) {
     thread_update_lock_to_acquire(t, lock);
     ASSERT(t->lock_to_acquire != NULL); // DEBUG: 
 
+    // If some one has a lock, donate priority to them
+    if (lock->holder != NULL) {
+        lock_update_priority(lock, t->priority);
+        
+    }
+    
     sema_down(&lock->semaphore);
     
     lock->holder = t;
@@ -215,7 +221,6 @@ void lock_acquire(struct lock *lock) {
     // No longer attempting to acquire lock
     thread_update_lock_to_acquire(t, NULL);
     ASSERT(t->lock_to_acquire == NULL); // DEBUG: 
-
 
 }
 
@@ -246,7 +251,7 @@ bool lock_try_acquire(struct lock *lock) {
     } else {
     
         // If failed, attempting to acquire lock
-        thread_update_lock_to_acquire(t, lock);
+        //thread_update_lock_to_acquire(t, lock);
     }
     
     // Update the priority of the lock
@@ -267,7 +272,8 @@ void lock_release(struct lock *lock) {
     struct thread *t = thread_current();
     ASSERT(lock != NULL);
     ASSERT(lock_held_by_current_thread(lock));
-    
+        
+    ASSERT(list_size(&((lock->holder)->locks_held)) != 0);
     // Release the lock
     thread_release_lock(lock);
     // Get the new highest priority and update the priority of the holder
@@ -285,6 +291,7 @@ void lock_release(struct lock *lock) {
     lock->holder = NULL;
     
     sema_up(&lock->semaphore);
+    
 }
 
 /*! Returns true if the current thread holds LOCK, false
