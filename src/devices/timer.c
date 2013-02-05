@@ -157,8 +157,8 @@ static void timer_interrupt(struct intr_frame *args UNUSED) {
     // Update once per second
     if ((thread_mlfqs) && (timer_ticks() % TIMER_FREQ == 0))
     {
-        thread_update_load_avg();
         thread_update_recent_cpu();
+        thread_update_load_avg();
     }
     // Update once every four clocks
     if ((thread_mlfqs) && (timer_ticks() % 4 == 0))
