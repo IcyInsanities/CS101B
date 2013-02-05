@@ -141,7 +141,7 @@ thread_tick (void)
   struct thread *t = thread_current ();
   
   /* Increment the recent_cpu for the running thread */
-  ++t->recent_cpu;
+  t->recent_cpu += FIXP_F;
 
   /* Update statistics. */
   if (t == idle_thread)
@@ -467,21 +467,26 @@ thread_get_priority (void)
   return thread_current()->priority;
 }
 
-void thread_update_priority (void)
+void thread_update_priority_indiv (struct thread* t, void* aux)
 {
   int priority;
 
   priority = PRI_MAX;
-  priority -= thread_get_recent_cpu() / 4;
-  priority -= thread_get_nice() * 2;
+  priority -= t->recent_cpu / FIXP_F / 4;
+  priority -= t->nice * 2;
   
   // Bound between PRI_MIN and PRI_MAX
   priority = (priority < PRI_MIN) ? PRI_MIN : priority;
   priority = (priority > PRI_MAX) ? PRI_MAX : priority;
-  
-  thread_current()->priority = priority;
+
+  t->priority = priority;
+
 }
 
+void thread_update_priority(void)
+{
+    thread_foreach(thread_update_priority_indiv, NULL);
+}
 
 /* Sets the current thread's nice value to NICE. */
 void
@@ -532,28 +537,25 @@ thread_get_recent_cpu (void)
 }
 
 // Update the value for recent_cpu
-void thread_update_recent_cpu (void)
+void thread_update_recent_cpu_indiv (struct thread* t, void* aux)
 {
   int64_t recent_cpu;
-  struct list_elem *e;
-  struct thread *t;
-  
-  // TODO: REIMPLEMENT WITH thread_foreach FUNCTION
-  for (e = list_begin (&all_list); e != list_end (&all_list);
-       e = list_next (e))
-  {
-    t = list_entry (e, struct thread, allelem);
+
+  // Fetch the current recent_cpu value
+  recent_cpu = t->recent_cpu;
     
-    // Fetch the current recent_cpu value
-    recent_cpu = t->recent_cpu;
+  // Update the value
+  recent_cpu *= (2*load_avg);
+  recent_cpu /= (2*load_avg + 1*FIXP_F);
+  recent_cpu += t->nice * FIXP_F;
     
-    // Update the value
-    recent_cpu *= (2*load_avg) / (2*load_avg + 1*FIXP_F);
-    recent_cpu += t->nice * FIXP_F;
-    
-    // Put it back in the thread struct
-    t->recent_cpu = recent_cpu;
-  }
+  // Put it back in the thread struct
+  t->recent_cpu = recent_cpu;
+}
+
+void thread_update_recent_cpu()
+{
+    thread_foreach(thread_update_recent_cpu_indiv, NULL);
 }
 
 
