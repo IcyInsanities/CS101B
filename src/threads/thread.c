@@ -59,6 +59,10 @@ static unsigned thread_ticks;   /* # of timer ticks since last yield. */
    Controlled by kernel command-line option "-o mlfqs". */
 bool thread_mlfqs;
 
+// 
+static double load_avg;
+
+
 static void kernel_thread (thread_func *, void *aux);
 
 static void idle (void *aux UNUSED);
@@ -364,16 +368,25 @@ thread_get_nice (void)
 int
 thread_get_load_avg (void) 
 {
-  /* Not yet implemented. */
-  return 0;
+  load_avg *= (59./60.);
+
+  load_avg -= 1/60. * (double)list_size(ready_list);
+
+  return load_avg;
 }
 
 /* Returns 100 times the current thread's recent_cpu value. */
 int
 thread_get_recent_cpu (void) 
 {
-  /* Not yet implemented. */
-  return 0;
+  int recent_cpu;
+  
+  recent_cpu = thread_current()->recent_cpu;
+
+  recent_cpu = (2*load_avg)/(2*load_avg + 1);
+  recent_cpu += thread_current()->nice;
+
+  return recent_cpu;
 }
 
 /* Idle thread.  Executes when no other thread is ready to run.
