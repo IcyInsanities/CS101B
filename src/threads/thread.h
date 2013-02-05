@@ -160,12 +160,26 @@ void thread_foreach(thread_action_func *, void *);
 
 int thread_get_priority(void);
 void thread_set_priority(int);
-void lock_thread_set_priority(int, struct thread*);
+void thread_lock_set_priority(int, struct thread*);
 
 int thread_get_nice(void);
 void thread_set_nice(int);
 int thread_get_recent_cpu(void);
 int thread_get_load_avg(void);
+
+
+// TODO: Debug this
+/* Return the highest priority among locks held */
+int thread_lock_max_priority (struct thread *t);
+
+// TODO: write function to update lock_to_acquire
+void thread_update_lock_to_acquire (struct thread *t, struct lock *l);
+
+// TODO: need functions to add locks from locks_held list
+void thread_acquire_lock (struct lock *l);
+
+// TODO: need functions to remove locks from locks_held list
+void thread_release_lock (struct lock *l);
 
 #endif /* threads/thread.h */
 

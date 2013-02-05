@@ -190,17 +190,25 @@ void lock_init(struct lock *lock) {
 // TODO: MODIFY
 void lock_acquire(struct lock *lock) {
 
+    struct thread *t = thread_current();
+    
     ASSERT(lock != NULL);
     ASSERT(!intr_context());
     ASSERT(!lock_held_by_current_thread(lock));
 
     sema_down(&lock->semaphore);
     
-    lock->holder = thread_current();
+    lock->holder = t;
     
     // Update the lock priority to that of new holder, as it should be the
     // highest prority
     lock->priority = (lock->holder)->priority;
+    
+    // Add lock to list of locks held by current thread
+    thread_acquire_lock(lock);
+    
+    // No longer attempting to acquire lock
+    thread_update_lock_to_acquire(t, NULL);
 }
 
 /*! Tries to acquires LOCK and returns true if successful or false
@@ -219,14 +227,24 @@ bool lock_try_acquire(struct lock *lock) {
     ASSERT(!lock_held_by_current_thread(lock));
 
     success = sema_try_down(&lock->semaphore);
-            
+    
     if (success) {
-        lock->holder = t;        
+        lock->holder = t;
+    
+        // Add lock to list of locks held by current thread
+        thread_acquire_lock(lock);
+        
+        // No longer attempting to acquire lock
+        thread_update_lock_to_acquire(t, NULL);
+    } else {
+    
+        // If failed, attempting to acquire lock
+        thread_update_lock_to_acquire(t, lock);
     }
     
     // Update the priority of the lock
     lock_update_priority(lock, t->priority);
-
+    
     return success;
 }
 
@@ -237,13 +255,24 @@ bool lock_try_acquire(struct lock *lock) {
     handler. */
 // TODO: MODIFY
 void lock_release(struct lock *lock) {
+
+    int new_priority;
+    
     ASSERT(lock != NULL);
     ASSERT(lock_held_by_current_thread(lock));
 
     // Set lock priority to lowest, since no one holds it
     lock->priority = PRI_MIN;
     
+    // Release the lock
+    thread_release_lock(lock);
+    
+    // Get the new highest priority and update the priority of the holder
+    new_priority = thread_lock_max_priority(lock->holder);
+    thread_lock_set_priority(new_priority, lock->holder);
+    
     lock->holder = NULL;
+    
     sema_up(&lock->semaphore);
 }
 
@@ -257,7 +286,7 @@ bool lock_held_by_current_thread(const struct lock *lock) {
     return lock->holder == thread_current();
 }
 
-void lock_update_priority(struct lock *lock, int32_t priority) {
+void lock_update_priority(struct lock *lock, int priority) {
 
     // New priority of lock is highest of new priority and passed
     lock->priority = max(priority, lock->priority);
