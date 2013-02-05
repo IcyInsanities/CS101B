@@ -196,19 +196,27 @@ void lock_acquire(struct lock *lock) {
     ASSERT(!intr_context());
     ASSERT(!lock_held_by_current_thread(lock));
 
+    // No longer attempting to acquire lock
+    thread_update_lock_to_acquire(t, lock);
+    ASSERT(t->lock_to_acquire != NULL); // DEBUG: 
+
     sema_down(&lock->semaphore);
     
     lock->holder = t;
-    
+
     // Update the lock priority to that of new holder, as it should be the
     // highest prority
     lock->priority = (lock->holder)->priority;
+    //printf("updated lock priority: %d\n", lock->priority);
     
     // Add lock to list of locks held by current thread
     thread_acquire_lock(lock);
     
     // No longer attempting to acquire lock
     thread_update_lock_to_acquire(t, NULL);
+    ASSERT(t->lock_to_acquire == NULL); // DEBUG: 
+
+
 }
 
 /*! Tries to acquires LOCK and returns true if successful or false
@@ -222,7 +230,6 @@ bool lock_try_acquire(struct lock *lock) {
     bool success;
     struct thread *t = thread_current();
 
-    // TODO: check if always update, or only on update
     ASSERT(lock != NULL);
     ASSERT(!lock_held_by_current_thread(lock));
 
@@ -244,7 +251,7 @@ bool lock_try_acquire(struct lock *lock) {
     
     // Update the priority of the lock
     lock_update_priority(lock, t->priority);
-    
+
     return success;
 }
 
@@ -256,20 +263,24 @@ bool lock_try_acquire(struct lock *lock) {
 // TODO: MODIFY
 void lock_release(struct lock *lock) {
 
-    int new_priority;
-    
+    int lock_priority;
+    struct thread *t = thread_current();
     ASSERT(lock != NULL);
     ASSERT(lock_held_by_current_thread(lock));
-
-    // Set lock priority to lowest, since no one holds it
-    lock->priority = PRI_MIN;
     
     // Release the lock
     thread_release_lock(lock);
-    
     // Get the new highest priority and update the priority of the holder
-    new_priority = thread_lock_max_priority(lock->holder);
-    thread_lock_set_priority(new_priority, lock->holder);
+    lock_priority = thread_lock_max_priority(t);
+    
+    if (lock_priority > t->orig_priority) {
+        t->priority = lock->priority;
+    } else {
+        t->priority = t->orig_priority;
+    }
+    
+    // Set lock priority to lowest, since no one holds it
+    lock->priority = PRI_MIN;
     
     lock->holder = NULL;
     
@@ -295,7 +306,7 @@ void lock_update_priority(struct lock *lock, int priority) {
     thread_lock_set_priority(lock->priority, lock->holder);
     
     // If no change, skip
-    
+
 }
 
 /*! One semaphore in a list. */

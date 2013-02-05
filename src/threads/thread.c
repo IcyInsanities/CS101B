@@ -632,25 +632,31 @@ is_thread (struct thread *t)
 static void
 init_thread (struct thread *t, const char *name, int priority)
 {
-  enum intr_level old_level;
-
-  ASSERT (t != NULL);
-  ASSERT (PRI_MIN <= priority && priority <= PRI_MAX);
-  ASSERT (name != NULL);
-
-  memset (t, 0, sizeof *t);
-  t->status = THREAD_BLOCKED;
-  strlcpy (t->name, name, sizeof t->name);
-  t->stack = (uint8_t *) t + PGSIZE;
-  t->priority = priority;
-  t->magic = THREAD_MAGIC;
-  
-  t->recent_cpu = 0;
-  t->nice = 0;
-
-  old_level = intr_disable ();
-  list_push_back (&all_list, &t->allelem);
-  intr_set_level (old_level);
+    enum intr_level old_level;
+    
+    ASSERT (t != NULL);
+    ASSERT (PRI_MIN <= priority && priority <= PRI_MAX);
+    ASSERT (name != NULL);
+    
+    memset (t, 0, sizeof *t);
+    t->status = THREAD_BLOCKED;
+    strlcpy (t->name, name, sizeof t->name);
+    t->stack = (uint8_t *) t + PGSIZE;
+    t->magic = THREAD_MAGIC;
+    
+    // Initially, original priority is same as working priority
+    t->priority = priority;
+    t->orig_priority = priority;
+    
+    // Initialize the list of locks held
+    list_init (&(t->locks_held));
+    
+    // Initially no lock held
+    t->lock_to_acquire = NULL;
+    
+    old_level = intr_disable ();
+    list_push_back (&all_list, &t->allelem);
+    intr_set_level (old_level);
 }
 
 /* Allocates a SIZE-byte frame at the top of thread T's stack and
@@ -791,3 +797,57 @@ allocate_tid (void)
 /* Offset of `stack' member within `struct thread'.
    Used by switch.S, which can't figure it out on its own. */
 uint32_t thread_stack_ofs = offsetof (struct thread, stack);
+
+// TODO: Debug this
+/* Return the highest priority among locks held */
+int
+thread_lock_max_priority (struct thread *t)
+{
+
+    struct list_elem *i;
+    size_t num_locks_held = list_size (&(t->locks_held));
+    int max_priority = PRI_MIN;
+
+    // Loop through all the locks held by the thread and find the highest
+    // priority
+    for (i = list_begin (&(t->locks_held)); i != list_end (&(t->locks_held));
+            i = list_next (i)) {
+    
+        struct lock *current_lock = list_entry (i, struct lock, elem);
+        
+        // If priority of lock is higher than previous ones found, record it
+        if (current_lock->priority > max_priority) {
+            max_priority = current_lock->priority;
+            //printf("found a higher priority!\n");
+        }
+
+    }
+    return max_priority;
+}
+
+// TODO: write function to update lock_to_acquire
+void
+thread_update_lock_to_acquire (struct thread *t, struct lock *l)
+{
+    // Update the lock to acquire
+    t->lock_to_acquire = l;
+}
+
+// TODO: need functions to add locks from locks_held list
+void
+thread_acquire_lock (struct lock *l)
+{
+
+    struct thread *t = thread_current();
+    
+    // Add lock to the list of locks held
+    list_push_back(&(t->locks_held), &(l->elem));
+}
+
+// TODO: need functions to remove locks from locks_held list
+void
+thread_release_lock (struct lock *l)
+{
+    // Remove released lock from list of held locks
+    list_remove(&(l->elem));
+}
