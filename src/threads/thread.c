@@ -306,7 +306,7 @@ thread_sleep (int64_t ticks)
 
   /* Set the sleep time in the current thread and add to sleeping list */
   old_level = intr_disable ();  /* Disable intr so timer won't start early */
-  t->sleep_count = ticks + timer_ticks() + 1; // Ensure at least 1 entire tick
+  t->sleep_count = ticks + timer_ticks() - 1;
   list_insert_ordered (&sleep_list, &t->elem, thread_sleep_less, NULL);
 
   /* Set thread to blocked */
