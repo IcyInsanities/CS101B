@@ -139,7 +139,7 @@ void sema_up(struct semaphore *sema) {
     ASSERT(sema != NULL);
 
     old_level = intr_disable();
-    // Ensure that highest priority waiting thread is unblocked.
+    /* Ensure that highest priority waiting thread is unblocked. */
     if (!list_empty(&sema->waiters)) {
         struct list_elem *e_max;
         struct thread *t_max;
@@ -159,7 +159,7 @@ void sema_up(struct semaphore *sema) {
 
     intr_set_level(old_level);
 
-    // See if higher priority thread can now run
+    /* See if higher priority thread can now run */
     thread_yield();
 }
 
@@ -225,7 +225,6 @@ void lock_init(struct lock *lock) {
     interrupt handler.  This function may be called with
     interrupts disabled, but interrupts will be turned back on if
     we need to sleep. */
-// TODO: MODIFY
 void lock_acquire(struct lock *lock) {
 
     struct thread *t = thread_current();
@@ -234,31 +233,26 @@ void lock_acquire(struct lock *lock) {
     ASSERT(!intr_context());
     ASSERT(!lock_held_by_current_thread(lock));
 
-    // Attempting to acquire lock
+    /* Attempting to acquire lock */
     thread_update_lock_to_acquire(t, lock);
-    ASSERT(t->lock_to_acquire != NULL); // DEBUG:
 
-    // If some one has a lock, donate priority to them
+    /* If some one has a lock, donate priority to them */
     if (lock->holder != NULL) {
         lock_update_priority(lock, t->priority);
     }
 
     sema_down(&lock->semaphore);
 
-    // Have acquired lock
+    /* Have acquired lock */
     lock->holder = t;
 
-    // Update the lock priority to that of new holder, as it should be the
-    // highest prority
+    /* Update the lock priority to that of new holder, as it should be the
+       highest prority */
     lock->priority = (lock->holder)->priority;
-    //printf("updated lock priority: %d\n", lock->priority);
 
-    // Add lock to list of locks held by current thread
+    /* Add lock to list of locks held by current thread */
     thread_acquire_lock(lock);
-
-    // Ensure no longer attempting to acquire lock
-    ASSERT(t->lock_to_acquire == NULL); // DEBUG:
-
+    
 }
 
 /*! Tries to acquires LOCK and returns true if successful or false
@@ -267,7 +261,6 @@ void lock_acquire(struct lock *lock) {
 
     This function will not sleep, so it may be called within an
     interrupt handler. */
-// TODO: MODIFY
 bool lock_try_acquire(struct lock *lock) {
     bool success;
     struct thread *t = thread_current();
@@ -276,19 +269,19 @@ bool lock_try_acquire(struct lock *lock) {
     ASSERT(!lock_held_by_current_thread(lock));
 
     success = sema_try_down(&lock->semaphore);
-
+    
+    /* If successful in aquiring lock, need to update the priority and owner */
     if (success) {
-        // Have acquired lock
+        /* Have acquired lock */
         lock->holder = t;
-        // Update the lock priority to that of new holder, as it should be the
-        // highest prority
+        
+        /* Update the lock priority to that of new holder, as it should be the
+           highest prority */
         lock->priority = (lock->holder)->priority;
-        // Add lock to list of locks held by current thread
+        /* Add lock to list of locks held by current thread */
         thread_acquire_lock(lock);
-    } else {
-
-        // If failed to acquire, do nothing
     }
+    /* If failed to acquire, do nothing */
 
     return success;
 }
@@ -298,29 +291,21 @@ bool lock_try_acquire(struct lock *lock) {
     An interrupt handler cannot acquire a lock, so it does not
     make sense to try to release a lock within an interrupt
     handler. */
-// TODO: MODIFY
 void lock_release(struct lock *lock) {
 
     int lock_priority;
     struct thread *t = thread_current();
     ASSERT(lock != NULL);
     ASSERT(lock_held_by_current_thread(lock));
-
     ASSERT(list_size(&((lock->holder)->locks_held)) != 0);
-    // Release the lock
+    
+    /* Release the lock */
     thread_release_lock(lock);
 
-    // Get the new highest priority and update the priority of the holder
+    /* Get the new highest priority and update the priority of the holder. */
     lock_priority = thread_lock_max_priority(t);
-    /*
-    if (lock_priority > t->orig_priority) {
-        t->priority = lock->priority;
-    } else {
-        t->priority = t->orig_priority;
-    }
-    */
 
-    // Set lock priority to lowest, since no one holds it
+    /* Set lock priority to lowest, since no one holds it. */
     lock->priority = PRI_MIN;
 
     lock->holder = NULL;
@@ -331,7 +316,6 @@ void lock_release(struct lock *lock) {
 /*! Returns true if the current thread holds LOCK, false
     otherwise.  (Note that testing whether some other thread holds
     a lock would be racy.) */
-// TODO: MODIFY
 bool lock_held_by_current_thread(const struct lock *lock) {
     ASSERT(lock != NULL);
 
@@ -340,10 +324,10 @@ bool lock_held_by_current_thread(const struct lock *lock) {
 
 void lock_update_priority(struct lock *lock, int priority) {
 
-    // New priority of lock is highest of new priority and passed
+    /*  New priority of lock is highest of new priority and passed. */
     lock->priority = max(priority, lock->priority);
 
-    // Update the priority of the holder
+    /*Update the priority of the holder */
     thread_lock_set_priority(lock->priority, lock->holder);
 
 }
@@ -413,12 +397,12 @@ void cond_signal(struct condition *cond, struct lock *lock UNUSED) {
 
     if (!list_empty(&cond->waiters))
     {
-        // Ensure that highest priority waiting thread is signaled.
+        /* Ensure that highest priority waiting thread is signaled. */
         struct list_elem *curr, *e_max;
         struct list_elem *s, *s_max;
         struct semaphore *sema, *sema_max;
         struct thread *t, *t_max;
-
+        
         e_max = list_begin(&cond->waiters);
         sema_max = &list_entry (e_max, struct semaphore_elem, elem)->semaphore;
         s_max = sema_max_priority_wait(sema_max);

@@ -34,7 +34,7 @@ static struct list ready_list;
 
 /* List of all processes.  Processes are added to this list
    when they are first scheduled and removed when they exit. */
-struct list all_list;
+static struct list all_list;
 
 /* List of all processes that are blocked from a sleep call. */
 static struct list sleep_list;
@@ -71,7 +71,7 @@ static unsigned thread_ticks;   /* # of timer ticks since last yield. */
 bool thread_mlfqs;
 
 /* Store the average system load, done as a fixed point number */
-int64_t load_avg = 0;
+static int64_t load_avg = 0;
 #define DECIMAL_BITS    14
 /* Constants for convenient fixed point arithmetic and functions using constant
    values */
@@ -105,7 +105,6 @@ static tid_t allocate_tid (void);
    It is not safe to call thread_current() until this function
    finishes. */
 
-// TODO: update to match struct
 void
 thread_init (void)
 {
@@ -438,7 +437,7 @@ thread_foreach (thread_action_func *func, void *aux)
 void
 thread_set_priority (int new_priority)
 {
-    // Disable if advanced scheduler enabled
+    /* Disable if advanced scheduler enabled */
     if (thread_mlfqs)
     {
         return;
@@ -446,14 +445,14 @@ thread_set_priority (int new_priority)
 
     struct thread *t_curr = thread_current();
 
-    // Update the priority of the thread
+    /* Update the priority of the thread */
     t_curr->orig_priority = new_priority;
     
-    // Set priority to max of donations or the actual priority
+    /* Set priority to max of donations or the actual priority */
     t_curr->priority = thread_lock_max_priority(t_curr);
     t_curr->priority = (new_priority > t_curr->priority) ? new_priority : t_curr->priority;
     
-    // If there is a lock to aquire, update its priority
+    /* If there is a lock to aquire, update its priority */
     if (t_curr->lock_to_acquire != NULL) {
         lock_update_priority(t_curr->lock_to_acquire, t_curr->priority);
     }
@@ -467,12 +466,12 @@ void
 thread_lock_set_priority (int new_priority, struct thread *t)
 {
 
-    // If the priority has changed, propagate it to acquiring lock
+    /* If the priority has changed, propagate it to acquiring lock */
     if (new_priority > t->priority) {
-        // Update the priority of the thread
+        /* Update the priority of the thread */
         t->priority = new_priority;
 
-        // If there is a lock to aquire, update its priority
+        /* If there is a lock to aquire, update its priority */
         if (t->lock_to_acquire != NULL) {
             lock_update_priority(t->lock_to_acquire, new_priority);
         }
@@ -494,7 +493,7 @@ void thread_update_priority_indiv (struct thread* t, void* aux)
   priority -= (t->recent_cpu + FIXP_F - 1) / FIXP_F / 4;
   priority -= t->nice * 2;
   
-  // Bound between PRI_MIN and PRI_MAX
+  /* Bound between PRI_MIN and PRI_MAX */
   priority = (priority < PRI_MIN) ? PRI_MIN : priority;
   priority = (priority > PRI_MAX) ? PRI_MAX : priority;
 
@@ -524,6 +523,7 @@ void
 thread_set_nice (int nice)
 {
   thread_current()->nice = nice;
+  
 }
 
 /* Returns the current thread's nice value. */
@@ -537,59 +537,48 @@ thread_get_nice (void)
 int
 thread_get_load_avg (void)
 {
-    // Truncate down to integer and return
+    /* Truncate down to integer and return */
     return 100 * load_avg / FIXP_F;
 }
 
-// Updates the value of load_avg
+/* Updates the value of load_avg */
 void thread_update_load_avg (void)
 {
-  //printf("load_avg %ld", load_avg);
-
-  // Compute new value of the system load average
-  load_avg *= FIXP_59DIV60; // load_avg *= 59/60 as fixed point
+  /* Compute new value of the system load average */
+  load_avg *= FIXP_59DIV60; /* load_avg *= 59/60 as fixed point */
   load_avg /= FIXP_F;
-  // load_avg += 1/60 * ready_theads
   load_avg += FIXP_01DIV60 * (int64_t)list_size(&ready_list);
 
-  //printf("Queue len: %d", list_size(&ready_list));
-  
-  // If we are currently running a thread
-  // TODO: STEVEN CHECKS IF THIS WORKS
+  /* If we are currently running a thread */
   if (running_thread() != idle_thread)
   {
-    // Account for the running thread
+    /* Account for the running thread */
     load_avg += FIXP_01DIV60;
-    //printf(" running");
   }
-  
-  //printf("\n");
-  
-  //printf("New is %ld\n", load_avg);
 }
 
 /* Returns 100 times the current thread's recent_cpu value. */
 int
 thread_get_recent_cpu (void)
 {
-    // Truncate down to integer and return
+    /* Truncate down to integer and return */
     return 100 * thread_current()->recent_cpu / FIXP_F;
 }
 
-// Update the value for recent_cpu
+/* Update the value for recent_cpu */
 void thread_update_recent_cpu_indiv (struct thread* t, void* aux)
 {
   int64_t recent_cpu;
 
-  // Fetch the current recent_cpu value
+  /* Fetch the current recent_cpu value */
   recent_cpu = t->recent_cpu;
     
-  // Update the value
+  /* Update the value */
   recent_cpu *= (2*load_avg);
   recent_cpu /= (2*load_avg + 1*FIXP_F);
   recent_cpu += t->nice * FIXP_F;
     
-  // Put it back in the thread struct
+  /* Put it back in the thread struct */
   t->recent_cpu = recent_cpu;
 }
 
@@ -688,7 +677,7 @@ init_thread (struct thread *t, const char *name, int priority)
     
     t->nice = 0;
     t->recent_cpu = 0;
-    // Initially, original priority is same as working priority
+    /* Initially, original priority is same as working priority */
     if (thread_mlfqs)
     {
         thread_update_priority_indiv(t, NULL);
@@ -699,10 +688,10 @@ init_thread (struct thread *t, const char *name, int priority)
     }
     t->orig_priority = t->priority;
     
-    // Initialize the list of locks held
+    /* Initialize the list of locks held */
     list_init (&(t->locks_held));
     
-    // Initially no lock held
+    /* Initially no lock held */
     t->lock_to_acquire = NULL;
     
     old_level = intr_disable ();
@@ -737,20 +726,19 @@ next_thread_to_run (void)
   
   if (list_empty (&ready_list))
     return idle_thread;
-  // Use priority donation so take absolute maximum priority thread
-  // Works with advanced scheduler as takes first element of the highest
-  // priority level, which is removed. On yielding, it will be pushed onto the
-  // end of the list.
+  /* Use priority donation so take absolute maximum priority thread
+     Works with advanced scheduler as takes first element of the highest
+     priority level, which is removed. On yielding, it will be pushed onto the
+     end of the list.
+  */
   else
   {
-    // Search for maximum priority thread
+    /* Search for maximum priority thread */
     max = list_max(&ready_list, thread_priority_less, NULL);
     t_max = list_entry(max, struct thread, elem);
     list_remove(max);
     return t_max;
   }
-
-   // return list_entry (list_pop_front (&ready_list), struct thread, elem);
 }
 
 /* Completes a thread switch by activating the new thread's page
@@ -840,66 +828,61 @@ allocate_tid (void)
    Used by switch.S, which can't figure it out on its own. */
 uint32_t thread_stack_ofs = offsetof (struct thread, stack);
 
-// TODO: Debug this
-/* Return the highest priority among locks held */
+/* Return the highest priority among locks held by the passed thread. */
 int
 thread_lock_max_priority (struct thread *t)
 {
-
     struct list_elem *i;
     size_t num_locks_held = list_size (&(t->locks_held));
     int max_priority = PRI_MIN;
 
-    // Loop through all the locks held by the thread and find the highest
-    // priority
+    /* Loop through all the locks held by the thread and find the highest
+       priority */
     for (i = list_begin (&(t->locks_held)); i != list_end (&(t->locks_held));
             i = list_next (i)) {
     
         struct lock *current_lock = list_entry (i, struct lock, elem);
         
-        // If priority of lock is higher than previous ones found, record it
+        /* If priority of lock is higher than previous ones found, record it */
         if (current_lock->priority > max_priority) {
             max_priority = current_lock->priority;
-            //printf("found a higher priority!\n");
         }
-
     }
     return max_priority;
 }
 
-// TODO: write function to update lock_to_acquire
+/* Updates the lock that the thread is trying to acquire. */
 void
 thread_update_lock_to_acquire (struct thread *t, struct lock *l)
 {
-    // Update the lock to acquire
+    /* Update the lock to acquire */
     t->lock_to_acquire = l;
 }
 
-// TODO: need functions to add locks from locks_held list
+/* Adds the passed lock to the list of locks held by the current thread. */
 void
 thread_acquire_lock (struct lock *l)
 {
-
     struct thread *t = thread_current();
     t->lock_to_acquire = NULL;
     
-    // Add lock to the list of locks held
+    /* Add lock to the list of locks held */
     list_push_back(&(t->locks_held), &(l->elem));
 }
 
-// TODO: need functions to remove locks from locks_held list
+/* Removes the passed lock from the list of locks held by the current thread. */
 void
 thread_release_lock (struct lock *l)
 {
-    // Only current thread could be releasing a lock
+    /* Only current thread could be releasing a lock */
     struct thread *t = thread_current();
 
-    // Remove released lock from list of held locks
     ASSERT(l != NULL);
+        
+    /* Remove released lock from list of held locks */
     list_remove(&(l->elem));
-    // Update priority based on remaining locks
+    /* Update priority based on remaining locks */
     t->priority = thread_lock_max_priority(t);
 
     t->priority = (t->orig_priority > t->priority) ? t->orig_priority : t->priority;
-
 }

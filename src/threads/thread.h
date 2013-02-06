@@ -108,8 +108,8 @@ struct thread {
     int64_t sleep_count;                /*!< Time remaining for sleep. */
     /**@}*/
 
-    struct list locks_held;             // List of locks owned
-    struct lock *lock_to_acquire;       // Lock attempting to acquire
+    struct list locks_held;             /*!< List of locks owned */
+    struct lock *lock_to_acquire;       /*!< Lock attempting to acquire */
     
     
     /*! Shared between thread.c and synch.c. */
@@ -178,17 +178,16 @@ int thread_get_load_avg(void);
 void thread_update_load_avg(void);
 
 
-// TODO: Debug this
 /* Return the highest priority among locks held */
 int thread_lock_max_priority (struct thread *t);
 
-// TODO: write function to update lock_to_acquire
+/* Updates the lock that the thread is trying to acquire. */
 void thread_update_lock_to_acquire (struct thread *t, struct lock *l);
 
-// TODO: need functions to add locks from locks_held list
+/* Adds the passed lock to the list of locks held by the current thread. */
 void thread_acquire_lock (struct lock *l);
 
-// TODO: need functions to remove locks from locks_held list
+/* Removes the passed lock from the list of locks held by the current thread. */
 void thread_release_lock (struct lock *l);
 
 #endif /* threads/thread.h */
