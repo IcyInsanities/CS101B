@@ -34,13 +34,13 @@ static struct list ready_list;
 
 /* List of all processes.  Processes are added to this list
    when they are first scheduled and removed when they exit. */
-static struct list all_list;
+struct list all_list;
 
 /* List of all processes that are blocked from a sleep call. */
 static struct list sleep_list;
 
 /* Idle thread. */
-static struct thread *idle_thread;
+struct thread *idle_thread;
 
 /* Initial thread, the thread running init.c:main(). */
 static struct thread *initial_thread;
@@ -71,7 +71,7 @@ static unsigned thread_ticks;   /* # of timer ticks since last yield. */
 bool thread_mlfqs;
 
 /* Store the average system load, done as a fixed point number */
-static int64_t load_avg = 0;
+int64_t load_avg = 0;
 #define DECIMAL_BITS    14
 /* Constants for convenient fixed point arithmetic and functions using constant
    values */
@@ -526,19 +526,28 @@ thread_get_load_avg (void)
 // Updates the value of load_avg
 void thread_update_load_avg (void)
 {
+  //printf("load_avg %ld", load_avg);
+
   // Compute new value of the system load average
   load_avg *= FIXP_59DIV60; // load_avg *= 59/60 as fixed point
   load_avg /= FIXP_F;
   // load_avg += 1/60 * ready_theads
   load_avg += FIXP_01DIV60 * (int64_t)list_size(&ready_list);
 
+  //printf("Queue len: %d", list_size(&ready_list));
+  
   // If we are currently running a thread
   // TODO: STEVEN CHECKS IF THIS WORKS
-  if(running_thread() != idle_thread)
+  if (running_thread() != idle_thread)
   {
     // Account for the running thread
     load_avg += FIXP_01DIV60;
+    //printf(" running");
   }
+  
+  //printf("\n");
+  
+  //printf("New is %ld\n", load_avg);
 }
 
 /* Returns 100 times the current thread's recent_cpu value. */
