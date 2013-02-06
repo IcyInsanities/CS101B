@@ -489,6 +489,18 @@ void thread_update_priority(void)
     thread_foreach(thread_update_priority_indiv, NULL);
 }
 
+bool thread_priority_less(struct list_elem* A, struct list_elem* B,
+                                  void* aux)
+{
+    int priorityA;
+    int priorityB;
+
+    priorityA = list_entry(A, struct thread, elem)->priority;
+    priorityB = list_entry(B, struct thread, elem)->priority;
+
+    return priorityA < priorityB;
+}
+
 /* Sets the current thread's nice value to NICE. */
 void
 thread_set_nice (int nice)
@@ -696,18 +708,8 @@ next_thread_to_run (void)
   else
   {
     // Search for maximum priority thread
-    max = list_begin(&ready_list);
-    t_max = list_entry (max, struct thread, elem);
-    for (curr = list_next(max); curr != list_end(&ready_list);
-         curr = list_next(curr))
-    {
-      t = list_entry (curr, struct thread, elem);
-      if (t->priority > t_max->priority)
-      {
-        max = curr;
-        t_max = t;
-      }
-    }
+    max = list_max(&ready_list, thread_priority_less, NULL);
+    t_max = list_entry(max, struct thread, elem);
     list_remove(max);
     return t_max;
   }
