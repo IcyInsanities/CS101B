@@ -169,6 +169,7 @@ void thread_set_priority(int);
 void thread_lock_set_priority(int, struct thread *);
 
 bool thread_priority_less(struct list_elem*, struct list_elem*, void*);
+bool thread_sleep_less(struct list_elem*, struct list_elem*, void*);
 
 int thread_get_nice(void);
 void thread_set_nice(int);

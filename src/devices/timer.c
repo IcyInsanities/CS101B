@@ -84,10 +84,6 @@ int64_t timer_elapsed(int64_t then) {
 /*! Sleeps for approximately TICKS timer ticks.  Interrupts must
     be turned on. */
 void timer_sleep(int64_t ticks) {
-    // TEST: TO CLEAN
-    // int64_t start = timer_ticks();
-    // struct thread *t = thread_current ();
-
     ASSERT(intr_get_level() == INTR_ON);
     
     /* Set minimum wait to 1 tick to prevent infinite loop until overflow */
@@ -96,10 +92,6 @@ void timer_sleep(int64_t ticks) {
     }
     /* Put thread to sleep */
     thread_sleep (ticks);
-    
-    // TEST: TO CLEAN
-    //while (timer_elapsed(start) < ticks) 
-    //    thread_yield();
 }
 
 /*! Sleeps for approximately MS milliseconds.  Interrupts must be turned on. */
