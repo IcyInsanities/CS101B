@@ -68,13 +68,7 @@ void timer_calibrate(void) {
     }
 
     printf("%'"PRIu64" loops/s.\n", (uint64_t) loops_per_tick * TIMER_FREQ);
-    
-    // TODO: TEMP RESET
-    if (load_avg != 0)  {load_avg = 273;}
-    (list_entry (list_begin (&all_list), struct thread, elem))->recent_cpu = 0;
-    (list_entry (list_end (&all_list), struct thread, elem))->recent_cpu = 0;
-    printf("size: %d\n", list_size(&all_list));
-}
+}    
 
 /*! Returns the number of timer ticks since the OS booted. */
 int64_t timer_ticks(void) {

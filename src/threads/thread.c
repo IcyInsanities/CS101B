@@ -149,7 +149,10 @@ thread_tick (void)
   struct thread *t = thread_current ();
   
   /* Increment the recent_cpu for the running thread */
-  t->recent_cpu += FIXP_F;
+  if(t != idle_thread)
+  {
+    t->recent_cpu += FIXP_F;
+  }
 
   /* Update statistics. */
   if (t == idle_thread)
@@ -164,6 +167,12 @@ thread_tick (void)
   /* Enforce preemption. */
   if (++thread_ticks >= TIME_SLICE)
     intr_yield_on_return ();
+
+}
+
+void thread_init_vals(void)
+{
+    load_avg = 273;
 
 }
 
