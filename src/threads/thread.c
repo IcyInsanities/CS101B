@@ -305,9 +305,9 @@ thread_sleep (int64_t ticks)
   ASSERT(intr_get_level() == INTR_ON);
 
   /* Set the sleep time in the current thread and add to sleeping list */
-  t->sleep_count = ticks;
   old_level = intr_disable ();  /* Disable intr so timer won't start early */
-  list_push_back (&sleep_list, &t->elem);
+  t->sleep_count = ticks + timer_ticks() + 1; // Ensure at least 1 entire tick
+  list_insert_ordered (&sleep_list, &t->elem, thread_sleep_less, NULL);
 
   /* Set thread to blocked */
   thread_block ();
@@ -321,6 +321,7 @@ thread_sleep (int64_t ticks)
 void
 thread_check_awaken (void)
 {
+  int64_t curr_ticks = timer_ticks();
   struct thread *t;
   struct list_elem *del, *curr = list_begin (&sleep_list);
 
@@ -328,9 +329,8 @@ thread_check_awaken (void)
   while (curr != list_end (&sleep_list))
   {
     t = list_entry (curr, struct thread, elem);
-    --(t->sleep_count);
     /* Remove thread if time expired and unblock*/
-    if (t->sleep_count == 0)
+    if (t->sleep_count <= curr_ticks)
     {
       del = curr;
       curr = list_next (curr);
@@ -340,7 +340,7 @@ thread_check_awaken (void)
     /* Move to next thread otherwise */
     else
     {
-      curr = list_next (curr);
+      break;
     }
   }
 }
@@ -901,5 +901,15 @@ thread_release_lock (struct lock *l)
     t->priority = thread_lock_max_priority(t);
 
     t->priority = (t->orig_priority > t->priority) ? t->orig_priority : t->priority;
+}
 
+bool thread_sleep_less(struct list_elem* A, struct list_elem* B, void* aux)
+{
+    int sleepA;
+    int sleepB;
+
+    sleepA = list_entry(A, struct thread, elem)->sleep_count;
+    sleepB = list_entry(B, struct thread, elem)->sleep_count;
+
+    return sleepA < sleepB;
 }
