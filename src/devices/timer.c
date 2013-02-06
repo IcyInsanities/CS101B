@@ -156,6 +156,12 @@ void timer_print_stats(void) {
 
 /*! Timer interrupt handler. */
 static void timer_interrupt(struct intr_frame *args UNUSED) {
+    
+    /* Update counters on sleeping threads and awaken as needed. */
+    thread_check_awaken ();
+    
+    ticks++;
+    thread_tick();
 
     // Update once per second
     if ((thread_mlfqs) && (timer_ticks() % TIMER_FREQ == 0))
@@ -168,12 +174,6 @@ static void timer_interrupt(struct intr_frame *args UNUSED) {
     {
         thread_update_priority();
     }
-    
-    /* Update counters on sleeping threads and awaken as needed. */
-    thread_check_awaken ();
-
-    ticks++;
-    thread_tick();
 }
 
 /*! Returns true if LOOPS iterations waits for more than one timer tick,

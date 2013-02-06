@@ -97,7 +97,7 @@ bool sema_try_down(struct semaphore *sema) {
     old_level = intr_disable();
     if (sema->value > 0) {
         sema->value--;
-        success = true; 
+        success = true;
     }
     else {
       success = false;
@@ -111,9 +111,9 @@ bool sema_try_down(struct semaphore *sema) {
 struct list_elem * sema_max_priority_wait(struct semaphore *sema) {
     struct list_elem *curr, *e_max;
     struct thread *t, *t_max;
-    
-    ASSERT(!list_empty(&sema->waiters))  
-    
+
+    ASSERT(!list_empty(&sema->waiters))
+
     e_max = list_begin(&sema->waiters);
     t_max = list_entry (e_max, struct thread, elem);
     for (curr = list_next(e_max); curr != list_end(&sema->waiters);
@@ -143,16 +143,22 @@ void sema_up(struct semaphore *sema) {
     if (!list_empty(&sema->waiters)) {
         struct list_elem *e_max;
         struct thread *t_max;
-        
+
         e_max = sema_max_priority_wait(sema);
         t_max = list_entry (e_max, struct thread, elem);
-        
+
         list_remove(e_max);
         thread_unblock(t_max);
     }
     sema->value++;
+
+    if (thread_mlfqs)
+    {
+        thread_update_priority();
+    }
+
     intr_set_level(old_level);
-    
+
     // See if higher priority thread can now run
     thread_yield();
 }
@@ -223,22 +229,22 @@ void lock_init(struct lock *lock) {
 void lock_acquire(struct lock *lock) {
 
     struct thread *t = thread_current();
-    
+
     ASSERT(lock != NULL);
     ASSERT(!intr_context());
     ASSERT(!lock_held_by_current_thread(lock));
 
     // Attempting to acquire lock
     thread_update_lock_to_acquire(t, lock);
-    ASSERT(t->lock_to_acquire != NULL); // DEBUG: 
+    ASSERT(t->lock_to_acquire != NULL); // DEBUG:
 
     // If some one has a lock, donate priority to them
     if (lock->holder != NULL) {
         lock_update_priority(lock, t->priority);
     }
-    
+
     sema_down(&lock->semaphore);
-    
+
     // Have acquired lock
     lock->holder = t;
 
@@ -246,12 +252,12 @@ void lock_acquire(struct lock *lock) {
     // highest prority
     lock->priority = (lock->holder)->priority;
     //printf("updated lock priority: %d\n", lock->priority);
-    
+
     // Add lock to list of locks held by current thread
     thread_acquire_lock(lock);
-    
+
     // Ensure no longer attempting to acquire lock
-    ASSERT(t->lock_to_acquire == NULL); // DEBUG: 
+    ASSERT(t->lock_to_acquire == NULL); // DEBUG:
 
 }
 
@@ -270,7 +276,7 @@ bool lock_try_acquire(struct lock *lock) {
     ASSERT(!lock_held_by_current_thread(lock));
 
     success = sema_try_down(&lock->semaphore);
-    
+
     if (success) {
         // Have acquired lock
         lock->holder = t;
@@ -280,7 +286,7 @@ bool lock_try_acquire(struct lock *lock) {
         // Add lock to list of locks held by current thread
         thread_acquire_lock(lock);
     } else {
-    
+
         // If failed to acquire, do nothing
     }
 
@@ -299,7 +305,7 @@ void lock_release(struct lock *lock) {
     struct thread *t = thread_current();
     ASSERT(lock != NULL);
     ASSERT(lock_held_by_current_thread(lock));
-        
+
     ASSERT(list_size(&((lock->holder)->locks_held)) != 0);
     // Release the lock
     thread_release_lock(lock);
@@ -316,9 +322,9 @@ void lock_release(struct lock *lock) {
 
     // Set lock priority to lowest, since no one holds it
     lock->priority = PRI_MIN;
-    
+
     lock->holder = NULL;
-    
+
     sema_up(&lock->semaphore);
 }
 
@@ -384,7 +390,7 @@ void cond_wait(struct condition *cond, struct lock *lock) {
     ASSERT(lock != NULL);
     ASSERT(!intr_context());
     ASSERT(lock_held_by_current_thread(lock));
-  
+
     sema_init(&waiter.semaphore, 0);
     list_push_back(&cond->waiters, &waiter.elem);
     lock_release(lock);
@@ -412,7 +418,7 @@ void cond_signal(struct condition *cond, struct lock *lock UNUSED) {
         struct list_elem *s, *s_max;
         struct semaphore *sema, *sema_max;
         struct thread *t, *t_max;
-        
+
         e_max = list_begin(&cond->waiters);
         sema_max = &list_entry (e_max, struct semaphore_elem, elem)->semaphore;
         s_max = sema_max_priority_wait(sema_max);

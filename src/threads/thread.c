@@ -170,10 +170,19 @@ thread_tick (void)
 
 }
 
+void thread_init_recent_cpu(struct thread * t, void *aux)
+{
+    t->recent_cpu = 0;
+}
+
 void thread_init_vals(void)
 {
+    enum intr_level old_level = intr_disable();
+    
     load_avg = 273;
-
+    thread_foreach(thread_init_recent_cpu, NULL);
+    
+    intr_set_level (old_level);
 }
 
 /* Prints thread statistics. */
@@ -482,7 +491,7 @@ void thread_update_priority_indiv (struct thread* t, void* aux)
   int priority;
 
   priority = PRI_MAX;
-  priority -= t->recent_cpu / FIXP_F / 4;
+  priority -= (t->recent_cpu + FIXP_F - 1) / FIXP_F / 4;
   priority -= t->nice * 2;
   
   // Bound between PRI_MIN and PRI_MAX
@@ -677,9 +686,18 @@ init_thread (struct thread *t, const char *name, int priority)
     t->stack = (uint8_t *) t + PGSIZE;
     t->magic = THREAD_MAGIC;
     
+    t->nice = 0;
+    t->recent_cpu = 0;
     // Initially, original priority is same as working priority
-    t->priority = priority;
-    t->orig_priority = priority;
+    if (thread_mlfqs)
+    {
+        thread_update_priority_indiv(t, NULL);
+    }
+    else
+    {
+        t->priority = priority;
+    }
+    t->orig_priority = t->priority;
     
     // Initialize the list of locks held
     list_init (&(t->locks_held));
