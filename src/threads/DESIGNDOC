@@ -135,9 +135,9 @@ better design as interrupts should be as short as possible.
 >> enumeration.  Identify the purpose of each in 25 words or less.
 Thread struct members (changed for priority donation):
     int orig_priority;
-        This value holds the priority that a thread was given, either in created
-        or in thread_set_priority. Allows modification of priority to a donated
-        value without losing the original priority to restore to.
+        This value holds the priority that a thread was given, either during
+        creation or in thread_set_priority. Allows modification of priority to a
+        donated value without losing the original priority to restore to.
     struct list locks_held;
         This list holds the locks owned by a thread, so that it can determine
         what priority is donated from each lock it owns and are wanted by other
@@ -156,7 +156,30 @@ Lock struct members (changed for priority donation):
 >> B2: Explain the data structure used to track priority donation.
 >> Use ASCII art to diagram a nested donation.  (Alternately, submit a
 >> .png file.)
-    TODO!!!!
+    Each thread has a lock it is attempting to acquire and a priority. Each lock
+has a priority and an owner. Any time that the priority changes for either a
+thread or a lock, it notifies the lock it wants to acquire or its owner
+respectively. This chain continues until there are no further updates to perform
+or in the case where an update will cause no change in priority.
+    Thread1 has priority L, owns Lock1
+    Thread2 has priority M, owns Lock2, attempting to acquire Lock1
+    Thread3 has priority H, attempting to acquire Lock2
+    Just before Thread3 makes the call to acquire Lock2
+        H->Thread3
+        M->Thread2->Lock2
+                  ->Lock1->Thread1
+    When Thread3 makes the call to acquire Lock2:
+        H->Thread3->Lock2
+        M->Thread2->Lock1->Thread1
+    When Lock2 makes the call to update its owner:
+        H->Thread3->Lock2->Thread2
+        M->Lock1->Thread1
+    When Thread2 makes the call to update its to acquire lock:
+        H->Thread3->Lock2->Thread2->Lock1
+        M->Thread1
+    When Lock1 makes the call to update its owner:
+        H->Thread3->Lock2->Thread2->Lock1->Thread1
+    Thread1 makes no call to update a lock to acquire
 
 ---- ALGORITHMS ----
 
@@ -219,7 +242,20 @@ attempts at acquire can result in priority donation.
 >> B6: Describe a potential race in thread_set_priority() and explain
 >> how your implementation avoids it.  Can you use a lock to avoid
 >> this race?
-    TODO!!!
+    A potential race is when the thread looks over its locks for the maximum
+priority, a thread that preempted it could increase the original thread's
+priority through a lock that has already been checked. This means that set
+priority would not correctly lower thread priority.
+    We cannot resolve this with a lock. If we use a lock to prevent calls to the
+thread_lock_set_priority from changing the priorities of the locks held, then if
+a thread preempted the original one during a thread_set_priority call, it might
+need to donate priority to the original one. This call would not work as it
+cannot access the original priority function which has been locked.
+    Thus instead we resolved the issue by disabling interrupts entirely. This
+prevents any preemption and thus the priority cannot get modified simultaneously
+by other threads. This is expected since we are implementing donation of locks
+in these functions. It would be recursive if we used locks to protect the
+priority we are changing due to acquiring locks, and thus wouldn't work here.
 
 ---- RATIONALE ----
 
@@ -284,12 +320,23 @@ ticks   A   B   C   A   B   C   to run
     Note: I assume that 36 ticks does not cross the 1 second boundary, so that
 the code to update the recent_cpu and load_avg does not get called.
     The running thread drops in priority and is at the end of the ready list, so
-it will not run if another thread is at the priority level it reaches.
-    TODO!!!
+it will not run if another thread is at the priority level it reaches. Since in
+this example no fixed-point arithmetic is used (at least none that causes any
+rounding), the ambiguities are minimal. There is a slight one with the initial
+state of the system, although defaulting all values to 0 seems appropriate.
 
 >> C4: How is the way you divided the cost of scheduling between code
 >> inside and outside interrupt context likely to affect performance?
-    TODO!!!
+    Most of the scheduling occurs in interrupt handlers. This is because the
+data used, such as recent_cpu, load_avg, and the thread priority are updated
+inside the timer interrupt at regular intervals. The only "scheduling" work that
+is done outside is when locks are acquired or released and the scheduler is
+explicity called.
+    In terms of performance, we expect this to potentially cause some issues as
+the timer interrupt is taking longer than would be ideal. Anything that must act
+on all threads is preferable to avoid, but in the case of the advanced scheduler
+this seems unavoidable, otherwise thread priorities could not all be updated
+between scheduler calls.
 
 ---- RATIONALE ----
 
@@ -297,9 +344,16 @@ it will not run if another thread is at the priority level it reaches.
 >> disadvantages in your design choices.  If you were to have extra
 >> time to work on this part of the project, how might you choose to
 >> refine or improve your design?
-    - 
-    - real library for fixed-point, would make code a bit cleaner, even it not
-     really required for the amount of code here
+    One advantage of our design
+    The biggest disadvantage is the requirement for an O(n) update of the thread
+priorities inside the timer interrupt. It would be preferable if this could be
+moved elsewhere, although with the given design we did not see how to do this.
+Possibly modifying
+    If we had more time, we would analyze more in depth the system setup and try
+to minimize the variation in load_avg from the initial system setup. However,
+this would not have a major impact on the design. Another minor update would be
+to implement a real library for fixed-point, would make code a bit more general,
+even it not really required for the amount of code here.
 
 >> C6: The assignment explains arithmetic for fixed-point math in
 >> detail, but it leaves it open to you to implement it.  Why did you
@@ -345,3 +399,12 @@ website.
 >> students, either for future quarters or the remaining projects?
 
 >> Any other comments?
+I felt that this assignment occurred too late into term. I feel that this
+assignment would have been a good one to get acquianted with the Pintos system
+instead of fooling around with a shell and a bootloader. By this time into term,
+I had much less time to devote to learning the basics of the Pintos system
+and learn all of the code included with the system. If this assignment were
+given at the start, this would have been different. The shell and bootloader
+do not interface directly with the Pintos system and as such, could be
+implemented at any point during the term instead of taking up the first
+two weeks when we should have been learning Pintos.
