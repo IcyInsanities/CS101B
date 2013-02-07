@@ -105,7 +105,7 @@ struct thread {
     int orig_priority;                  /*!< Original priority. */
     int priority;                       /*!< Priority. */
     struct list_elem allelem;           /*!< List element for all threads list. */
-    int64_t sleep_count;                /*!< Time remaining for sleep. */
+    int64_t time_to_awake;                /*!< Time remaining for sleep. */
     /**@}*/
 
     struct list locks_held;             /*!< List of locks owned */

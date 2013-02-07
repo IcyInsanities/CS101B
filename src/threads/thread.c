@@ -178,7 +178,7 @@ void thread_init_vals(void)
 {
     enum intr_level old_level = intr_disable();
     
-    load_avg = 273;
+    load_avg = FIXP_01DIV60;
     thread_foreach(thread_init_recent_cpu, NULL);
     
     intr_set_level (old_level);
@@ -305,7 +305,7 @@ thread_sleep (int64_t ticks)
 
   /* Set the sleep time in the current thread and add to sleeping list */
   old_level = intr_disable ();  /* Disable intr so timer won't start early */
-  t->sleep_count = ticks + timer_ticks() - 1;
+  t->time_to_awake = ticks + timer_ticks() - 1;
   list_insert_ordered (&sleep_list, &t->elem, thread_sleep_less, NULL);
 
   /* Set thread to blocked */
@@ -329,7 +329,7 @@ thread_check_awaken (void)
   {
     t = list_entry (curr, struct thread, elem);
     /* Remove thread if time expired and unblock*/
-    if (t->sleep_count <= curr_ticks)
+    if (t->time_to_awake <= curr_ticks)
     {
       del = curr;
       curr = list_next (curr);
@@ -523,7 +523,6 @@ void
 thread_set_nice (int nice)
 {
   thread_current()->nice = nice;
-  
 }
 
 /* Returns the current thread's nice value. */
@@ -893,8 +892,8 @@ bool thread_sleep_less(struct list_elem* A, struct list_elem* B, void* aux)
     int sleepA;
     int sleepB;
 
-    sleepA = list_entry(A, struct thread, elem)->sleep_count;
-    sleepB = list_entry(B, struct thread, elem)->sleep_count;
+    sleepA = list_entry(A, struct thread, elem)->time_to_awake;
+    sleepB = list_entry(B, struct thread, elem)->time_to_awake;
 
     return sleepA < sleepB;
 }

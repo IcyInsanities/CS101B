@@ -86,10 +86,6 @@ int64_t timer_elapsed(int64_t then) {
 void timer_sleep(int64_t ticks) {
     ASSERT(intr_get_level() == INTR_ON);
     
-    /* Set minimum wait to 1 tick to prevent infinite loop until overflow */
-    if (ticks <= 0) {
-        ticks = 1;
-    }
     /* Put thread to sleep */
     thread_sleep (ticks);
 }
