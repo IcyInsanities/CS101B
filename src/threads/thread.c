@@ -432,6 +432,8 @@ thread_foreach (thread_action_func *func, void *aux)
 void
 thread_set_priority (int new_priority)
 {
+  enum intr_level old_level;
+
   /* Disable if advanced scheduler enabled */
   if (thread_mlfqs)
   {
@@ -443,6 +445,8 @@ thread_set_priority (int new_priority)
   /* Update the priority of the thread */
   t_curr->orig_priority = new_priority;
 
+  old_level = intr_disable ();
+
   /* Set priority to max of donations or the actual priority */
   t_curr->priority = thread_lock_max_priority(t_curr);
   t_curr->priority = (new_priority > t_curr->priority) ? new_priority : t_curr->priority;
@@ -452,6 +456,8 @@ thread_set_priority (int new_priority)
   {
     lock_update_priority(t_curr->lock_to_acquire, t_curr->priority);
   }
+
+  intr_set_level (old_level);
 
   /* Find highest priority thread */
   thread_yield();
