@@ -28,9 +28,6 @@ typedef int tid_t;
 #define PRI_DEFAULT 31                  /*!< Default priority. */
 #define PRI_MAX 63                      /*!< Highest priority. */
 
-/*! Check value for nonsleeping thread */
-#define NOT_SLEEPING
-
 /*! A kernel thread or user process.
 
    Each thread structure is stored in its own 4 kB page.  The
@@ -92,10 +89,6 @@ typedef int tid_t;
    blocked state is on a semaphore wait list.
 */
 struct thread {
-
-    int64_t recent_cpu;
-    int nice;
-
     /*! Owned by thread.c. */
     /**@{*/
     tid_t tid;                          /*!< Thread identifier. */
@@ -104,14 +97,14 @@ struct thread {
     uint8_t *stack;                     /*!< Saved stack pointer. */
     int orig_priority;                  /*!< Original priority. */
     int priority;                       /*!< Priority. */
+    int nice;                           /*!< Niceness of thread (mlfqs) */
     struct list_elem allelem;           /*!< List element for all threads list. */
-    int64_t time_to_awake;                /*!< Time remaining for sleep. */
+    int64_t time_to_awake;              /*!< Time remaining for sleep. */
+    struct lock *lock_to_acquire;       /*!< Lock attempting to acquire */
+    struct list locks_held;             /*!< List of locks owned */
+    int64_t recent_cpu;                 /*!< Recent cpu used (mlfqs) */
     /**@}*/
 
-    struct list locks_held;             /*!< List of locks owned */
-    struct lock *lock_to_acquire;       /*!< Lock attempting to acquire */
-    
-    
     /*! Shared between thread.c and synch.c. */
     /**@{*/
     struct list_elem elem;              /*!< List element. */
@@ -168,8 +161,8 @@ void thread_update_priority(void);
 void thread_set_priority(int);
 void thread_lock_set_priority(int, struct thread *);
 
-bool thread_priority_less(struct list_elem*, struct list_elem*, void*);
-bool thread_sleep_less(struct list_elem*, struct list_elem*, void*);
+bool thread_priority_less(const struct list_elem*, const struct list_elem*, void*);
+bool thread_sleep_less(const struct list_elem*, const struct list_elem*, void*);
 
 int thread_get_nice(void);
 void thread_set_nice(int);

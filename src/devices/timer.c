@@ -26,7 +26,7 @@ static int64_t ticks;
 /*! Number of loops per timer tick.  Initialized by timer_calibrate(). */
 static unsigned loops_per_tick;
 
-/*! Flag to control use of multi-level feedback queue scheduler*/
+/*! Flag to control use of multi-level feedback queue scheduler */
 extern bool thread_mlfqs;
 
 static intr_handler_func timer_interrupt;
@@ -87,7 +87,7 @@ void timer_sleep(int64_t ticks) {
     ASSERT(intr_get_level() == INTR_ON);
     
     /* Put thread to sleep */
-    thread_sleep (ticks);
+    thread_sleep(ticks);
 }
 
 /*! Sleeps for approximately MS milliseconds.  Interrupts must be turned on. */
@@ -145,18 +145,17 @@ static void timer_interrupt(struct intr_frame *args UNUSED) {
     /* Update counters on sleeping threads and awaken as needed. */
     thread_check_awaken ();
     
+    /* Update system ticks and thread data */
     ticks++;
     thread_tick();
 
-    // Update once per second
-    if ((thread_mlfqs) && (timer_ticks() % TIMER_FREQ == 0))
-    {
+    /* Update mlfqs data once per second */
+    if ((thread_mlfqs) && (timer_ticks() % TIMER_FREQ == 0)) {
         thread_update_recent_cpu();
         thread_update_load_avg();
     }
-    // Update once every four clocks
-    if ((thread_mlfqs) && (timer_ticks() % 4 == 0))
-    {
+    /* Update mlfqs priority once every four clocks */
+    if ((thread_mlfqs) && (timer_ticks() % 4 == 0)) {
         thread_update_priority();
     }
 }

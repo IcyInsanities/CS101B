@@ -27,7 +27,7 @@ Late tokens: 0
     We had some trouble with the emulators on different systems and way that
 they handle the timer interrupts. On an ubuntu 10.04 x86 system, all tests pass
 with either emulator. On the provided OpenSuse machine, we have 1 failing test
-(mlfsq-nice-10) only on the Bochs emulator, all tests pass on Qemu. The cause of
+(mlfqs-nice-10) only on the Bochs emulator, all tests pass on Qemu. The cause of
 failure is always thread 0 in this test having several ticks too many, which
 seems to be caused by some emulator specific traits. As generally the relative
 priorities matter more than exact tick counts in the scheduler it did not seem
@@ -58,6 +58,9 @@ Global variables (thread.c only):
     static struct list sleep_list;
         For efficient awakening of threads, a sorted list of those waiting on a
         timer interrupt is kept to quickly check what needs to be awakened.
+Global variables (externed in timer.c from thread.c):
+    extern bool thread_mlfqs;
+        This is a flag for when the multi-level feedback queue scheduler is on.
 Thread struct members (changed for alarm clock):
     int64_t time_to_awake;
         This holds the time at which a thread should awaken from the sleep_list.
@@ -141,8 +144,14 @@ Thread struct members (changed for priority donation):
         threads.
     struct lock *lock_to_acquire;
         This holds a pointer to the lock that the thread is attempting to
-        acquire. It is needed for chaining so that if the current priority 
+        acquire. It is needed for chaining so that if the current priority
         changes, the change can be propagated.
+Lock struct members (changed for priority donation):
+    struct list_elem elem;
+        Make locks able to be added into lists for storage in the thread struct.
+    int priority;
+        Hold the priority of the owning thread or that of the highest priority
+        thread waiting to acquire the lock.
 
 >> B2: Explain the data structure used to track priority donation.
 >> Use ASCII art to diagram a nested donation.  (Alternately, submit a
@@ -225,7 +234,7 @@ update to check if higher than the previous (preventing infinite loops). On
 release, an O(n) search over owned locks is required, but avoid all searches is
 not feasible.
     An alternative we considered was to have the thread hold a pointer to the
-priority of other threads to keep track of its donations. This became more 
+priority of other threads to keep track of its donations. This became more
 complicated in the design as we had to correctly maintain the references, search
 for the maximum donation, and recurse into the references to enable nested
 donation. Thus we switched to the current system where the lock also has a
@@ -247,7 +256,7 @@ Thread struct members (changed for priority donation):
         Saves the recent cpu usage of a thread as a fixed-point number.
     int nice;
         Saves the given niceness value of a thread.
-    
+
 ---- ALGORITHMS ----
 
 >> C2: Suppose threads A, B, and C have nice values 0, 1, and 2.  Each
@@ -280,7 +289,7 @@ it will not run if another thread is at the priority level it reaches.
 
 >> C4: How is the way you divided the cost of scheduling between code
 >> inside and outside interrupt context likely to affect performance?
-    TODO!!!    
+    TODO!!!
 
 ---- RATIONALE ----
 
@@ -288,7 +297,9 @@ it will not run if another thread is at the priority level it reaches.
 >> disadvantages in your design choices.  If you were to have extra
 >> time to work on this part of the project, how might you choose to
 >> refine or improve your design?
-    TODO!!!
+    - 
+    - real library for fixed-point, would make code a bit cleaner, even it not
+     really required for the amount of code here
 
 >> C6: The assignment explains arithmetic for fixed-point math in
 >> detail, but it leaves it open to you to implement it.  Why did you

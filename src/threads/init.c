@@ -125,7 +125,7 @@ int main(void) {
     thread_start();
     serial_init_queue();
     timer_calibrate();
-    thread_init_vals();
+    thread_init_vals(); /* Reset mlqfs values to known state */
 
 #ifdef FILESYS
     /* Initialize file system. */
