@@ -79,8 +79,26 @@ static void start_process(void *file_name_) {
 
     This function will be implemented in problem 2-2.  For now, it does
     nothing. */
+// TODO: implement process_wait()
 int process_wait(tid_t child_tid UNUSED) {
-    return -1;
+
+    struct thread *thread_waited_on;
+
+    // TODO: Check if process is a direct child (if calling process received pid as return value from exec, can just search list)
+    //if not return -1
+
+    // Check if another process called wait on pid (check list and semaphore in thread indicating wait)
+    if (!sema_try_down(&(thread_waited_on->not_waited_on))) {
+        // If already waited on, error, return -1
+        return -1; 
+    }
+
+    // Block until it exits
+    // attempt to down sempaphore in the thread...will block until process exits (exit or kernel must up it)
+    sema_down(thread_waited_on->has_exited);
+    
+    // Don't need to check how it exited...killer should set exit status properly
+    return thread_waited_on->exit_status;  // Return the exit status
 }
 
 /*! Free the current process's resources. */
@@ -404,7 +422,7 @@ static bool setup_stack(void **esp) {
     if (kpage != NULL) {
         success = install_page(((uint8_t *) PHYS_BASE) - PGSIZE, kpage, true);
         if (success)
-            *esp = PHYS_BASE;
+            *esp = PHYS_BASE - 12; // DEBUG: changed so non-argument calls do not page fault
         else
             palloc_free_page(kpage);
     }

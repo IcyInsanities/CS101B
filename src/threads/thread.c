@@ -32,6 +32,9 @@ static struct list all_list;
 /* List of all processes that are blocked from a sleep call. */
 static struct list sleep_list;
 
+/* List of all orphaned threads. */
+static struct list orphaned_list;
+
 /* Idle thread. */
 static struct thread *idle_thread;
 
@@ -116,6 +119,10 @@ thread_init (void)
   init_thread (initial_thread, "main", PRI_DEFAULT);
   initial_thread->status = THREAD_RUNNING;
   initial_thread->tid = allocate_tid ();
+
+#ifdef USERPROG
+// TODO: need to init new fields for userprog
+#endif
 }
 
 /* Starts preemptive thread scheduling by enabling interrupts.
@@ -374,8 +381,8 @@ thread_tid (void)
 
 /* Deschedules the current thread and destroys it.  Never
    returns to the caller. */
-void
-thread_exit (void)
+// TODO: how to get exit value?  Or should exit() set it?
+void thread_exit (void)
 {
   ASSERT (!intr_context ());
 
@@ -388,7 +395,29 @@ thread_exit (void)
      when it calls thread_schedule_tail(). */
   intr_disable ();
   list_remove (&thread_current()->allelem);
+
+// TODO: change status to ZOMBIE instead of dying, up semaphore?
+#ifdef USERPROG // Code for user programs
+
+  // If the thread is being waited on, set it to ZOMBIE so wait can clean it up
+  if (!sema_try_down(&(thread_current ()->not_waited_on))) {
+    thread_current ()->status = THREAD_ZOMBIE;
+  }
+  // Otherwise set it to DYING so that scheduler cleans it up
+  else {
+    thread_current ()->status = THREAD_DYING;
+  }
+
+  sema_up(&(thread_current ()->has_exited)); // Indicate thread has exited
+
+  // TODO: need to place orphaned threads into list
+
+  // TODO: need to close all files
+
+#else // Code for threads
   thread_current ()->status = THREAD_DYING;
+#endif
+
   schedule ();
   NOT_REACHED ();
 }

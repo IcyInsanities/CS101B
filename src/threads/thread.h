@@ -11,10 +11,12 @@
 #include <stdint.h>
 
 /*! States in a thread's life cycle. */
+ // TODO: add a ZOMBIE state
 enum thread_status {
     THREAD_RUNNING,     /*!< Running thread. */
     THREAD_READY,       /*!< Not running but ready to run. */
     THREAD_BLOCKED,     /*!< Waiting for an event to trigger. */
+    THREAD_ZOMBIE,      /*!< Waiting to be reaped. */
     THREAD_DYING        /*!< About to be destroyed. */
 };
 
@@ -88,6 +90,8 @@ typedef int tid_t;
    ready state is on the run queue, whereas only a thread in the
    blocked state is on a semaphore wait list.
 */
+
+// TODO: add a list of files, add exit status field
 struct thread {
     /*! Owned by thread.c. */
     /**@{*/
@@ -114,6 +118,12 @@ struct thread {
     /*! Owned by userprog/process.c. */
     /**@{*/
     uint32_t *pagedir;                  /*!< Page directory. */
+    int exit_status;                    /*!< Exit status of the thread. */
+    struct list files_opened;           /*!< List of files opened */
+    struct semaphore not_waited_on      /*!< Not acquirable if waited on */
+    struct semaphore has_exited         /*!< Will be upped when it exits */
+    struct list children                /*!< List of children. */
+
     /**@{*/
 #endif
 

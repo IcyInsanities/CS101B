@@ -3,6 +3,8 @@
 #include <syscall-nr.h>
 #include "threads/interrupt.h"
 #include "threads/thread.h"
+#include "threads/synch.h"
+#include "process.h"
 
 static void syscall_handler(struct intr_frame *);
 
@@ -62,7 +64,13 @@ void syscall_halt(struct intr_frame *f UNUSED)
 // TODO
 void syscall_exit(struct intr_frame *f UNUSED)
 {
-    // TODO
+    struct thread *current_thread = thread_current();
+
+    // Set the exit status of the thread
+    current_thread->exit_status = status;
+
+    // Exit the thread
+    thread_exit();
 }
 
 // TODO
@@ -80,7 +88,10 @@ void syscall_wait(struct intr_frame *f UNUSED)
 // TODO
 void syscall_create(struct intr_frame *f UNUSED)
 {
-    // TODO
+
+    // TODO: modify to put into stack frame
+    return process_wait(pid);
+
 }
 
 // TODO
@@ -155,6 +166,7 @@ void syscall_mkdir(struct intr_frame *f UNUSED)
     // TODO
 }
 
+<<<<<<< Updated upstream
 // TODO
 void syscall_readdir(struct intr_frame *f UNUSED)
 {
