@@ -8,6 +8,9 @@
 #ifndef __LIB_SYSCALL_NR_H
 #define __LIB_SYSCALL_NR_H
 
+// NOTE: Any changes in this declaration must be matched with a change in the
+// userprog/syscall.c file to ensure consistency in the function table.
+
 /*! System call numbers. */
 enum {
     /* Projects 2 and later. */
