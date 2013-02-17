@@ -1,3 +1,4 @@
+#include "devices/shutdown.h"
 #include "userprog/syscall.h"
 #include <stdio.h>
 #include <syscall-nr.h>
@@ -47,16 +48,15 @@ static void syscall_handler(struct intr_frame *f)
     // Turn interrupts back on during system call
     intr_enable();
     // Get the system call number
-    uint32_t* esp = f->esp;
-    uint32_t num = *esp;
+    uint32_t num = *((uint32_t*)(f->esp));
     // Call appropriate system handler
     syscall_table[num](f);
 }
 
-// TODO
+// Halts the system and shuts it down
 void syscall_halt(struct intr_frame *f UNUSED)
 {
-    // TODO
+    shutdown_power_off();
 }
 
 // TODO
@@ -66,8 +66,9 @@ void syscall_exit(struct intr_frame *f UNUSED)
 }
 
 // TODO
-void syscall_exec(struct intr_frame *f UNUSED)
+void syscall_exec(struct intr_frame *f)
 {
+    char * cmd_line = *((char**)(f->esp + 4));
     // TODO
 }
 
@@ -78,96 +79,111 @@ void syscall_wait(struct intr_frame *f UNUSED)
 }
 
 // TODO
-void syscall_create(struct intr_frame *f UNUSED)
+void syscall_create(struct intr_frame *f)
 {
+    char * file = *((char**)(f->esp + 4));
+    unsigned initial_size = *((unsigned*)(f->esp + 8));
     // TODO
 }
 
 // TODO
-void syscall_remove(struct intr_frame *f UNUSED)
+void syscall_remove(struct intr_frame *f)
 {
+    char * file = *((char**)(f->esp + 4));
     // TODO
 }
 
 // TODO
-void syscall_open(struct intr_frame *f UNUSED)
+void syscall_open(struct intr_frame *f)
 {
+    char * file = *((char**)(f->esp + 4));
     // TODO
 }
 
 // TODO
-void syscall_filesize(struct intr_frame *f UNUSED)
+void syscall_filesize(struct intr_frame *f)
 {
+    int fd = *((int*)(f->esp + 4));
     // TODO
 }
 
 // TODO
-void syscall_read(struct intr_frame *f UNUSED)
+void syscall_read(struct intr_frame *f)
 {
+    int fd = *((int*)(f->esp + 4));
+    void *buffer = *((void**)(f->esp + 8));
+    unsigned size = *((unsigned*)(f->esp + 12));
     // TODO
 }
 
 // TODO
-void syscall_write(struct intr_frame *f UNUSED)
+void syscall_write(struct intr_frame *f)
 {
+    int fd = *((int*)(f->esp + 4));
+    void *buffer = *((void**)(f->esp + 8));
+    unsigned size = *((unsigned*)(f->esp + 12));
     // TODO
 }
 
 // TODO
-void syscall_seek(struct intr_frame *f UNUSED)
+void syscall_seek(struct intr_frame *f)
 {
+    int fd = *((int*)(f->esp + 4));
+    unsigned position = *((unsigned*)(f->esp + 8));
     // TODO
 }
 
 // TODO
-void syscall_tell(struct intr_frame *f UNUSED)
+void syscall_tell(struct intr_frame *f)
 {
+    int fd = *((int*)(f->esp + 4));
     // TODO
 }
 
 // TODO
-void syscall_close(struct intr_frame *f UNUSED)
+void syscall_close(struct intr_frame *f)
 {
+    int fd = *((int*)(f->esp + 4));
     // TODO
 }
 
-// TODO
+// TODO - Project 3
 void syscall_mmap(struct intr_frame *f UNUSED)
 {
     // TODO
 }
 
-// TODO
+// TODO - Project 3
 void syscall_munmap(struct intr_frame *f UNUSED)
 {
     // TODO
 }
 
-// TODO
+// TODO - Project 4
 void syscall_chdir(struct intr_frame *f UNUSED)
 {
     // TODO
 }
 
-// TODO
+// TODO - Project 4
 void syscall_mkdir(struct intr_frame *f UNUSED)
 {
     // TODO
 }
 
-// TODO
+// TODO - Project 4
 void syscall_readdir(struct intr_frame *f UNUSED)
 {
     // TODO
 }
 
-// TODO
+// TODO - Project 4
 void syscall_isdir(struct intr_frame *f UNUSED)
 {
     // TODO
 }
 
-// TODO
+// TODO - Project 4
 void syscall_inumber(struct intr_frame *f UNUSED)
 {
     // TODO
