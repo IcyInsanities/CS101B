@@ -46,7 +46,6 @@ void syscall_init(void)
 
 static void syscall_handler(struct intr_frame *f)
 {
-    printf("system call!\n");
     // Turn interrupts back on during system call
     intr_enable();
     // Get the system call number
@@ -61,27 +60,28 @@ static void syscall_handler(struct intr_frame *f)
 // Halts the system and shuts it down
 void syscall_halt(struct intr_frame *f UNUSED, void * arg1 UNUSED, void * arg2 UNUSED, void * arg3 UNUSED)
 {
+    printf("halt\n");
     shutdown_power_off();
 }
 
 // TODO
-void syscall_exit(struct intr_frame *f UNUSED, void * arg1 UNUSED, void * arg2 UNUSED, void * arg3 UNUSED)
+void syscall_exit(struct intr_frame *f UNUSED, void * arg1, void * arg2 UNUSED, void * arg3 UNUSED)
 {
-    /*
-    struct thread *current_thread = thread_current();
-
+    int status = (int) arg1;
+    struct thread *t = thread_current();
+    // Print out message
+    printf ("%s: exit(%d)\n", t->name, status);
     // Set the exit status of the thread
-    current_thread->exit_status = status;
-
+    t->exit_status = status;
     // Exit the thread
     thread_exit();
-    */
 }
 
 // TODO
 void syscall_exec(struct intr_frame *f UNUSED, void * arg1, void * arg2 UNUSED, void * arg3 UNUSED)
 {
     char * cmd_line = (char*) arg1;
+    printf("exec\n");
     // TODO
 }
 
@@ -90,6 +90,8 @@ void syscall_wait(struct intr_frame *f UNUSED, void * arg1 UNUSED, void * arg2 U
 {
     // TODO: modify to put into stack frame
     //return process_wait(pid);
+    printf("wait\n");
+    // TODO
 }
 
 // TODO
@@ -98,7 +100,7 @@ void syscall_create(struct intr_frame *f UNUSED, void * arg1, void * arg2, void 
     char * file = (char*) arg1;
     unsigned initial_size = (unsigned) arg2;
     // TODO
-
+    printf("create\n");
 }
 
 // TODO
@@ -106,6 +108,7 @@ void syscall_remove(struct intr_frame *f UNUSED, void * arg1, void * arg2 UNUSED
 {
     char * file = (char*) arg1;
     // TODO
+    printf("remove\n");
 }
 
 // TODO
@@ -113,6 +116,7 @@ void syscall_open(struct intr_frame *f UNUSED, void * arg1, void * arg2 UNUSED, 
 {
     char * file = (char*) arg1;
     // TODO
+    printf("open\n");
 }
 
 // TODO
@@ -120,6 +124,7 @@ void syscall_filesize(struct intr_frame *f UNUSED, void * arg1, void * arg2 UNUS
 {
     int fd = (int) arg1;
     // TODO
+    printf("filesize\n");
 }
 
 // TODO
@@ -129,15 +134,27 @@ void syscall_read(struct intr_frame *f UNUSED, void * arg1, void * arg2, void * 
     void *buffer = arg2;
     unsigned size = (unsigned) arg3;
     // TODO
+    printf("read\n");
 }
 
 // TODO
-void syscall_write(struct intr_frame *f UNUSED, void * arg1, void * arg2, void * arg3)
+void syscall_write(struct intr_frame *f, void * arg1, void * arg2, void * arg3)
 {
     int fd = (int) arg1;
     void *buffer = arg2;
     unsigned size = (unsigned) arg3;
+    // Write out to console if given fd 1
+    if (fd == 1)
+    {
+        putbuf(buffer, size);
+        f->eax = size;
+    }
     // TODO
+    else
+    {
+        printf("write\n");
+        f->eax = size;
+    }
 }
 
 // TODO
@@ -146,6 +163,7 @@ void syscall_seek(struct intr_frame *f UNUSED, void * arg1, void * arg2, void * 
     int fd = (int) arg1;
     unsigned position = (unsigned) arg2;
     // TODO
+    printf("seek\n");
 }
 
 // TODO
@@ -153,6 +171,7 @@ void syscall_tell(struct intr_frame *f UNUSED, void * arg1, void * arg2 UNUSED, 
 {
     int fd = (int) arg1;
     // TODO
+    printf("tell\n");
 }
 
 // TODO
@@ -160,6 +179,7 @@ void syscall_close(struct intr_frame *f UNUSED, void * arg1, void * arg2 UNUSED,
 {
     int fd = (int) arg1;
     // TODO
+    printf("close\n");
 }
 
 // TODO - Project 3

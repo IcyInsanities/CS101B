@@ -81,7 +81,6 @@ static void start_process(void *file_name_) {
     nothing. */
 // TODO: implement process_wait()
 int process_wait(tid_t child_tid UNUSED) {
-
     struct thread *thread_waited_on;
 
     // TODO: Check if process is a direct child (if calling process received pid as return value from exec, can just search list)
@@ -99,6 +98,10 @@ int process_wait(tid_t child_tid UNUSED) {
     
     // Don't need to check how it exited...killer should set exit status properly
     return thread_waited_on->exit_status;  // Return the exit status
+    
+    //// TO DELETE: OLD IMPLEMENTATION
+    //while (true) {}
+    //return -1;
 }
 
 /*! Free the current process's resources. */
@@ -422,7 +425,11 @@ static bool setup_stack(void **esp) {
     if (kpage != NULL) {
         success = install_page(((uint8_t *) PHYS_BASE) - PGSIZE, kpage, true);
         if (success)
+<<<<<<< Updated upstream
             *esp = PHYS_BASE - 12; // DEBUG: changed so non-argument calls do not page fault
+=======
+            *esp = PHYS_BASE - 12; // TODO
+>>>>>>> Stashed changes
         else
             palloc_free_page(kpage);
     }
