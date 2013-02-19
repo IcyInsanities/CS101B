@@ -9,6 +9,7 @@
 #include <debug.h>
 #include <list.h>
 #include <stdint.h>
+#include "synch.h"
 
 /*! States in a thread's life cycle. */
  // TODO: add a ZOMBIE state
@@ -120,9 +121,9 @@ struct thread {
     uint32_t *pagedir;                  /*!< Page directory. */
     int exit_status;                    /*!< Exit status of the thread. */
     struct list files_opened;           /*!< List of files opened */
-    struct semaphore not_waited_on      /*!< Not acquirable if waited on */
-    struct semaphore has_exited         /*!< Will be upped when it exits */
-    struct list children                /*!< List of children. */
+    struct semaphore not_waited_on;     /*!< Not acquirable if waited on */
+    struct semaphore has_exited;        /*!< Will be upped when it exits */
+    struct list children;               /*!< List of children. */
 
     /**@{*/
 #endif

@@ -67,6 +67,7 @@ void syscall_halt(struct intr_frame *f UNUSED, void * arg1 UNUSED, void * arg2 U
 // TODO
 void syscall_exit(struct intr_frame *f UNUSED, void * arg1 UNUSED, void * arg2 UNUSED, void * arg3 UNUSED)
 {
+    /*
     struct thread *current_thread = thread_current();
 
     // Set the exit status of the thread
@@ -74,6 +75,7 @@ void syscall_exit(struct intr_frame *f UNUSED, void * arg1 UNUSED, void * arg2 U
 
     // Exit the thread
     thread_exit();
+    */
 }
 
 // TODO
@@ -86,22 +88,17 @@ void syscall_exec(struct intr_frame *f UNUSED, void * arg1, void * arg2 UNUSED, 
 // TODO
 void syscall_wait(struct intr_frame *f UNUSED, void * arg1 UNUSED, void * arg2 UNUSED, void * arg3 UNUSED)
 {
-    // TODO
+    // TODO: modify to put into stack frame
+    //return process_wait(pid);
 }
 
 // TODO
 void syscall_create(struct intr_frame *f UNUSED, void * arg1, void * arg2, void * arg3 UNUSED)
 {
-<<<<<<< HEAD
-
-    // TODO: modify to put into stack frame
-    return process_wait(pid);
-
-=======
     char * file = (char*) arg1;
     unsigned initial_size = (unsigned) arg2;
     // TODO
->>>>>>> 3a76b9699139b0b159fe05f175300a399937288d
+
 }
 
 // TODO

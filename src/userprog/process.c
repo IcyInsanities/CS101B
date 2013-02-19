@@ -95,7 +95,7 @@ int process_wait(tid_t child_tid UNUSED) {
 
     // Block until it exits
     // attempt to down sempaphore in the thread...will block until process exits (exit or kernel must up it)
-    sema_down(thread_waited_on->has_exited);
+    sema_down(&(thread_waited_on->has_exited));
     
     // Don't need to check how it exited...killer should set exit status properly
     return thread_waited_on->exit_status;  // Return the exit status

@@ -14,6 +14,8 @@
 #include "../devices/timer.h"
 #ifdef USERPROG
 #include "userprog/process.h"
+#include "filesys/file.h"
+
 #endif
 
 /* Random value for struct thread's `magic' member.
@@ -33,7 +35,7 @@ static struct list all_list;
 static struct list sleep_list;
 
 /* List of all orphaned threads. */
-static struct list orphaned_list;
+static struct list orphan_list;
 
 /* Idle thread. */
 static struct thread *idle_thread;
@@ -384,6 +386,9 @@ thread_tid (void)
 // TODO: how to get exit value?  Or should exit() set it?
 void thread_exit (void)
 {
+
+  struct list_elem *e;
+
   ASSERT (!intr_context ());
 
 #ifdef USERPROG
@@ -411,8 +416,19 @@ void thread_exit (void)
   sema_up(&(thread_current ()->has_exited)); // Indicate thread has exited
 
   // TODO: need to place orphaned threads into list
+  for (e = list_begin(&(thread_current()->children)); 
+          e != list_end(&(thread_current()->children)); e = list_next(e)) {
+      struct thread *current_child = list_entry(e, struct thread, elem);
+      list_push_back(&orphan_list, &(current_child->elem));
+  }
 
-  // TODO: need to close all files
+  //// TODO: need to close all files
+  //for (e = list_begin(&(thread_current()->files_opened));
+  //    e != list_end(&(thread_current()->files_opened)); e = list_next(e)) {
+  //  struct file *current_file = list_entry(e, struct file, elem);
+  //  file_close(current_file);
+  //  
+  //}
 
 #else // Code for threads
   thread_current ()->status = THREAD_DYING;
