@@ -425,11 +425,7 @@ static bool setup_stack(void **esp) {
     if (kpage != NULL) {
         success = install_page(((uint8_t *) PHYS_BASE) - PGSIZE, kpage, true);
         if (success)
-<<<<<<< Updated upstream
             *esp = PHYS_BASE - 12; // DEBUG: changed so non-argument calls do not page fault
-=======
-            *esp = PHYS_BASE - 12; // TODO
->>>>>>> Stashed changes
         else
             palloc_free_page(kpage);
     }
