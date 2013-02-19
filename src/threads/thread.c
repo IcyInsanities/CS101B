@@ -121,10 +121,6 @@ thread_init (void)
   init_thread (initial_thread, "main", PRI_DEFAULT);
   initial_thread->status = THREAD_RUNNING;
   initial_thread->tid = allocate_tid ();
-
-#ifdef USERPROG
-// TODO: need to init new fields for userprog
-#endif
 }
 
 /* Starts preemptive thread scheduling by enabling interrupts.
@@ -231,6 +227,16 @@ thread_create (const char *name, int priority, thread_func *function, void *aux)
   /* Initialize thread. */
   init_thread (t, name, priority);
   tid = t->tid = allocate_tid ();
+
+#ifdef USERPROG
+// TODO: need to init new fields for userprog
+  t->exit_status = 0;
+  list_init(&(t->files_opened));
+  list_init(&(t->children));
+  list_init(&(t->files_opened));
+  sema_init(&(t->not_waited_on), 1);
+  sema_init(&(t->has_exited), 0);
+#endif
 
   /* Stack frame for kernel_thread(). */
   kf = alloc_frame (t, sizeof *kf);
@@ -416,19 +422,18 @@ void thread_exit (void)
   sema_up(&(thread_current ()->has_exited)); // Indicate thread has exited
 
   // TODO: need to place orphaned threads into list
-  for (e = list_begin(&(thread_current()->children)); 
+  for (e = list_begin(&(thread_current()->children));
           e != list_end(&(thread_current()->children)); e = list_next(e)) {
       struct thread *current_child = list_entry(e, struct thread, elem);
       list_push_back(&orphan_list, &(current_child->elem));
   }
 
-  //// TODO: need to close all files
-  //for (e = list_begin(&(thread_current()->files_opened));
-  //    e != list_end(&(thread_current()->files_opened)); e = list_next(e)) {
-  //  struct file *current_file = list_entry(e, struct file, elem);
-  //  file_close(current_file);
-  //  
-  //}
+  // TODO: Close all open files on exit
+  for (e = list_begin(&(thread_current()->files_opened));
+      e != list_end(&(thread_current()->files_opened)); e = list_next(e)) {
+    struct file_id *current_file = list_entry(e, struct file_id, elem);
+    file_close((struct file*) (current_file->fid));
+  }
 
 #else // Code for threads
   thread_current ()->status = THREAD_DYING;
