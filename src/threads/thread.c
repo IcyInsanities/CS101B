@@ -228,15 +228,8 @@ thread_create (const char *name, int priority, thread_func *function, void *aux)
   init_thread (t, name, priority);
   tid = t->tid = allocate_tid ();
 
-#ifdef USERPROG
-// TODO: need to init new fields for userprog
-  t->exit_status = 0;
-  list_init(&(t->files_opened));
-  list_init(&(t->children));
-  list_init(&(t->files_opened));
-  sema_init(&(t->not_waited_on), 1);
-  sema_init(&(t->has_exited), 0);
-#endif
+  // TODO: Add thread to list of children
+  list_push_back(&(thread_current()->children), &(t->elem));
 
   /* Stack frame for kernel_thread(). */
   kf = alloc_frame (t, sizeof *kf);
@@ -412,12 +405,15 @@ void thread_exit (void)
 
   // If the thread is being waited on, set it to ZOMBIE so wait can clean it up
   if (!sema_try_down(&(thread_current ()->not_waited_on))) {
+    printf("SPAWNING ZOMBIE\n");
     thread_current ()->status = THREAD_ZOMBIE;
   }
   // Otherwise set it to DYING so that scheduler cleans it up
   else {
     thread_current ()->status = THREAD_DYING;
   }
+
+  printf("THREAD EXITED?\n");
 
   sema_up(&(thread_current ()->has_exited)); // Indicate thread has exited
 
@@ -740,6 +736,16 @@ init_thread (struct thread *t, const char *name, int priority)
   /* Initially no lock held */
   t->lock_to_acquire = NULL;
 
+#ifdef USERPROG
+// TODO: need to init new fields for userprog
+  t->exit_status = 0;
+  list_init(&(t->files_opened));
+  list_init(&(t->children));
+  list_init(&(t->files_opened));
+  sema_init(&(t->not_waited_on), 1);
+  sema_init(&(t->has_exited), 0);
+#endif
+  printf("SEMAPHORE INIT %d\n", (t->not_waited_on).value);
   old_level = intr_disable ();
   list_push_back (&all_list, &t->allelem);
   intr_set_level (old_level);

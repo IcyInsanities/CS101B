@@ -95,12 +95,12 @@ void syscall_exec(struct intr_frame *f UNUSED, void * arg1, void * arg2 UNUSED, 
 }
 
 // TODO
-void syscall_wait(struct intr_frame *f UNUSED, void * arg1 UNUSED, void * arg2 UNUSED, void * arg3 UNUSED)
+void syscall_wait(struct intr_frame *f UNUSED, void * arg1, void * arg2 UNUSED, void * arg3 UNUSED)
 {
-    // TODO: modify to put into stack frame
-    //return process_wait(pid);
     printf("wait\n");
-    // TODO
+    printf("WHY U NO GET HERE?\n");
+    // TODO: modify to put into stack frame
+    f->eax = process_wait(*((tid_t*) arg1));
 }
 
 // TODO

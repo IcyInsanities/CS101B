@@ -42,7 +42,7 @@ tid_t process_execute(const char *file_name) {
         return TID_ERROR;
     strlcpy(proc_copy, file_name, PGSIZE);
     proc = strtok_r(proc_copy, " ", &save_ptr);
-        
+
     /* Create a new thread to execute FILE_NAME. */
     tid = thread_create(proc, PRI_DEFAULT, start_process, fn_copy);
     if (tid == TID_ERROR)
@@ -112,7 +112,7 @@ static void start_process(void *file_name_) {
     esp -= sizeof(void*);
     // Update stack pointer in frame
     *(&if_.esp) = esp;
-    
+
     /* Clean up page now that arguments are parsed */
     palloc_free_page(file_name);
 
@@ -135,23 +135,42 @@ static void start_process(void *file_name_) {
     This function will be implemented in problem 2-2.  For now, it does
     nothing. */
 // TODO: implement process_wait()
-int process_wait(tid_t child_tid UNUSED) {
+int process_wait(tid_t child_tid) {
 
+    debug_backtrace_all();
     //// TO DELETE: OLD IMPLEMENTATION
-    while (true) {}
-    return -1;
+    //while (true) {}
+    //return -1;
+    struct list_elem *e;
+    struct thread *thread_waited_on = NULL;
 
-    struct thread *thread_waited_on;
+    printf("WAITING ON: %d\n", child_tid);
+
+    // Find the process from the the child tid
+    // TODO: need to place orphaned threads into list
+    for (e = list_begin(&(thread_current()->children));
+        e != list_end(&(thread_current()->children)); e = list_next(e)) {
+
+        struct thread *current_thread = list_entry(e, struct thread, elem);
+        if (current_thread->tid == child_tid) {
+            // If found thread with matching ID, use it
+            thread_waited_on = list_entry(e, struct thread, elem);
+        }
+    }
 
     // TODO: Check if process is a direct child (if calling process received pid as return value from exec, can just search list)
     //if not return -1
-
-    // Check if another process called wait on pid (check list and semaphore in thread indicating wait)
-    if (!sema_try_down(&(thread_waited_on->not_waited_on))) {
-        // If already waited on, error, return -1
+    if (thread_waited_on == NULL) {
         return -1;
     }
 
+    // Check if another process called wait on pid (check list and semaphore in thread indicating wait)
+    printf("SEMAPHORE %d\n", (thread_waited_on->not_waited_on).value);
+    if (!sema_try_down(&(thread_waited_on->not_waited_on))) {
+        // If already waited on, error, return -1
+        printf("ALREADY WAITED ON\n");
+        return -1;
+    }
     // Block until it exits
     // attempt to down sempaphore in the thread...will block until process exits (exit or kernel must up it)
     sema_down(&(thread_waited_on->has_exited));
