@@ -2,8 +2,26 @@
 #define FILESYS_FILE_H
 
 #include "filesys/off_t.h"
+#include <list.h>
 
 struct inode;
+
+/*! An open file. */
+struct file {
+    struct inode *inode;        /*!< File's inode. */
+    off_t pos;                  /*!< Current position. */
+    bool deny_write;            /*!< Has file_deny_write() been called? */
+};
+
+/*! TODO: File identifier type.
+    Use the pointer to the file as the identifier. */
+typedef struct file* fid_t;
+
+/*! A warpper for file identifiers so they can be used with lists. */
+struct file_id {
+    fid_t fid;                  /*!< File identifier. */
+    struct list_elem elem;      /*!< List element. */
+};
 
 /* Opening and closing files. */
 struct file *file_open (struct inode *);

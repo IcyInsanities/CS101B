@@ -5,6 +5,7 @@
 #include "threads/interrupt.h"
 #include "threads/thread.h"
 #include "threads/synch.h"
+#include "threads/vaddr.h"
 #include "process.h"
 
 static void syscall_handler(struct intr_frame *);
@@ -33,12 +34,12 @@ void syscall_inumber (struct intr_frame *, void * arg1, void * arg2, void * arg3
 
 // Table of function pointers for system calls. The order here must match the
 // order of constants in the enum declaration in syscall-nr.h exactly.
-static void (*syscall_table[])(struct intr_frame *, void *, void *, void *) = {syscall_halt, syscall_exit, 
+static void (*syscall_table[])(struct intr_frame *, void *, void *, void *) = {syscall_halt, syscall_exit,
     syscall_exec, syscall_wait, syscall_create, syscall_remove, syscall_open,
-    syscall_filesize, syscall_read, syscall_write, syscall_seek, syscall_tell, 
+    syscall_filesize, syscall_read, syscall_write, syscall_seek, syscall_tell,
     syscall_close, syscall_mmap, syscall_munmap, syscall_chdir, syscall_mkdir,
     syscall_readdir, syscall_isdir, syscall_inumber};
-    
+
 void syscall_init(void)
 {
     intr_register_int(0x30, 3, INTR_ON, syscall_handler, "syscall");
@@ -54,7 +55,15 @@ static void syscall_handler(struct intr_frame *f)
     void *arg1 = *((void**)(f->esp +  4));
     void *arg2 = *((void**)(f->esp +  8));
     void *arg3 = *((void**)(f->esp + 12));
-    syscall_table[num](f, arg1, arg2, arg3);
+    // Check that passed pointers are in user space; if so, proceed
+    if (is_user_vaddr(arg1) && is_user_vaddr(arg2) && is_user_vaddr(arg3)) {
+        syscall_table[num](f, arg1, arg2, arg3);
+    }
+    else
+    {
+        // Kill the process if passed invalid pointer
+        thread_exit();
+    }
 }
 
 // Halts the system and shuts it down
