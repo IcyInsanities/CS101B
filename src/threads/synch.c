@@ -126,7 +126,7 @@ void sema_up(struct semaphore *sema) {
     intr_set_level(old_level);
 
     /* See if higher priority thread can now run */
-    thread_yield();
+    //thread_yield(); // TODO: COMMENTED OUT AS BREAKS USERPROG CODE
 }
 
 static void sema_test_helper(void *sema_);
