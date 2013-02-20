@@ -81,8 +81,12 @@ static void syscall_handler(struct intr_frame *f)
 }
 
 // Helper function to kill the current thread
-static void kill_current_thread(int status) {
+void kill_current_thread(int status) {
     struct thread *t = thread_current();
+    // Release filesys lock if owned
+    if (filesys_access_held()) {
+        release_filesys_access();
+    }
     // Print out message
     printf ("%s: exit(%d)\n", t->name, status);
     // Set the exit status of the thread
