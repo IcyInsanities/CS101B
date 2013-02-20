@@ -127,6 +127,7 @@ struct thread {
     struct thread *parent;              /*!< Parent of thread, NULL if none. */
     struct list pages;                  /*!< List of pages. */
     struct semaphore child_loaded;      /*!< Indicates child process loaded. */
+    struct file *executable;            /*!< File pointer to executable. */
     /**@}*/
 #endif
 

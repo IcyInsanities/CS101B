@@ -112,7 +112,6 @@ void syscall_exit(struct intr_frame *f UNUSED, void * arg1, void * arg2 UNUSED, 
 void syscall_exec(struct intr_frame *f UNUSED, void * arg1, void * arg2 UNUSED, void * arg3 UNUSED)
 {
     char * cmd_line = (char*) arg1;
-    // TODO
     f->eax = (uint32_t) process_execute(cmd_line);
 }
 
