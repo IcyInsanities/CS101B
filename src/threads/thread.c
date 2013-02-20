@@ -385,11 +385,11 @@ thread_tid (void)
 // TODO: how to get exit value?  Or should exit() set it?
 void thread_exit (void)
 {
-
+  struct thread *t = thread_current();
   struct list_elem *e;
 
   ASSERT (!intr_context ());
-
+  
 #ifdef USERPROG
   process_exit ();
 #endif
@@ -398,41 +398,38 @@ void thread_exit (void)
      and schedule another process.  That process will destroy us
      when it calls thread_schedule_tail(). */
   intr_disable ();
-  list_remove (&thread_current()->allelem);
+  list_remove (&(t->allelem));
 
 // TODO: change status to ZOMBIE instead of dying, up semaphore?
 #ifdef USERPROG // Code for user programs
 
   // If the thread is being waited on, set it to ZOMBIE so wait can clean it up
-  if (!sema_try_down(&(thread_current ()->not_waited_on))) {
-    printf("SPAWNING ZOMBIE\n");
-    thread_current ()->status = THREAD_ZOMBIE;
+  if (!sema_try_down (&(t->not_waited_on)))
+  {
+    t->status = THREAD_ZOMBIE;
   }
   // Otherwise set it to DYING so that scheduler cleans it up
-  else {
-    thread_current ()->status = THREAD_DYING;
+  else
+  {
+    t->status = THREAD_DYING;
   }
 
-  printf("THREAD EXITED?\n");
-
-  sema_up(&(thread_current ()->has_exited)); // Indicate thread has exited
+  sema_up (&(t->has_exited)); // Indicate thread has exited
 
   // TODO: need to place orphaned threads into list
-  for (e = list_begin(&(thread_current()->children));
-          e != list_end(&(thread_current()->children)); e = list_next(e)) {
-      struct thread *current_child = list_entry(e, struct thread, elem);
-      list_push_back(&orphan_list, &(current_child->elem));
+  for (e = list_begin (&(t->children)); e != list_end (&(t->children)); e = list_next (e))
+  {
+    list_push_back(&orphan_list, e);
   }
 
   // TODO: Close all open files on exit
-  for (e = list_begin(&(thread_current()->files_opened));
-      e != list_end(&(thread_current()->files_opened)); e = list_next(e)) {
-    struct file_id *current_file = list_entry(e, struct file_id, elem);
-    file_close((struct file*) (current_file->fid));
+  for (e = list_begin (&(t->files_opened)); e != list_end (&(t->files_opened)); e = list_next (e))
+  {
+    file_close((struct file*) (list_entry(e, struct file_id, elem)->fid));
   }
 
 #else // Code for threads
-  thread_current ()->status = THREAD_DYING;
+  t->status = THREAD_DYING;
 #endif
 
   schedule ();

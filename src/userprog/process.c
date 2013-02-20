@@ -136,16 +136,12 @@ static void start_process(void *file_name_) {
     nothing. */
 // TODO: implement process_wait()
 int process_wait(tid_t child_tid) {
-
-    debug_backtrace_all();
-    //// TO DELETE: OLD IMPLEMENTATION
-    //while (true) {}
-    //return -1;
     struct list_elem *e;
     struct thread *thread_waited_on = NULL;
     struct list *child_list = &(thread_current()->children);
+    int status;
 
-    printf("WAITING ON: %d\n", child_tid);
+    //printf("WAITING ON: %d\n", child_tid); // DEBUG
 
     // Find the process from the the child tid
     // TODO: need to place orphaned threads into list
@@ -168,18 +164,21 @@ int process_wait(tid_t child_tid) {
     }
 
     // Check if another process called wait on pid (check list and semaphore in thread indicating wait)
-    printf("SEMAPHORE %d\n", (thread_waited_on->not_waited_on).value);
+    //printf("SEMAPHORE %d\n", (thread_waited_on->not_waited_on).value); // DEBUG
     if (!sema_try_down(&(thread_waited_on->not_waited_on))) {
         // If already waited on, error, return -1
-        printf("ALREADY WAITED ON\n");
+        //printf("ALREADY WAITED ON\n"); // DEBUG
         return -1;
     }
     // Block until it exits
     // attempt to down sempaphore in the thread...will block until process exits (exit or kernel must up it)
     sema_down(&(thread_waited_on->has_exited));
-
+    
+    // Get exit status and set to dying now
     // Don't need to check how it exited...killer should set exit status properly
-    return thread_waited_on->exit_status;  // Return the exit status
+    status = thread_waited_on->exit_status;
+    thread_waited_on->status = THREAD_DYING;
+    return status;
 }
 
 /*! Free the current process's resources. */
