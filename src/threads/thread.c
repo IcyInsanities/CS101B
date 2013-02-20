@@ -430,6 +430,8 @@ void thread_exit (void)
     }
   }
 
+  // Close the executable file once it is done running
+  //file_close(t->executable);
   sema_up (&(t->has_exited)); // Indicate thread has exited
   
 #else // Code for threads

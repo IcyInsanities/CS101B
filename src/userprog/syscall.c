@@ -94,7 +94,7 @@ static void kill_current_thread(int status) {
 // Halts the system and shuts it down
 void syscall_halt(struct intr_frame *f UNUSED, void * arg1 UNUSED, void * arg2 UNUSED, void * arg3 UNUSED)
 {
-    printf("halt\n");
+    //printf("halt\n");
     shutdown_power_off();
 }
 
@@ -109,7 +109,7 @@ void syscall_exit(struct intr_frame *f UNUSED, void * arg1, void * arg2 UNUSED, 
 void syscall_exec(struct intr_frame *f UNUSED, void * arg1, void * arg2 UNUSED, void * arg3 UNUSED)
 {
     char * cmd_line = (char*) arg1;
-    printf("exec\n");
+    //printf("exec\n");
     // TODO
     f->eax = (uint32_t) process_execute(cmd_line);
 }
@@ -117,8 +117,7 @@ void syscall_exec(struct intr_frame *f UNUSED, void * arg1, void * arg2 UNUSED, 
 // TODO
 void syscall_wait(struct intr_frame *f UNUSED, void * arg1, void * arg2 UNUSED, void * arg3 UNUSED)
 {
-    printf("wait\n");
-    printf("WHY U NO GET HERE?\n");
+    //printf("wait\n");
     // TODO: modify to put into stack frame
     f->eax = process_wait(*((tid_t*) arg1));
 }
