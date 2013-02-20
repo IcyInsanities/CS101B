@@ -6,13 +6,15 @@
 #include "threads/thread.h"
 #include "threads/synch.h"
 #include "threads/vaddr.h"
+#include "threads/malloc.h"
 #include "filesys/filesys.h"
 #include "filesys/file.h"
 #include "process.h"
 
-#define INVALID_FILE -1
+#define INVALID_FILE_ID -1
 
 static void syscall_handler(struct intr_frame *);
+void kill_current_thread(int status);
 
 // Prototypes for system call functions
 void syscall_halt    (struct intr_frame *, void * arg1, void * arg2, void * arg3);
@@ -144,7 +146,7 @@ void syscall_remove(struct intr_frame *f UNUSED, void * arg1, void * arg2 UNUSED
     char * file = (char*) arg1;
     // TODO
     //printf("remove\n");
-    // TODO: Acquire lock to access file system; block until acquired
+    // Acquire lock to access file system; block until acquired
     if (file == NULL) {
         f->eax = (uint32_t) -1;
     } else {
@@ -162,21 +164,48 @@ void syscall_remove(struct intr_frame *f UNUSED, void * arg1, void * arg2 UNUSED
 void syscall_open(struct intr_frame *f UNUSED, void * arg1, void * arg2 UNUSED, void * arg3 UNUSED)
 {
     char * file = (char*) arg1;
+    struct file_id *new_file_id;
+    struct file *file_pt;
+    struct thread *t = thread_current();
+
     if (file == NULL) {
-        f->eax = (uint32_t) -1;
+        f->eax = (uint32_t) -1; // Return an error if passed NULL file
+
     } else {
-        acquire_filesys_access();
-        // Open the file, return the file descriptor
-        f->eax = (uint32_t) filesys_open(file);
-        // Check if open failed
-        if (f->eax == 0) {
-            f->eax = -1;
+
+        // Allocate a new file ID
+        new_file_id = (struct file_id *) malloc(sizeof(struct file_id));
+
+        if (new_file_id == NULL) {
+
+            f->eax = (uint32_t) -1; // Return an error if allocation fails
+
+        } else {
+
+            // Acquire lock to access file system; block until acquired
+            acquire_filesys_access();
+
+            // Open the file, return the file pointer
+            file_pt = filesys_open(file);
+
+            // Check if open failed
+            if (file_pt == NULL) {
+                f->eax = -1;    // Return an error
+                free((void *) new_file_id); // Free file ID, it won't be used
+
+            } else {
+
+                new_file_id->fid = allocate_fid();  // Get a file ID number
+                new_file_id->f = file_pt;           // Get the file pointer
+
+                // Add to list of opened files
+                list_push_back(&(t->files_opened), &(new_file_id->elem));
+
+                f->eax = (uint32_t) file_pt;    // Return the file pointer
+            }
+            // Done, relinquish access to the file system.
+            release_filesys_access();
         }
-        // Ensure that fd is not reserved, kill user
-        if (f->eax == 1) {
-            kill_current_thread(-1);
-        }
-        release_filesys_access();
     }
 }
 
@@ -184,21 +213,27 @@ void syscall_open(struct intr_frame *f UNUSED, void * arg1, void * arg2 UNUSED, 
 void syscall_filesize(struct intr_frame *f UNUSED, void * arg1, void * arg2 UNUSED, void * arg3 UNUSED)
 {
     int fd = (int) arg1;
+    struct file *file_to_access;
+    struct thread *t = thread_current();
     // TODO
     //printf("filesize\n");
-    // TODO: Acquire lock to access file system; block until acquired
+    // Get the file pointer
+    file_to_access = file_fid_to_f(fd, &(t->files_opened));
+
     // If there is an invalid file descriptor, return an error
-    if (fd == INVALID_FILE) {
+    if (file_to_access == NULL) {
         f->eax = (uint32_t) -1;
     } else {
+
         // TODO: Acquire lock to access file system; block until acquired
         acquire_filesys_access();
 
         // Read from the file
-        f->eax = (uint32_t) file_length((fid_t) fd);
+        f->eax = (uint32_t) file_length(file_to_access);
 
-        // TODO: Done, relinquish access to the file system. */
+        // Done, relinquish access to the file system.
         release_filesys_access();
+
     }
 }
 
@@ -208,21 +243,28 @@ void syscall_read(struct intr_frame *f, void * arg1, void * arg2, void * arg3)
     int fd = (int) arg1;
     void *buffer = arg2;
     unsigned size = (unsigned) arg3;
+    struct file *file_to_access;
+    struct thread *t = thread_current();
     // TODO
     //printf("read\n");
 
+    // Get the file pointer
+    file_to_access = file_fid_to_f(fd, &(t->files_opened));
+
     // If there is an invalid file descriptor, return an error
-    if (fd == INVALID_FILE) {
+    if (file_to_access == NULL) {
         f->eax = (uint32_t) -1;
     } else {
+
         // TODO: implement reading from stdin!!!!
+
         // TODO: Acquire lock to access file system; block until acquired
         acquire_filesys_access();
 
         // Read from the file
-        f->eax = (uint32_t) file_read((fid_t) fd, buffer, (off_t) size);
+        f->eax = (uint32_t) file_read(file_to_access, buffer, (off_t) size);
 
-        // TODO: Done, relinquish access to the file system. */
+        // TODO: Done, relinquish access to the file system.
         release_filesys_access();
     }
 }
@@ -233,27 +275,31 @@ void syscall_write(struct intr_frame *f, void * arg1, void * arg2, void * arg3)
     int fd = (int) arg1;
     void *buffer = arg2;
     unsigned size = (unsigned) arg3;
+    struct file *file_to_access;
+    struct thread *t = thread_current();
 
+    // Get the file pointer
+    file_to_access = file_fid_to_f(fd, &(t->files_opened));
+
+    // Write out to console if given fd 1 (stdout)
+    if (fd == 1)
+    {
+        putbuf(buffer, size);
+        f->eax = (uint32_t) size;
+    }
     // If there is an invalid file descriptor, return an error
-    if (fd == INVALID_FILE) {
+    else if (file_to_access == NULL) {
         f->eax = (uint32_t) -1;
     } else {
-        // Write out to console if given fd 1 (stdout)
-        if (fd == 1)
-        {
-            putbuf(buffer, size);
-            f->eax = (uint32_t) size;
+        // TODO: Acquire lock to access file system; block until acquired
+        acquire_filesys_access();
 
-        } else {
-            // TODO: Acquire lock to access file system; block until acquired
-            acquire_filesys_access();
+        // Write to the file
+        f->eax = (uint32_t) file_write(file_to_access, buffer, (off_t) size);
 
-            // Write to the file
-            f->eax = (uint32_t) file_write((fid_t) fd, buffer, (off_t) size);
+        // TODO: Done, relinquish access to the file system.
+        release_filesys_access();
 
-            // TODO: Done, relinquish access to the file system. */
-            release_filesys_access();
-        }
     }
 }
 
@@ -262,19 +308,25 @@ void syscall_seek(struct intr_frame *f UNUSED, void * arg1, void * arg2, void * 
 {
     int fd = (int) arg1;
     unsigned position = (unsigned) arg2;
+    struct file *file_to_access;
+    struct thread *t = thread_current();
     // TODO
     //printf("seek\n");
+
+    // Get the file pointer
+    file_to_access = file_fid_to_f(fd, &(t->files_opened));
+
     // If there is an invalid file descriptor, kill the thread
-    if (fd == INVALID_FILE) {
+    if (file_to_access == NULL) {
         kill_current_thread(-1);
     } else {
         // TODO: Acquire lock to access file system; block until acquired
         acquire_filesys_access();
 
         // Go to position in file
-        file_seek((fid_t) fd, (off_t) position);
+        file_seek(file_to_access, (off_t) position);
 
-        // TODO: Done, relinquish access to the file system. */
+        // TODO: Done, relinquish access to the file system.
         release_filesys_access();
     }
 }
@@ -283,19 +335,25 @@ void syscall_seek(struct intr_frame *f UNUSED, void * arg1, void * arg2, void * 
 void syscall_tell(struct intr_frame *f UNUSED, void * arg1, void * arg2 UNUSED, void * arg3 UNUSED)
 {
     int fd = (int) arg1;
+    struct file *file_to_access;
+    struct thread *t = thread_current();
     // TODO
     //printf("tell\n");
-    // If there is an invalid file descriptor, kill the thread
-    if (fd == INVALID_FILE) {
+
+    // Get the file pointer
+    file_to_access = file_fid_to_f(fd, &(t->files_opened));
+
+    // If there is an invalid file descriptor, kill th thread
+    if (file_to_access == NULL) {
         kill_current_thread(-1);
     } else {
         // TODO: Acquire lock to access file system; block until acquired
         acquire_filesys_access();
 
         // Get position in file
-        f->eax = (uint32_t) file_tell((fid_t) fd);
+        f->eax = (uint32_t) file_tell(file_to_access);
 
-        // TODO: Done, relinquish access to the file system. */
+        // TODO: Done, relinquish access to the file system.
         release_filesys_access();
     }
 }
@@ -304,17 +362,33 @@ void syscall_tell(struct intr_frame *f UNUSED, void * arg1, void * arg2 UNUSED, 
 void syscall_close(struct intr_frame *f UNUSED, void * arg1, void * arg2 UNUSED, void * arg3 UNUSED)
 {
     int fd = (int) arg1;
+    struct file *file_to_access;
+    struct file_id *closed_file_id;
+    struct thread *t = thread_current();
+
+    // Get the file pointer
+    file_to_access = file_fid_to_f(fd, &(t->files_opened));
+    ASSERT(file_to_access != NULL); // Should not pass a bad fd
+
     // If there is an invalid file descriptor, kill the thread
-    if (fd == INVALID_FILE) {
+    if (file_to_access == NULL) {
         kill_current_thread(-1);
     } else {
         // TODO: Acquire lock to access file system; block until acquired
         acquire_filesys_access();
 
         // Close the file
-        file_close((fid_t) fd);
+        file_close(file_to_access);
 
-        // TODO: Done, relinquish access to the file system. */
+        // SHIR:
+        // TODO: free file id in open list????
+        // TODO: change exit function to use file ids instead of files!
+        // TODO: write function to get file_id struct based on fid
+        // Remove the file (id struct) from open list
+        // list_remove(&(closed_file_id->elem));
+        // free((void *) closed_file_id);  // Free the file ID, no longer used
+
+        // TODO: Done, relinquish access to the file system.
         release_filesys_access();
     }
 }
