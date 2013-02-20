@@ -39,6 +39,9 @@ static void (*syscall_table[])(struct intr_frame *, void *, void *, void *) = {s
     syscall_filesize, syscall_read, syscall_write, syscall_seek, syscall_tell,
     syscall_close, syscall_mmap, syscall_munmap, syscall_chdir, syscall_mkdir,
     syscall_readdir, syscall_isdir, syscall_inumber};
+// Argument number for each system call. Again, order must match exactly
+static uint32_t syscall_num_arg[] = {0, 1, 1, 1, 2, 1, 1, 1, 3, 3, 2, 1, 1, 2, 1, 1, 1, 2, 1, 1};
+static uint32_t num_syscalls = 20;
 
 void syscall_init(void)
 {
@@ -55,13 +58,20 @@ static void syscall_handler(struct intr_frame *f)
     void *arg1 = *((void**)(f->esp +  4));
     void *arg2 = *((void**)(f->esp +  8));
     void *arg3 = *((void**)(f->esp + 12));
-    // Check that passed pointers are in user space; if so, proceed
-    if (is_user_vaddr(arg1) && is_user_vaddr(arg2) && is_user_vaddr(arg3)) {
+    // Check that system call number is valid and stored in user space
+    // Check the the needed arguments are in user space
+    if ((num < num_syscalls) && (
+        ((syscall_num_arg[num] == 0) && is_user_vaddr(f->esp +  3)) || 
+        ((syscall_num_arg[num] == 1) && is_user_vaddr(f->esp +  7) && is_user_vaddr(arg1)) || 
+        ((syscall_num_arg[num] == 2) && is_user_vaddr(f->esp + 11) && is_user_vaddr(arg1) && is_user_vaddr(arg2)) || 
+        ((syscall_num_arg[num] == 3) && is_user_vaddr(f->esp + 15) && is_user_vaddr(arg1) && is_user_vaddr(arg2) && is_user_vaddr(arg3))))
+    {
         syscall_table[num](f, arg1, arg2, arg3);
     }
+    // Kill the process if passed invalid pointer
     else
     {
-        // Kill the process if passed invalid pointer
+        thread_current()->status = -1; // Indicate error and exit
         thread_exit();
     }
 }

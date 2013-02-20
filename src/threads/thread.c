@@ -34,9 +34,6 @@ static struct list all_list;
 /* List of all processes that are blocked from a sleep call. */
 static struct list sleep_list;
 
-/* List of all orphaned threads. */
-static struct list orphan_list;
-
 /* Idle thread. */
 static struct thread *idle_thread;
 
@@ -82,7 +79,7 @@ static void kernel_thread (thread_func *, void *aux);
 static void idle (void *aux UNUSED);
 static struct thread *running_thread (void);
 static struct thread *next_thread_to_run (void);
-static void init_thread (struct thread *, const char *name, int priority);
+static void init_thread (struct thread *, const char *name, int priority, struct thread *);
 static bool is_thread (struct thread *) UNUSED;
 static void *alloc_frame (struct thread *, size_t size);
 static void schedule (void);
@@ -118,7 +115,7 @@ thread_init (void)
 
   /* Set up a thread structure for the running thread. */
   initial_thread = running_thread ();
-  init_thread (initial_thread, "main", PRI_DEFAULT);
+  init_thread (initial_thread, "main", PRI_DEFAULT, NULL); // initial has no parent
   initial_thread->status = THREAD_RUNNING;
   initial_thread->tid = allocate_tid ();
 }
@@ -225,7 +222,7 @@ thread_create (const char *name, int priority, thread_func *function, void *aux)
     return TID_ERROR;
 
   /* Initialize thread. */
-  init_thread (t, name, priority);
+  init_thread (t, name, priority, thread_current());
   tid = t->tid = allocate_tid ();
 
   // TODO: Add thread to list of children
@@ -389,10 +386,6 @@ void thread_exit (void)
   struct list_elem *e;
 
   ASSERT (!intr_context ());
-  
-#ifdef USERPROG
-  process_exit ();
-#endif
 
   /* Remove thread from all threads list, set our status to dying,
      and schedule another process.  That process will destroy us
@@ -400,27 +393,7 @@ void thread_exit (void)
   intr_disable ();
   list_remove (&(t->allelem));
 
-// TODO: change status to ZOMBIE instead of dying, up semaphore?
 #ifdef USERPROG // Code for user programs
-
-  // If the thread is being waited on, set it to ZOMBIE so wait can clean it up
-  if (!sema_try_down (&(t->not_waited_on)))
-  {
-    t->status = THREAD_ZOMBIE;
-  }
-  // Otherwise set it to DYING so that scheduler cleans it up
-  else
-  {
-    t->status = THREAD_DYING;
-  }
-
-  sema_up (&(t->has_exited)); // Indicate thread has exited
-
-  // TODO: need to place orphaned threads into list
-  for (e = list_begin (&(t->children)); e != list_end (&(t->children)); e = list_next (e))
-  {
-    list_push_back(&orphan_list, e);
-  }
 
   // TODO: Close all open files on exit
   for (e = list_begin (&(t->files_opened)); e != list_end (&(t->files_opened)); e = list_next (e))
@@ -428,6 +401,37 @@ void thread_exit (void)
     file_close((struct file*) (list_entry(e, struct file_id, elem)->fid));
   }
 
+  // If the thread has a parent, set it to ZOMBIE so wait can clean it up
+  if (t->parent != NULL)
+  {
+    t->status = THREAD_ZOMBIE;
+  }
+  // Otherwise set it to DYING so that scheduler cleans it up
+  else
+  {
+    process_exit ();    // Clean up process memory before destroying thread
+    t->status = THREAD_DYING;
+  }
+
+  // Clean up children
+  for (e = list_begin (&(t->children)); e != list_end (&(t->children)); e = list_next (e))
+  {
+    struct thread *child = list_entry(e, struct thread, elem);
+    // If child was already finshed, clean up as will never be waited for
+    if (child->status == THREAD_ZOMBIE)
+    {
+      process_exit ();      // Clean up process memory before destroying thread
+      palloc_free_page (child); // Destroy thread here as scheduler wont see it as prev
+    }
+    // Otherwise set to no parent
+    else
+    {
+      child->parent = NULL;
+    }
+  }
+
+  sema_up (&(t->has_exited)); // Indicate thread has exited
+  
 #else // Code for threads
   t->status = THREAD_DYING;
 #endif
@@ -700,7 +704,7 @@ is_thread (struct thread *t)
 /* Does basic initialization of T as a blocked thread named
    NAME. */
 static void
-init_thread (struct thread *t, const char *name, int priority)
+init_thread (struct thread *t, const char *name, int priority, struct thread *t_par)
 {
   enum intr_level old_level;
 
@@ -741,8 +745,9 @@ init_thread (struct thread *t, const char *name, int priority)
   list_init(&(t->files_opened));
   sema_init(&(t->not_waited_on), 1);
   sema_init(&(t->has_exited), 0);
+  t->parent = t_par;
 #endif
-  printf("SEMAPHORE INIT %d\n", (t->not_waited_on).value);
+  //printf("SEMAPHORE INIT %d\n", (t->not_waited_on).value); // DEBUG
   old_level = intr_disable ();
   list_push_back (&all_list, &t->allelem);
   intr_set_level (old_level);

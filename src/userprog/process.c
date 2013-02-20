@@ -134,7 +134,6 @@ static void start_process(void *file_name_) {
 
     This function will be implemented in problem 2-2.  For now, it does
     nothing. */
-// TODO: implement process_wait()
 int process_wait(tid_t child_tid) {
     struct list_elem *e;
     struct thread *thread_waited_on = NULL;
@@ -144,21 +143,21 @@ int process_wait(tid_t child_tid) {
     //printf("WAITING ON: %d\n", child_tid); // DEBUG
 
     // Find the process from the the child tid
-    // TODO: need to place orphaned threads into list
     if (child_list == NULL) {   // No children for process
         return -1;
     }
     for (e = list_begin(child_list); e != list_end(child_list); e = list_next(e)) {
         struct thread *current_thread = list_entry(e, struct thread, elem);
+        //debug_backtrace_all();                              // DEBUG
+        //printf("Thread loc: %x\n", current_thread);         // DEBUG
+        //printf("Thread name: %s\n", current_thread->name);  // DEBUG
         if (current_thread->tid == child_tid) {
             // If found thread with matching ID, use it
             thread_waited_on = current_thread;
             break;
         }
     }
-
-    // TODO: Check if process is a direct child (if calling process received pid as return value from exec, can just search list)
-    //if not return -1
+    // Check if process is a direct child, otherwise return -1
     if (thread_waited_on == NULL) {
         return -1;
     }
@@ -173,11 +172,14 @@ int process_wait(tid_t child_tid) {
     // Block until it exits
     // attempt to down sempaphore in the thread...will block until process exits (exit or kernel must up it)
     sema_down(&(thread_waited_on->has_exited));
-    
-    // Get exit status and set to dying now
-    // Don't need to check how it exited...killer should set exit status properly
+
+    // Get exit status and destroy thread
+    // Don't need to check how it exited, killer should set exit status properly
     status = thread_waited_on->exit_status;
-    thread_waited_on->status = THREAD_DYING;
+    // Clean up process memory before destroying thread
+    process_exit ();
+    // Destroy thread here as scheduler wont see it as prev
+    palloc_free_page(thread_waited_on);
     return status;
 }
 

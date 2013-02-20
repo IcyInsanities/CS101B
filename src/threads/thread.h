@@ -124,7 +124,7 @@ struct thread {
     struct semaphore not_waited_on;     /*!< Not acquirable if waited on */
     struct semaphore has_exited;        /*!< Will be upped when it exits */
     struct list children;               /*!< List of children. */
-
+    struct thread *parent;              /*!< Parent of thread, NULL if none. */
     /**@}*/
 #endif
 
