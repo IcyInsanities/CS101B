@@ -6,7 +6,11 @@
 #include "threads/thread.h"
 #include "threads/synch.h"
 #include "threads/vaddr.h"
+#include "filesys/filesys.h"
+#include "filesys/file.h"
 #include "process.h"
+
+#define INVALID_FILE -1
 
 static void syscall_handler(struct intr_frame *);
 
@@ -76,6 +80,17 @@ static void syscall_handler(struct intr_frame *f)
     }
 }
 
+// Helper function to kill the current thread
+static void kill_current_thread(int status) {
+    struct thread *t = thread_current();
+    // Print out message
+    printf ("%s: exit(%d)\n", t->name, status);
+    // Set the exit status of the thread
+    t->exit_status = status;
+    // Exit the thread
+    thread_exit();
+}
+
 // Halts the system and shuts it down
 void syscall_halt(struct intr_frame *f UNUSED, void * arg1 UNUSED, void * arg2 UNUSED, void * arg3 UNUSED)
 {
@@ -87,13 +102,7 @@ void syscall_halt(struct intr_frame *f UNUSED, void * arg1 UNUSED, void * arg2 U
 void syscall_exit(struct intr_frame *f UNUSED, void * arg1, void * arg2 UNUSED, void * arg3 UNUSED)
 {
     int status = (int) arg1;
-    struct thread *t = thread_current();
-    // Print out message
-    printf ("%s: exit(%d)\n", t->name, status);
-    // Set the exit status of the thread
-    t->exit_status = status;
-    // Exit the thread
-    thread_exit();
+    kill_current_thread(status);
 }
 
 // TODO
@@ -102,6 +111,7 @@ void syscall_exec(struct intr_frame *f UNUSED, void * arg1, void * arg2 UNUSED, 
     char * cmd_line = (char*) arg1;
     printf("exec\n");
     // TODO
+    f->eax = (uint32_t) process_execute(cmd_line);
 }
 
 // TODO
@@ -119,7 +129,19 @@ void syscall_create(struct intr_frame *f UNUSED, void * arg1, void * arg2, void 
     char * file = (char*) arg1;
     unsigned initial_size = (unsigned) arg2;
     // TODO
-    printf("create\n");
+    //printf("create\n");
+    // TODO: Acquire lock to access file system; block until acquired
+    if (file == NULL) {
+        f->eax = (uint32_t) -1;
+    } else {
+        acquire_filesys_access();
+
+        // Create the file, return if successful
+        f->eax = (uint32_t) filesys_create(file, initial_size);
+
+        // TODO: Done, relinquish access to the file system. */
+        release_filesys_access();
+    }
 }
 
 // TODO
@@ -127,7 +149,19 @@ void syscall_remove(struct intr_frame *f UNUSED, void * arg1, void * arg2 UNUSED
 {
     char * file = (char*) arg1;
     // TODO
-    printf("remove\n");
+    //printf("remove\n");
+    // TODO: Acquire lock to access file system; block until acquired
+    if (file == NULL) {
+        f->eax = (uint32_t) -1;
+    } else {
+        acquire_filesys_access();
+
+        // remove the file, return if successful
+        f->eax = (uint32_t) filesys_remove(file);
+
+        // TODO: Done, relinquish access to the file system. */
+        release_filesys_access();
+    }
 }
 
 // TODO
@@ -135,7 +169,19 @@ void syscall_open(struct intr_frame *f UNUSED, void * arg1, void * arg2 UNUSED, 
 {
     char * file = (char*) arg1;
     // TODO
-    printf("open\n");
+    //printf("open\n");
+    // TODO: Acquire lock to access file system; block until acquired
+    if (file == NULL) {
+        f->eax = (uint32_t) -1;
+    } else {
+        acquire_filesys_access();
+
+        // Open the file, return the file descriptor
+        f->eax = (uint32_t) filesys_open(file);
+
+        // TODO: Done, relinquish access to the file system. */
+        release_filesys_access();
+    }
 }
 
 // TODO
@@ -143,17 +189,46 @@ void syscall_filesize(struct intr_frame *f UNUSED, void * arg1, void * arg2 UNUS
 {
     int fd = (int) arg1;
     // TODO
-    printf("filesize\n");
+    //printf("filesize\n");
+    // TODO: Acquire lock to access file system; block until acquired
+    // If there is an invalid file descriptor, return an error
+    if (fd == INVALID_FILE) {
+        f->eax = (uint32_t) -1;
+    } else {
+        // TODO: Acquire lock to access file system; block until acquired
+        acquire_filesys_access();
+
+        // Read from the file
+        f->eax = (uint32_t) file_length((fid_t) fd);
+
+        // TODO: Done, relinquish access to the file system. */
+        release_filesys_access();
+    }
 }
 
 // TODO
-void syscall_read(struct intr_frame *f UNUSED, void * arg1, void * arg2, void * arg3)
+void syscall_read(struct intr_frame *f, void * arg1, void * arg2, void * arg3)
 {
     int fd = (int) arg1;
     void *buffer = arg2;
     unsigned size = (unsigned) arg3;
     // TODO
-    printf("read\n");
+    //printf("read\n");
+
+    // If there is an invalid file descriptor, return an error
+    if (fd == INVALID_FILE) {
+        f->eax = (uint32_t) -1;
+    } else {
+        // TODO: implement reading from stdin!!!!
+        // TODO: Acquire lock to access file system; block until acquired
+        acquire_filesys_access();
+
+        // Read from the file
+        f->eax = (uint32_t) file_read((fid_t) fd, buffer, (off_t) size);
+
+        // TODO: Done, relinquish access to the file system. */
+        release_filesys_access();
+    }
 }
 
 // TODO
@@ -162,17 +237,27 @@ void syscall_write(struct intr_frame *f, void * arg1, void * arg2, void * arg3)
     int fd = (int) arg1;
     void *buffer = arg2;
     unsigned size = (unsigned) arg3;
-    // Write out to console if given fd 1
-    if (fd == 1)
-    {
-        putbuf(buffer, size);
-        f->eax = size;
-    }
-    // TODO
-    else
-    {
-        printf("write\n");
-        f->eax = size;
+
+    // If there is an invalid file descriptor, return an error
+    if (fd == INVALID_FILE) {
+        f->eax = (uint32_t) -1;
+    } else {
+        // Write out to console if given fd 1 (stdout)
+        if (fd == 1)
+        {
+            putbuf(buffer, size);
+            f->eax = (uint32_t) size;
+
+        } else {
+            // TODO: Acquire lock to access file system; block until acquired
+            acquire_filesys_access();
+
+            // Write to the file
+            f->eax = (uint32_t) file_write((fid_t) fd, buffer, (off_t) size);
+
+            // TODO: Done, relinquish access to the file system. */
+            release_filesys_access();
+        }
     }
 }
 
@@ -182,7 +267,20 @@ void syscall_seek(struct intr_frame *f UNUSED, void * arg1, void * arg2, void * 
     int fd = (int) arg1;
     unsigned position = (unsigned) arg2;
     // TODO
-    printf("seek\n");
+    //printf("seek\n");
+    // If there is an invalid file descriptor, kill the thread
+    if (fd == INVALID_FILE) {
+        kill_current_thread(-1);
+    } else {
+        // TODO: Acquire lock to access file system; block until acquired
+        acquire_filesys_access();
+
+        // Go to position in file
+        file_seek((fid_t) fd, (off_t) position);
+
+        // TODO: Done, relinquish access to the file system. */
+        release_filesys_access();
+    }
 }
 
 // TODO
@@ -190,15 +288,39 @@ void syscall_tell(struct intr_frame *f UNUSED, void * arg1, void * arg2 UNUSED, 
 {
     int fd = (int) arg1;
     // TODO
-    printf("tell\n");
+    //printf("tell\n");
+    // If there is an invalid file descriptor, kill the thread
+    if (fd == INVALID_FILE) {
+        kill_current_thread(-1);
+    } else {
+        // TODO: Acquire lock to access file system; block until acquired
+        acquire_filesys_access();
+
+        // Get position in file
+        f->eax = (uint32_t) file_tell((fid_t) fd);
+
+        // TODO: Done, relinquish access to the file system. */
+        release_filesys_access();
+    }
 }
 
 // TODO
 void syscall_close(struct intr_frame *f UNUSED, void * arg1, void * arg2 UNUSED, void * arg3 UNUSED)
 {
     int fd = (int) arg1;
-    // TODO
-    printf("close\n");
+    // If there is an invalid file descriptor, kill the thread
+    if (fd == INVALID_FILE) {
+        kill_current_thread(-1);
+    } else {
+        // TODO: Acquire lock to access file system; block until acquired
+        acquire_filesys_access();
+
+        // Close the file
+        file_close((fid_t) fd);
+
+        // TODO: Done, relinquish access to the file system. */
+        release_filesys_access();
+    }
 }
 
 // TODO - Project 3

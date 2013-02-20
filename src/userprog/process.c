@@ -28,6 +28,11 @@ static bool load(const char *cmdline, void (**eip)(void), void **esp);
 tid_t process_execute(const char *file_name) {
     char *fn_copy, *proc, *save_ptr, *proc_copy;
     tid_t tid;
+    struct list_elem *e;
+    struct thread *current_thread = thread_current();
+
+    /* Child not yet loaded. */
+    sema_init(&(current_thread->child_loaded), 0);
 
     /* Make a copy of FILE_NAME.
        Otherwise there's a race between the caller and load(). */
@@ -45,9 +50,17 @@ tid_t process_execute(const char *file_name) {
 
     /* Create a new thread to execute FILE_NAME. */
     tid = thread_create(proc, PRI_DEFAULT, start_process, fn_copy);
-    if (tid == TID_ERROR)
+    if (tid == TID_ERROR) {
         palloc_free_page(fn_copy);
+
+        /* Load failed, up semaphore so it may return. */
+        sema_up(&(current_thread->child_loaded));
+    }
     palloc_free_page(proc_copy); /* Always clean up page for proc name */
+
+    /* Block until process is successfully loaded. */
+    sema_down(&(current_thread->child_loaded));
+
     return tid;
 }
 
@@ -59,6 +72,7 @@ static void start_process(void *file_name_) {
     void *esp, *arg_start, *esp_argcv;
     int argc = 1, i;
     size_t len;
+    struct thread *t = thread_current();
 
     /* Get process name */
     proc = strtok_r(file_name, " ", &save_ptr);
@@ -116,6 +130,8 @@ static void start_process(void *file_name_) {
     /* Clean up page now that arguments are parsed */
     palloc_free_page(file_name);
 
+    /* Acknowledge that process has been loaded properly. */
+    sema_up(&((t->parent)->child_loaded));
     /* Start the user process by simulating a return from an
        interrupt, implemented by intr_exit (in
        threads/intr-stubs.S).  Because intr_exit takes all of its

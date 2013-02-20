@@ -745,6 +745,7 @@ init_thread (struct thread *t, const char *name, int priority, struct thread *t_
   list_init(&(t->files_opened));
   sema_init(&(t->not_waited_on), 1);
   sema_init(&(t->has_exited), 0);
+  sema_init(&(t->child_loaded), 0);
   t->parent = t_par;
 #endif
   //printf("SEMAPHORE INIT %d\n", (t->not_waited_on).value); // DEBUG

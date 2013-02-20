@@ -6,6 +6,10 @@
 #include "filesys/free-map.h"
 #include "filesys/inode.h"
 #include "filesys/directory.h"
+#include "threads/synch.h"
+
+// TODO: make sure this gets initialized
+struct lock filesys_lock;
 
 /*! Partition that contains the file system. */
 struct block *fs_device;
@@ -26,6 +30,9 @@ void filesys_init(bool format) {
         do_format();
 
     free_map_open();
+
+    // Initialize the lock for the file system
+    lock_init(&filesys_lock);
 }
 
 /*! Shuts down the file system module, writing any unwritten data to disk. */
@@ -85,3 +92,22 @@ static void do_format(void) {
     printf("done.\n");
 }
 
+/*! Acquires file system lock, blocking until successful. */
+void acquire_filesys_access(void) {
+    lock_acquire(&filesys_lock);
+}
+
+/*! Releases file system lock. */
+void release_filesys_access(void) {
+    lock_release(&filesys_lock);
+}
+
+/*! Attempts to acquire file system lock, returns if successful or not. */
+bool try_acquire_filesys_access(void) {
+    return lock_try_acquire(&filesys_lock);
+}
+
+/*! Retturns whether the current thread holds access to the file system. */
+bool filesys_access_held(void) {
+    return lock_held_by_current_thread(&filesys_lock);
+}

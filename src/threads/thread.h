@@ -125,6 +125,8 @@ struct thread {
     struct semaphore has_exited;        /*!< Will be upped when it exits */
     struct list children;               /*!< List of children. */
     struct thread *parent;              /*!< Parent of thread, NULL if none. */
+    struct list pages;                  /*!< List of pages. */
+    struct semaphore child_loaded;      /*!< Indicates child process loaded. */
     /**@}*/
 #endif
 
