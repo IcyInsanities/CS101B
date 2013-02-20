@@ -398,7 +398,7 @@ void thread_exit (void)
   // TODO: Close all open files on exit
   for (e = list_begin (&(t->files_opened)); e != list_end (&(t->files_opened)); e = list_next (e))
   {
-    file_close((struct file*) (list_entry(e, struct file_id, elem)->fid));
+    file_close (list_entry(e, struct file_id, elem)->f);
   }
 
   // If the thread has a parent, set it to ZOMBIE so wait can clean it up
@@ -744,7 +744,6 @@ init_thread (struct thread *t, const char *name, int priority, struct thread *t_
   t->exit_status = 0;
   list_init(&(t->files_opened));
   list_init(&(t->children));
-  list_init(&(t->files_opened));
   sema_init(&(t->not_waited_on), 1);
   sema_init(&(t->has_exited), 0);
   sema_init(&(t->child_loaded), 0);

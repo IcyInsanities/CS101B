@@ -13,13 +13,13 @@ struct file {
     bool deny_write;            /*!< Has file_deny_write() been called? */
 };
 
-/*! TODO: File identifier type.
-    Use the pointer to the file as the identifier. */
-typedef struct file* fid_t;
+/*! File identifier type, use the integer as the identifier. */
+typedef int fid_t;
 
 /*! A warpper for file identifiers so they can be used with lists. */
 struct file_id {
     fid_t fid;                  /*!< File identifier. */
+    struct file *f;             /*!< File struct pointer. */
     struct list_elem elem;      /*!< List element. */
 };
 
