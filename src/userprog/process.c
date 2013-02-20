@@ -143,18 +143,21 @@ int process_wait(tid_t child_tid) {
     //return -1;
     struct list_elem *e;
     struct thread *thread_waited_on = NULL;
+    struct list *child_list = &(thread_current()->children);
 
     printf("WAITING ON: %d\n", child_tid);
 
     // Find the process from the the child tid
     // TODO: need to place orphaned threads into list
-    for (e = list_begin(&(thread_current()->children));
-        e != list_end(&(thread_current()->children)); e = list_next(e)) {
-
+    if (child_list == NULL) {   // No children for process
+        return -1;
+    }
+    for (e = list_begin(child_list); e != list_end(child_list); e = list_next(e)) {
         struct thread *current_thread = list_entry(e, struct thread, elem);
         if (current_thread->tid == child_tid) {
             // If found thread with matching ID, use it
-            thread_waited_on = list_entry(e, struct thread, elem);
+            thread_waited_on = current_thread;
+            break;
         }
     }
 

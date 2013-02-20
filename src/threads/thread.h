@@ -125,7 +125,7 @@ struct thread {
     struct semaphore has_exited;        /*!< Will be upped when it exits */
     struct list children;               /*!< List of children. */
 
-    /**@{*/
+    /**@}*/
 #endif
 
     /*! Owned by thread.c. */
