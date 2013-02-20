@@ -28,7 +28,6 @@ static bool load(const char *cmdline, void (**eip)(void), void **esp);
 tid_t process_execute(const char *file_name) {
     char *fn_copy, *proc, *save_ptr, *proc_copy;
     tid_t tid;
-    struct list_elem *e;
     struct thread *current_thread = thread_current();
 
     /* Child not yet loaded. */
@@ -69,7 +68,7 @@ static void start_process(void *file_name_) {
     char *file_name = file_name_, *proc, *arg, *save_ptr;
     struct intr_frame if_;
     bool success;
-    void *esp, *arg_start, *esp_argcv;
+    void *esp, *arg_start;
     int argc = 1, i;
     size_t len;
     struct thread *t = thread_current();
