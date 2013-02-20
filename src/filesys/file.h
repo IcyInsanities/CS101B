@@ -44,5 +44,9 @@ void file_seek (struct file *, off_t);
 off_t file_tell (struct file *);
 off_t file_length (struct file *);
 
+/* Convert from fid to struct file pointers */
+struct file * file_fid_to_f(fid_t, struct list *);
+fid_t allocate_fid (void);
+
 #endif /* filesys/file.h */
 
