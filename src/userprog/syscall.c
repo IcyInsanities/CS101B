@@ -98,7 +98,6 @@ void kill_current_thread(int status) {
 // Halts the system and shuts it down
 void syscall_halt(struct intr_frame *f UNUSED, void * arg1 UNUSED, void * arg2 UNUSED, void * arg3 UNUSED)
 {
-    printf("halt\n");
     shutdown_power_off();
 }
 
@@ -113,7 +112,6 @@ void syscall_exit(struct intr_frame *f UNUSED, void * arg1, void * arg2 UNUSED, 
 void syscall_exec(struct intr_frame *f UNUSED, void * arg1, void * arg2 UNUSED, void * arg3 UNUSED)
 {
     char * cmd_line = (char*) arg1;
-    printf("exec\n");
     // TODO
     f->eax = (uint32_t) process_execute(cmd_line);
 }
@@ -121,9 +119,6 @@ void syscall_exec(struct intr_frame *f UNUSED, void * arg1, void * arg2 UNUSED, 
 // TODO
 void syscall_wait(struct intr_frame *f UNUSED, void * arg1, void * arg2 UNUSED, void * arg3 UNUSED)
 {
-    printf("wait\n");
-    printf("WHY U NO GET HERE?\n");
-    // TODO: modify to put into stack frame
     f->eax = process_wait(*((tid_t*) arg1));
 }
 
@@ -132,18 +127,14 @@ void syscall_create(struct intr_frame *f UNUSED, void * arg1, void * arg2, void 
 {
     char * file = (char*) arg1;
     unsigned initial_size = (unsigned) arg2;
-    // TODO
-    //printf("create\n");
-    // TODO: Acquire lock to access file system; block until acquired
+    // Check if empty file name and fail
     if (file == NULL) {
-        f->eax = (uint32_t) -1;
+        kill_current_thread(-1);
+    // Otherwise create file
     } else {
         acquire_filesys_access();
-
         // Create the file, return if successful
         f->eax = (uint32_t) filesys_create(file, initial_size);
-
-        // TODO: Done, relinquish access to the file system. */
         release_filesys_access();
     }
 }
@@ -172,18 +163,20 @@ void syscall_remove(struct intr_frame *f UNUSED, void * arg1, void * arg2 UNUSED
 void syscall_open(struct intr_frame *f UNUSED, void * arg1, void * arg2 UNUSED, void * arg3 UNUSED)
 {
     char * file = (char*) arg1;
-    // TODO
-    //printf("open\n");
-    // TODO: Acquire lock to access file system; block until acquired
     if (file == NULL) {
         f->eax = (uint32_t) -1;
     } else {
         acquire_filesys_access();
-
         // Open the file, return the file descriptor
         f->eax = (uint32_t) filesys_open(file);
-
-        // TODO: Done, relinquish access to the file system. */
+        // Check if open failed
+        if (f->eax == 0) {
+            f->eax = -1;
+        }
+        // Ensure that fd is not reserved, kill user
+        if (f->eax == 1) {
+            kill_current_thread(-1);
+        }
         release_filesys_access();
     }
 }
