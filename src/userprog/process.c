@@ -30,8 +30,8 @@ tid_t process_execute(const char *file_name) {
     tid_t tid;
     struct thread *current_thread = thread_current();
 
-    /* Child not yet loaded. */
-    sema_init(&(current_thread->child_loaded), 0);
+    /* Child not yet loaded. TODO: SHOULD NOT BE NEEDED */ 
+    //sema_init(&(current_thread->child_loaded), 0);
 
     /* Make a copy of FILE_NAME.
        Otherwise there's a race between the caller and load(). */
@@ -168,9 +168,9 @@ int process_wait(tid_t child_tid) {
         return -1;
     }
     for (e = list_begin(child_list); e != list_end(child_list); e = list_next(e)) {
-        struct thread *current_thread = list_entry(e, struct thread, elem);
+        struct thread *current_thread = list_entry(e, struct thread, childelem);
         //debug_backtrace_all();                              // DEBUG
-        //printf("Thread loc: %x\n", current_thread);         // DEBUG
+        //printf("\nThread loc: %x\n", current_thread);         // DEBUG
         //printf("Thread name: %s\n", current_thread->name);  // DEBUG
         if (current_thread->tid == child_tid) {
             // If found thread with matching ID, use it
@@ -191,14 +191,15 @@ int process_wait(tid_t child_tid) {
         return -1;
     }
     // Block until it exits
-    // attempt to down sempaphore in the thread...will block until process exits (exit or kernel must up it)
+    // attempt to down sempaphore in the thread...will block until process exits (exit must up it)
     sema_down(&(thread_waited_on->has_exited));
+    
+    list_remove(&(thread_waited_on->childelem));
 
     // Get exit status and destroy thread
     // Don't need to check how it exited, killer should set exit status properly
     status = thread_waited_on->exit_status;
-    // Clean up process memory before destroying thread
-    process_exit ();
+    //printf("got %d", status); // DEBUG
     // Destroy thread here as scheduler wont see it as prev
     palloc_free_page(thread_waited_on);
     return status;
@@ -412,8 +413,8 @@ bool load(const char *file_name, void (**eip) (void), void **esp) {
 done:
     /* We arrive here whether the load is successful or not. */
     if (success == true) {
-        t->executable = file;   // Record executable so it can be closed later
         file_deny_write(file);  // Deny writes while executing
+        t->executable = NULL;   // Record executable so it can be closed later
     } else {
         file_close(file);
     }

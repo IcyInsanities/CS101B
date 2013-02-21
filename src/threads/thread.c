@@ -227,7 +227,7 @@ thread_create (const char *name, int priority, thread_func *function, void *aux)
   tid = t->tid = allocate_tid ();
 
   // TODO: Add thread to list of children
-  list_push_back(&(thread_current()->children), &(t->elem));
+  list_push_back(&(thread_current()->children), &(t->childelem));
 
   /* Stack frame for kernel_thread(). */
   kf = alloc_frame (t, sizeof *kf);
@@ -395,12 +395,14 @@ void thread_exit (void)
 
 #ifdef USERPROG // Code for user programs
 
-  // TODO: Close all open files on exit
-  for (e = list_begin (&(t->files_opened)); e != list_end (&(t->files_opened)); )
+  process_exit ();    // Clean up process memory before destroying thread
+
+  // Close all open files on exit
+  while (!list_empty(&(t->files_opened)))
   {
+    e = list_pop_front(&(t->files_opened));
     struct file_id * f_id = list_entry(e, struct file_id, elem);
     file_close (f_id->f);
-    e = list_next (e); // Move to next element before deallocated previous
     free((void*)f_id);
   }
 
@@ -412,31 +414,33 @@ void thread_exit (void)
   // Otherwise set it to DYING so that scheduler cleans it up
   else
   {
-    process_exit ();    // Clean up process memory before destroying thread
     t->status = THREAD_DYING;
   }
-
+  
   // Clean up children
-  for (e = list_begin (&(t->children)); e != list_end (&(t->children)); e = list_next (e))
+  if (!list_empty(&(t->children)))  // TO REMOVE
   {
-    struct thread *child = list_entry(e, struct thread, elem);
-    // If child was already finshed, clean up as will never be waited for
-    if (child->status == THREAD_ZOMBIE)
+    for (e = list_begin (&(t->children)); e != list_end (&(t->children)); e = list_next (e))
     {
-      process_exit ();      // Clean up process memory before destroying thread
-      palloc_free_page (child); // Destroy thread here as scheduler wont see it as prev
-    }
-    // Otherwise set to no parent
-    else
-    {
-      child->parent = NULL;
+      struct thread *child = list_entry(e, struct thread, childelem);
+      // If child was already finshed, clean up as will never be waited for
+      if (child == NULL)
+        continue;
+      if (child->status == THREAD_ZOMBIE)
+      {
+        palloc_free_page (child); // Destroy thread here as scheduler wont see it as prev
+      }
+      // Otherwise set to no parent
+      else
+      {
+        child->parent = NULL;
+      }
     }
   }
 
   // Close the executable file once it is done running
-  //file_close(t->executable);
+  file_close(t->executable);
   sema_up (&(t->has_exited)); // Indicate thread has exited
-  
 #else // Code for threads
   t->status = THREAD_DYING;
 #endif

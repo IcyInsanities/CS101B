@@ -129,6 +129,7 @@ struct thread {
     struct semaphore child_loaded;      /*!< Indicates child process loaded. */
     struct file *executable;            /*!< File pointer to executable. */
     bool child_success;                 /*!< Flag to signal success of child load. */
+    struct list_elem childelem;         /*!< List element for all children list. */
     /**@}*/
 #endif
 

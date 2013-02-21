@@ -114,16 +114,17 @@ void syscall_exit(struct intr_frame *f UNUSED, void * arg1, void * arg2 UNUSED, 
 }
 
 // TODO
-void syscall_exec(struct intr_frame *f UNUSED, void * arg1, void * arg2 UNUSED, void * arg3 UNUSED)
+void syscall_exec(struct intr_frame *f, void * arg1, void * arg2 UNUSED, void * arg3 UNUSED)
 {
     char * cmd_line = (char*) arg1;
     f->eax = (uint32_t) process_execute(cmd_line);
 }
 
 // TODO
-void syscall_wait(struct intr_frame *f UNUSED, void * arg1, void * arg2 UNUSED, void * arg3 UNUSED)
+void syscall_wait(struct intr_frame *f, void * arg1, void * arg2 UNUSED, void * arg3 UNUSED)
 {
-    f->eax = process_wait(*((tid_t*) arg1));
+    tid_t tid = (tid_t) arg1;
+    f->eax = process_wait(tid);
 }
 
 // TODO
@@ -147,7 +148,7 @@ void syscall_create(struct intr_frame *f UNUSED, void * arg1, void * arg2, void 
 }
 
 // TODO
-void syscall_remove(struct intr_frame *f UNUSED, void * arg1, void * arg2 UNUSED, void * arg3 UNUSED)
+void syscall_remove(struct intr_frame *f, void * arg1, void * arg2 UNUSED, void * arg3 UNUSED)
 {
     char * file = (char*) arg1;
     if (file == NULL)
@@ -164,7 +165,7 @@ void syscall_remove(struct intr_frame *f UNUSED, void * arg1, void * arg2 UNUSED
 }
 
 // TODO
-void syscall_open(struct intr_frame *f UNUSED, void * arg1, void * arg2 UNUSED, void * arg3 UNUSED)
+void syscall_open(struct intr_frame *f, void * arg1, void * arg2 UNUSED, void * arg3 UNUSED)
 {
     char * file = (char*) arg1;
     struct file_id *new_file_id;
@@ -208,7 +209,7 @@ void syscall_open(struct intr_frame *f UNUSED, void * arg1, void * arg2 UNUSED, 
 }
 
 // TODO
-void syscall_filesize(struct intr_frame *f UNUSED, void * arg1, void * arg2 UNUSED, void * arg3 UNUSED)
+void syscall_filesize(struct intr_frame *f, void * arg1, void * arg2 UNUSED, void * arg3 UNUSED)
 {
     int fd = (int) arg1;
     struct file *file_to_access;
