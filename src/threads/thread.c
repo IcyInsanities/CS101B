@@ -380,7 +380,6 @@ thread_tid (void)
 
 /* Deschedules the current thread and destroys it.  Never
    returns to the caller. */
-// TODO: how to get exit value?  Or should exit() set it?
 void thread_exit (void)
 {
   struct thread *t = thread_current();

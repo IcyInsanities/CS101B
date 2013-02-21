@@ -73,13 +73,14 @@ static void syscall_handler(struct intr_frame *f)
         ((syscall_num_arg[num] == 2) && is_user_vaddr(f->esp + 11) && is_user_vaddr(arg1) && is_user_vaddr(arg2)) ||
         ((syscall_num_arg[num] == 3) && is_user_vaddr(f->esp + 15) && is_user_vaddr(arg1) && is_user_vaddr(arg2) && is_user_vaddr(arg3))))
     {
+        //printf("esp: %x\n", f->esp);
+        //printf("num: %d\n", num);
         syscall_table[num](f, arg1, arg2, arg3);
     }
     // Kill the process if passed invalid pointer
     else
     {
-        thread_current()->status = -1; // Indicate error and exit
-        thread_exit();
+        kill_current_thread(-1);
     }
 }
 
@@ -87,7 +88,8 @@ static void syscall_handler(struct intr_frame *f)
 void kill_current_thread(int status) {
     struct thread *t = thread_current();
     // Release filesys lock if owned
-    if (filesys_access_held()) {
+    if (filesys_access_held())
+    {
         release_filesys_access();
     }
     // Print out message
@@ -130,10 +132,13 @@ void syscall_create(struct intr_frame *f UNUSED, void * arg1, void * arg2, void 
     char * file = (char*) arg1;
     unsigned initial_size = (unsigned) arg2;
     // Check if empty file name and fail
-    if (file == NULL) {
+    if (file == NULL)
+    {
         kill_current_thread(-1);
     // Otherwise create file
-    } else {
+    }
+    else
+    {
         acquire_filesys_access();   // Acquire lock for file system access
         // Create the file, return if successful
         f->eax = (uint32_t) filesys_create(file, initial_size);
@@ -145,17 +150,15 @@ void syscall_create(struct intr_frame *f UNUSED, void * arg1, void * arg2, void 
 void syscall_remove(struct intr_frame *f UNUSED, void * arg1, void * arg2 UNUSED, void * arg3 UNUSED)
 {
     char * file = (char*) arg1;
-    // TODO
-    //printf("remove\n");
-    // Acquire lock to access file system; block until acquired
-    if (file == NULL) {
+    if (file == NULL)
+    {
         f->eax = (uint32_t) -1;
-    } else {
+    }
+    else
+    {
         acquire_filesys_access();   // Acquire lock for file system access
-
         // remove the file, return if successful
         f->eax = (uint32_t) filesys_remove(file);
-
         release_filesys_access();   // Done with file system access
     }
 }
@@ -210,23 +213,22 @@ void syscall_filesize(struct intr_frame *f UNUSED, void * arg1, void * arg2 UNUS
     int fd = (int) arg1;
     struct file *file_to_access;
     struct thread *t = thread_current();
-    // TODO
-    //printf("filesize\n");
+    
     // Get the file pointer
     file_to_access = file_fid_to_f(fd, &(t->files_opened));
-
+    
     // If there is an invalid file descriptor, return an error
-    if (file_to_access == NULL) {
+    if (file_to_access == NULL)
+    {
         f->eax = (uint32_t) -1;
-    } else {
+    }
+    else
+    {
 
         acquire_filesys_access();   // Acquire lock for file system access
-
         // Read from the file
         f->eax = (uint32_t) file_length(file_to_access);
-
         release_filesys_access();   // Done with file system access
-
     }
 }
 
@@ -238,7 +240,7 @@ void syscall_read(struct intr_frame *f, void * arg1, void * arg2, void * arg3)
     unsigned size = (unsigned) arg3;
     struct file *file_to_access;
     struct thread *t = thread_current();
-
+    
     // Read from std_in
     if (fd == STDIN_FILENO)
     {
@@ -283,7 +285,7 @@ void syscall_write(struct intr_frame *f, void * arg1, void * arg2, void * arg3)
     unsigned size = (unsigned) arg3;
     struct file *file_to_access;
     struct thread *t = thread_current();
-
+    
     // Get the file pointer
     file_to_access = file_fid_to_f(fd, &(t->files_opened));
 
@@ -322,21 +324,20 @@ void syscall_seek(struct intr_frame *f UNUSED, void * arg1, void * arg2, void * 
     unsigned position = (unsigned) arg2;
     struct file *file_to_access;
     struct thread *t = thread_current();
-    // TODO
-    //printf("seek\n");
 
     // Get the file pointer
     file_to_access = file_fid_to_f(fd, &(t->files_opened));
 
     // If there is an invalid file descriptor, kill the thread
-    if (file_to_access == NULL) {
+    if (file_to_access == NULL)
+    {
         kill_current_thread(-1);
-    } else {
+    }
+    else
+    {
         acquire_filesys_access();   // Acquire lock for file system access
-
         // Go to position in file
         file_seek(file_to_access, (off_t) position);
-
         release_filesys_access();   // Done with file system access
     }
 }
@@ -347,21 +348,20 @@ void syscall_tell(struct intr_frame *f UNUSED, void * arg1, void * arg2 UNUSED, 
     int fd = (int) arg1;
     struct file *file_to_access;
     struct thread *t = thread_current();
-    // TODO
-    //printf("tell\n");
-
+    
     // Get the file pointer
     file_to_access = file_fid_to_f(fd, &(t->files_opened));
 
     // If there is an invalid file descriptor, kill th thread
-    if (file_to_access == NULL) {
+    if (file_to_access == NULL)
+    {
         kill_current_thread(-1);
-    } else {
+    }
+    else
+    {
         acquire_filesys_access();   // Acquire lock for file system access
-
         // Get position in file
         f->eax = (uint32_t) file_tell(file_to_access);
-
         release_filesys_access();   // Done with file system access
     }
 }
