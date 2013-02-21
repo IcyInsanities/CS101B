@@ -284,10 +284,15 @@ void syscall_read(struct intr_frame *f, void * arg1, void * arg2, void * arg3)
         unsigned num_read = 0;
         // Read until out of buffer or end of line given
         uint8_t chr = 0;
-        while ((num_read < size) && (chr == '\n'))
+        while (num_read < size)
         {
-            chr = input_getc();
-            ((char*)buffer)[num_read] = chr;
+            chr = input_getc(); // Get a character from stdin.
+
+            // If its a return, done capturing input.
+            if (chr == '\r') {  
+                break;
+            }
+            ((char*)buffer)[num_read] = chr;    // Record the character.
             num_read++;
         }
         // Return number of characters read
@@ -332,7 +337,7 @@ void syscall_write(struct intr_frame *f, void * arg1, void * arg2, void * arg3)
     {
         kill_current_thread(-1);
     }
-    
+
     // Get the file pointer
     file_to_access = file_fid_to_f(fd, &(t->files_opened));
 
