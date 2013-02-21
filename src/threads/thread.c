@@ -418,23 +418,19 @@ void thread_exit (void)
   }
   
   // Clean up children
-  if (!list_empty(&(t->children)))  // TO REMOVE
+  while (!list_empty(&(t->children)))
   {
-    for (e = list_begin (&(t->children)); e != list_end (&(t->children)); e = list_next (e))
+    e = list_pop_front(&(t->children));
+    struct thread * child = list_entry(e, struct thread, childelem);
+    ASSERT (child->status != THREAD_DYING) // Dying thread shouldn't be child
+    if (child->status == THREAD_ZOMBIE)
     {
-      struct thread *child = list_entry(e, struct thread, childelem);
-      // If child was already finshed, clean up as will never be waited for
-      if (child == NULL)
-        continue;
-      if (child->status == THREAD_ZOMBIE)
-      {
-        palloc_free_page (child); // Destroy thread here as scheduler wont see it as prev
-      }
-      // Otherwise set to no parent
-      else
-      {
-        child->parent = NULL;
-      }
+      palloc_free_page (child); // Destroy thread here as scheduler wont see it as prev
+    }
+    // Otherwise set to no parent
+    else
+    {
+      child->parent = NULL;
     }
   }
 

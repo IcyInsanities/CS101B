@@ -194,13 +194,12 @@ int process_wait(tid_t child_tid) {
     // attempt to down sempaphore in the thread...will block until process exits (exit must up it)
     sema_down(&(thread_waited_on->has_exited));
     
-    list_remove(&(thread_waited_on->childelem));
-
     // Get exit status and destroy thread
     // Don't need to check how it exited, killer should set exit status properly
     status = thread_waited_on->exit_status;
     //printf("got %d", status); // DEBUG
     // Destroy thread here as scheduler wont see it as prev
+    list_remove(&(thread_waited_on->childelem));
     palloc_free_page(thread_waited_on);
     return status;
 }
