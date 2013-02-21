@@ -273,7 +273,7 @@ void syscall_read(struct intr_frame *f, void * arg1, void * arg2, void * arg3)
     struct thread *t = thread_current();
     
     // If the entire buffer is not in user space, terminate.
-    if (!is_user_vaddr(buffer + size))
+    if (!is_user_vaddr(buffer + size - 1))
     {
         kill_current_thread(-1);
     }
@@ -333,7 +333,7 @@ void syscall_write(struct intr_frame *f, void * arg1, void * arg2, void * arg3)
     struct thread *t = thread_current();
     
     // If the entire buffer is not in user space, terminate.
-    if (!is_user_vaddr(buffer + size))
+    if (!is_user_vaddr(buffer + size - 1))
     {
         kill_current_thread(-1);
     }

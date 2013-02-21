@@ -8,25 +8,32 @@
 
 >> Fill in the names and email addresses of your group members.
 
-FirstName LastName <email@domain.example>
-FirstName LastName <email@domain.example>
-FirstName LastName <email@domain.example>
+Shir Aharon <saharon@caltech.edu>
+Steven Okai <codered657@gmail.com>
+Reggie Wilcox <reggie.chaos9@gmail.com>
 
->> Specify how many late tokens you are using on this assignment:  
+>> Specify how many late tokens you are using on this assignment:
+Late tokens: 0
 
 >> What is the Git repository and commit hash for your submission?
 
-   Repository URL:  
+   Repository URL:  https://github.com/IcyInsanities/CS101B
    commit ...
+   tag is project4_threads
 
 ---- PRELIMINARIES ----
 
 >> If you have any preliminary comments on your submission, notes for the
 >> TAs, or extra credit, please give them here.
+    We had a strange bug caused by calling thread_yield in sema_up that stopped
+the system from loading and running any code. We resovled this by commenting out
+one line in synch.c. While this breaks the correct functionality of the priority
+donation, the overall system functions correctly.
 
 >> Please cite any offline or online sources you consulted while
 >> preparing your submission, other than the Pintos documentation, course
 >> text, lecture notes, and course staff.
+    None.
 
                            ARGUMENT PASSING
                            ================
@@ -36,20 +43,27 @@ FirstName LastName <email@domain.example>
 >> A1: Copy here the declaration of each new or changed `struct' or
 >> `struct' member, global or static variable, `typedef', or
 >> enumeration.  Identify the purpose of each in 25 words or less.
+    None.
 
 ---- ALGORITHMS ----
 
 >> A2: Briefly describe how you implemented argument parsing.  How do
 >> you arrange for the elements of argv[] to be in the right order?
 >> How do you avoid overflowing the stack page?
+    TODO!!!
 
 ---- RATIONALE ----
 
 >> A3: Why does Pintos implement strtok_r() but not strtok()?
+    Implementing strtok would require the system to allocate memory for the
+string and to save its state. In order to avoid this, strtok_r is implemented
+instead which requires the user to handle the memory for the passed in string
+and to save the state between calls to strtok_r.
 
 >> A4: In Pintos, the kernel separates commands into a executable name
 >> and arguments.  In Unix-like systems, the shell does this
 >> separation.  Identify at least two advantages of the Unix approach.
+    TODO!!!
 
                              SYSTEM CALLS
                              ============
@@ -59,15 +73,93 @@ FirstName LastName <email@domain.example>
 >> B1: Copy here the declaration of each new or changed `struct' or
 >> `struct' member, global or static variable, `typedef', or
 >> enumeration.  Identify the purpose of each in 25 words or less.
+struct file (unchanged, but moved to file.h)
+    This was moved into file.h for outside access so that a thread could own a
+    list of files it opened.
+typedef int fid_t (file.h)
+    This is a file descriptor set up like the tid_t of threads, it is simply an
+    integer counter
+struct file_id (created, file.h)
+    fid_t fid
+        Unique counter as the file descriptor, saving with the file pointer 
+        allows for conversion between the two
+    struct file *f
+        Pointer to the file struct used for access with the functions in filesys
+    struct list_elem elem
+        Allow file_id to be put into lists so that threads can save their open
+        files
+struct lock filesys_lock (created, filesys.c)
+    This lock prevents multiple access into the code in filesys/ to treat it as
+    critical code.
+enum thread_status (new state added, thread.h)
+    THREAD_ZOMBIE
+        Differentiate between dead threads that can be reaped and those that can
+        not be reaped by using a zombie state for the former.
+struct thread (added fields, thread.h)
+    int exit_status
+        Save the exit status of a thread so that it can be retreieved by a
+        waiting parent
+    struct list files_opened
+        List of file_id structs to keep track of all opened files a thread has,
+        useful for converting descriptors to file structs and for clean up.
+    struct semaphore not_waited_on
+        This semaphore is used to signal that wait or process_wait have already
+        been called on a thread
+    struct semaphore has_exited
+        This semaphore is used to signal that a thread exited for reaping by a
+        parent.
+    struct list children
+        This list holds the children of a thread for verification on a wait call
+        and to ensure that children get cleaned up correctly when not reaped.
+    struct thread *parent
+        Pointer to the parent of a thread, used to determine if thread should
+        wait for reaping or clean itself up. Also used to signal loading status
+        to parent.
+    struct semaphore child_loaded;      /*!< Indicates child process loaded. */
+        This is used to signal to the parent when the child has finished loading
+        after an exec call. This is signaled even if the loading failed.
+    struct file *executable;            /*!< File pointer to executable. */
+        This file pointer holds the executable file used by the thread so that
+        writes can be prevented.
+    bool child_success;                 /*!< Flag to signal success of child load. */
+        This boolean stores the success value of loading of the child which
+        updates this so that exec can return correctly.
+    struct list_elem childelem;         /*!< List element for all children list. */
+        This list_elem is used to maintain the children list for each thread
+Global variables in syscall.c
+    static void (*syscall_table[])(struct intr_frame *, void *, void *, void *)
+        Holds pointers to each of the system calls in order to implement a jump
+        table
+    static uint32_t syscall_num_arg[]
+        Holds the number of arguments that each system call takes in order to
+        enable verification of address in userspace
+    static uint32_t num_syscalls
+        Number of system calls implemented for verification of call number
+        before reading the function/argnum tables
 
 >> B2: Describe how file descriptors are associated with open files.
 >> Are file descriptors unique within the entire OS or just within a
 >> single process?
+    File descriptors are unique to the entire OS since there is a single
+allocating function. This however is not relied upon and each thread should only 
+know about the file descriptors that were returned to it by a syscall to open.
+    Note however, that the input and output of standard terminal are fixed and
+the same for all processes. These are not kept with the file descriptors that a
+file owns.
 
 ---- ALGORITHMS ----
 
 >> B3: Describe your code for reading and writing user data from the
 >> kernel.
+    After verifying that passed arguments are in userspace, we can carry out the
+read/write. If stdin/stdout were given respectively as the file descriptor, then
+we read character by character or write in 256 byte chunks to the console, for
+the read/write functions respectively. Otherwise, the given file descriptor is
+converted to a file pointer by a search through the file list owned by that
+thread. If it does not exist, then an error is reported. If it does then the
+filesys lock is acquired after which a call to file_read/file_write is done to
+actually do the read or write. Finally, the lock is released. Any page fault
+will be cleaned up inside the page fault handler.
 
 >> B4: Suppose a system call causes a full page (4,096 bytes) of data
 >> to be copied from user space into the kernel.  What is the least
@@ -75,9 +167,22 @@ FirstName LastName <email@domain.example>
 >> (e.g. calls to pagedir_get_page()) that might result?  What about
 >> for a system call that only copies 2 bytes of data?  Is there room
 >> for improvement in these numbers, and how much?
+    A system call only does the translation TODO
 
 >> B5: Briefly describe your implementation of the "wait" system call
 >> and how it interacts with process termination.
+    See B8 for more details of the entire procedure with explanation of the
+synchronization guarantees.
+    More briefly, wait calls process_wait. Process_wait checks that it is
+waiting on a child it owns and that it is the first time waiting on that child,
+returning -1 as an error if not. If these checks pass, it then waits for the
+child to exit (not a real wait if child already exited). Now that the child has
+exited, process_wait reads the exit_status saved in the child thread before
+deallocating the child and removing it from the children list.
+    In terms of process termination, process_wait completes the clean up of any
+thread that it is reaping (waited on). Threads that are not reaped are cleaned
+up in the thread_exit function when the parent dies. This is done to ensure that
+wait can be called long after a child exited.
 
 >> B6: Any access to user program memory at a user-specified address
 >> can fail due to a bad pointer value.  Such accesses must cause the
@@ -92,6 +197,28 @@ FirstName LastName <email@domain.example>
 >> allocated resources (locks, buffers, etc.) are freed?  In a few
 >> paragraphs, describe the strategy or strategies you adopted for
 >> managing these issues.  Give an example.
+    First, we need to verify the arguments to the system call. This is done by
+checking that the syscall number given is less than the maximum implemented call
+number, and that the number along with the correct number of arguments have
+their location in userspace. (A table with the number of arguments to check for
+each system call is used to minimize duplication.)
+    Now that all arguments have been verified to be in userspace, the system 
+call is undertaken. For the read/write functions, we have an additional check
+that the entire buffer given is in userspace. From here on, all code is written
+normally with no regard to the possible error from a page fault. Any error will
+be handled in the page fault handler. This keeps the system call code fairly
+clean.
+    In the page fault handler, we can check if the fault occured on a userspace
+address in kernel mode. This means that the page fault is from a system call. In
+this case, we kill the current thread using the kill function from the system
+call file (kill_current_thread). Here we check if the current process owns the
+filesys access lock, it is released before killing the thread. As this is the
+only lock/memory used by the system calls that did not already belong to the
+thread, this will correctly clean up the memory and locks.
+    Example: read(handle, (char *)0xc0100000, 123); where handle is a file
+        The system call handler will parse the syscall number for read and the
+    other arguments. When it checks where the second argument points, it will
+    fail the check for userspace and terminate the program.
 
 ---- SYNCHRONIZATION ----
 
@@ -99,6 +226,17 @@ FirstName LastName <email@domain.example>
 >> fails, so it cannot return before the new executable has completed
 >> loading.  How does your code ensure this?  How is the load
 >> success/failure status passed back to the thread that calls "exec"?
+    In process_execute (which exec calls), if the new thread is successfully
+created, then the child_loaded semaphore in the current thread is downed. This
+will cause process_execute to block until signaled by the new child thread.
+    In the child thread, if the load fails then the child_success flag is set to
+false, otherwise it is set to true after the remaining setup code in
+start_process runs (just before jumping to the user process). Once the flag is
+set, the child_loaded semaphore is signaled to unblock the parent which can now
+determine the status of the child.
+    This semaphore and flag are stored in the parent, which the child can access
+through its pointer to its parent. This is done since the parent has no access
+to the thread pointer of the children.
 
 >> B8: Consider parent process P with child process C.  How do you
 >> ensure proper synchronization and avoid race conditions when P
@@ -106,17 +244,61 @@ FirstName LastName <email@domain.example>
 >> that all resources are freed in each case?  How about when P
 >> terminates without waiting, before C exits?  After C exits?  Are
 >> there any special cases?
+    When a thread exits, it checks if it has a parent. If it does, then it goes
+into a zombie state to wait for reaping. Otherwise it goes to the dying state
+and the scheduler cleans it up. Any of its children are reaped if in the zombie
+state (as wait can no longer be called now that the parent died), and children
+that are still running are set to have no parent. As interrupts are disabled in
+the thread_exit function, all of this clean up occurs atomically.
+    Just before the thread exits, it ups the semaphore has_exited to signal to
+waiting parents that it is done.
+    On the parent side, in process_wait, the parent first ensures that it is
+trying to wait on its own child. If it is, then it trys to acquire the semaphore
+not_waited_on which was initialized to 1. If it succeeds, then it must be the
+first time waiting on that child as this semaphore is never upped. Now that it
+is waiting, it downs the has_exited semaphore to wait for the child to signal.
+As this was initialized to 0, it does not matter if the child finished before or
+after. Once the parent returns from acquiring this semaphore, it can simply get
+the exit status of the child and finish cleaning it up.
+    In summary:
+    P uses semaphores in C to ensure it waits only once, and semaphores to block
+    until C exits.
+    If P exited first:
+        C dies on exit and is cleaned up by scheduler
+    If C exited first:
+        It waits in the zombie state
+        If P waited on C:
+            P gets the signal, gets the exit status, and cleans it up
+        If P didn't wait on C:
+            P cleans up zombie C when P exits
 
 ---- RATIONALE ----
 
 >> B9: Why did you choose to implement access to user memory from the
 >> kernel in the way that you did?
+    We decided to let the page fault handler do everything to minimize the
+duplication of verification of addresses. Thus the MMU handles all the
+translation for us, and we only needed to check that the address was in user
+space and not kernel space before dereferencing. In the page fault handler we
+simply check for kernel mode accessing userspace to determine that the fault was
+caused by a system call.
+    An additional advantage was that the system call code is significantly 
+cleaner as it can almost ignore the fact that memory access may fail.
 
 >> B10: What advantages or disadvantages can you see to your design
 >> for file descriptors?
+    We used unique fid from a simple counter instead of the pointer itself as
+the file descriptors. This has the advantage of abstraction by preventing the
+user thread from being able to directly access the file without system calls, as
+generally the integer assigned will never match the file address.
+    This design does however have the complication of mapping between file
+descriptors and their corresponding file struct in a system call. This is done
+by a O(n) search over the list. Generally a process only has a small number of
+open files at a time, and the search cost will not be very expensive.
 
 >> B11: The default tid_t to pid_t mapping is the identity mapping.
 >> If you changed it, what advantages are there to your approach?
+    We did not modify this. The one to one mapping seemed sufficient.
 
                            SURVEY QUESTIONS
                            ================
@@ -136,6 +318,12 @@ website.
 >> Is there some particular fact or hint we should give students in
 >> future quarters to help them solve the problems?  Conversely, did you
 >> find any of our guidance to be misleading?
+    We found the information on the file descriptors slightly misleading. If we
+directly convert the file struct pointer to an fid, we can end up with a value
+that is negative as an integer. While this is not an issue with respect to
+reserving -1 for errors and 0 and 1 for stdin/stdout, the testing scripts assume
+that the returned handle is positive. Thus a one-one mapping did not seem
+possible even if designwise it could work.
 
 >> Do you have any suggestions for the TAs to more effectively assist
 >> students, either for future quarters or the remaining projects?
