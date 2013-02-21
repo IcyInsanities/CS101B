@@ -16,7 +16,7 @@ struct file {
 /*! File identifier type, use the integer as the identifier. */
 typedef int fid_t;
 
-/*! A warpper for file identifiers so they can be used with lists. */
+/*! A wrapper for file identifiers so they can be used with lists. */
 struct file_id {
     fid_t fid;                  /*!< File identifier. */
     struct file *f;             /*!< File struct pointer. */

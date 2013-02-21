@@ -123,6 +123,8 @@ off_t file_tell(struct file *file) {
     return file->pos;
 }
 
+/*! Returns the file pointer of the passed file id value in the passed file
+    list. */
 struct file * file_fid_to_f(fid_t fd, struct list * file_list) {
     struct list_elem *e;
     
@@ -140,6 +142,8 @@ struct file * file_fid_to_f(fid_t fd, struct list * file_list) {
     return NULL;
 }
 
+/*! Returns the file id struct of the passed file id value in the passed file
+    list. */
 struct file_id * file_fid_to_f_id(fid_t fd, struct list * file_list) {
     struct list_elem *e;
     
@@ -150,7 +154,7 @@ struct file_id * file_fid_to_f_id(fid_t fd, struct list * file_list) {
     for (e = list_begin(file_list); e != list_end(file_list); e = list_next(e)) {
         struct file_id *f_id = list_entry(e, struct file_id, elem);
         if (f_id->fid == fd) {
-            return f_id;
+            return f_id;    // If a matching id is found, return the pointer
         }
     }
     // Not found if got here, return NULL pointer

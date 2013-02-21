@@ -12,7 +12,6 @@
 #include "synch.h"
 
 /*! States in a thread's life cycle. */
- // TODO: add a ZOMBIE state
 enum thread_status {
     THREAD_RUNNING,     /*!< Running thread. */
     THREAD_READY,       /*!< Not running but ready to run. */
@@ -92,7 +91,6 @@ typedef int tid_t;
    blocked state is on a semaphore wait list.
 */
 
-// TODO: add a list of files, add exit status field
 struct thread {
     /*! Owned by thread.c. */
     /**@{*/
@@ -120,12 +118,11 @@ struct thread {
     /**@{*/
     uint32_t *pagedir;                  /*!< Page directory. */
     int exit_status;                    /*!< Exit status of the thread. */
-    struct list files_opened;           /*!< List of files opened */
-    struct semaphore not_waited_on;     /*!< Not acquirable if waited on */
-    struct semaphore has_exited;        /*!< Will be upped when it exits */
+    struct list files_opened;           /*!< List of file ids of open files. */
+    struct semaphore not_waited_on;     /*!< Not acquirable if waited on. */
+    struct semaphore has_exited;        /*!< Will be acquirable after exit. */
     struct list children;               /*!< List of children. */
     struct thread *parent;              /*!< Parent of thread, NULL if none. */
-    struct list pages;                  /*!< List of pages. */
     struct semaphore child_loaded;      /*!< Indicates child process loaded. */
     struct file *executable;            /*!< File pointer to executable. */
     bool child_success;                 /*!< Flag to signal success of child load. */

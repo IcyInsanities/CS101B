@@ -226,7 +226,7 @@ thread_create (const char *name, int priority, thread_func *function, void *aux)
   init_thread (t, name, priority, thread_current());
   tid = t->tid = allocate_tid ();
 
-  // TODO: Add thread to list of children
+  /* Add thread to list of children. */
   list_push_back(&(thread_current()->children), &(t->childelem));
 
   /* Stack frame for kernel_thread(). */
@@ -380,7 +380,8 @@ thread_tid (void)
 
 /* Deschedules the current thread and destroys it.  Never
    returns to the caller. */
-void thread_exit (void)
+void
+thread_exit (void)
 {
   struct thread *t = thread_current();
   struct list_elem *e;
@@ -393,13 +394,15 @@ void thread_exit (void)
   intr_disable ();
   list_remove (&(t->allelem));
 
-#ifdef USERPROG // Code for user programs
+#ifdef USERPROG /* Code for user programs. */
 
-  // Close the executable file once it is done running
+  /* Close the executable file once it is done running. */
   file_close(t->executable);
-  process_exit ();    // Clean up process memory before destroying thread
 
-  // Close all open files on exit
+  /* Clean up process memory before destroying thread. */
+  process_exit ();
+
+  /* Close all open files on exit. */
   while (!list_empty(&(t->files_opened)))
   {
     e = list_pop_front(&(t->files_opened));
@@ -408,36 +411,38 @@ void thread_exit (void)
     free((void*)f_id);
   }
 
-  // If the thread has a parent, set it to ZOMBIE so wait can clean it up
+  /* If the thread has a parent, set it to ZOMBIE so wait can clean it up. */
   if (t->parent != NULL)
   {
     t->status = THREAD_ZOMBIE;
   }
-  // Otherwise set it to DYING so that scheduler cleans it up
+  /* Otherwise set it to DYING so that scheduler cleans it up. */
   else
   {
     t->status = THREAD_DYING;
   }
   
-  // Clean up children
+  /* Clean up children. */
   while (!list_empty(&(t->children)))
   {
     e = list_pop_front(&(t->children));
     struct thread * child = list_entry(e, struct thread, childelem);
-    ASSERT (child->status != THREAD_DYING) // Dying thread shouldn't be child
+    ASSERT (child->status != THREAD_DYING) /* Dying thread shouldn't be child */
     if (child->status == THREAD_ZOMBIE)
     {
-      palloc_free_page (child); // Destroy thread here as scheduler wont see it as prev
+      /* Destroy thread here as scheduler wont see it as prev. */
+      palloc_free_page (child);
     }
-    // Otherwise set to no parent
+    /* Otherwise set to no parent. */
     else
     {
       child->parent = NULL;
     }
   }
 
-  sema_up (&(t->has_exited)); // Indicate thread has exited
-#else // Code for threads
+  sema_up (&(t->has_exited));   /* Indicate thread has exited. */
+
+#else /* Code for threads */
   t->status = THREAD_DYING;
 #endif
 
@@ -743,7 +748,7 @@ init_thread (struct thread *t, const char *name, int priority, struct thread *t_
   t->lock_to_acquire = NULL;
 
 #ifdef USERPROG
-// TODO: need to init new fields for userprog
+  /* Initialize all fields of thread. */
   t->exit_status = 0;
   list_init(&(t->files_opened));
   list_init(&(t->children));
@@ -753,7 +758,6 @@ init_thread (struct thread *t, const char *name, int priority, struct thread *t_
   t->parent = t_par;
   t->executable = NULL;
 #endif
-  //printf("SEMAPHORE INIT %d\n", (t->not_waited_on).value); // DEBUG
   old_level = intr_disable ();
   list_push_back (&all_list, &t->allelem);
   intr_set_level (old_level);

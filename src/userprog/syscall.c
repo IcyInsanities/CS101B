@@ -12,7 +12,7 @@
 #include "filesys/file.h"
 #include "process.h"
 
-#define INVALID_FILE_ID -1
+#define INVALID_FILE_ID -1      // File identifier for an invalid file.
 
 static void syscall_handler(struct intr_frame *);
 void kill_current_thread(int status);
@@ -50,11 +50,13 @@ static void (*syscall_table[])(struct intr_frame *, void *, void *, void *) = {s
 static uint32_t syscall_num_arg[] = {0, 1, 1, 1, 2, 1, 1, 1, 3, 3, 2, 1, 1, 2, 1, 1, 1, 2, 1, 1};
 static uint32_t num_syscalls = 20;
 
+// SHIR
 void syscall_init(void)
 {
     intr_register_int(0x30, 3, INTR_ON, syscall_handler, "syscall");
 }
 
+// SHIR
 static void syscall_handler(struct intr_frame *f)
 {
     // Turn interrupts back on during system call
@@ -73,8 +75,6 @@ static void syscall_handler(struct intr_frame *f)
         ((syscall_num_arg[num] == 2) && is_user_vaddr(f->esp + 11) && is_user_vaddr(arg1) && is_user_vaddr(arg2)) ||
         ((syscall_num_arg[num] == 3) && is_user_vaddr(f->esp + 15) && is_user_vaddr(arg1) && is_user_vaddr(arg2) && is_user_vaddr(arg3))))
     {
-        //printf("esp: %x\n", f->esp);
-        //printf("num: %d\n", num);
         syscall_table[num](f, arg1, arg2, arg3);
     }
     // Kill the process if passed invalid pointer
@@ -84,7 +84,7 @@ static void syscall_handler(struct intr_frame *f)
     }
 }
 
-// Helper function to kill the current thread
+// Helper function to kill the current thread.
 void kill_current_thread(int status) {
     struct thread *t = thread_current();
     // Release filesys lock if owned
@@ -92,50 +92,66 @@ void kill_current_thread(int status) {
     {
         release_filesys_access();
     }
-    // Print out message
+
+    // Print out exit message.
     printf ("%s: exit(%d)\n", t->name, status);
-    // Set the exit status of the thread
+
+    // Set the exit status then exit.
     t->exit_status = status;
-    // Exit the thread
     thread_exit();
 }
 
-// Halts the system and shuts it down
+// Halts the system and shuts it down.
 void syscall_halt(struct intr_frame *f UNUSED, void * arg1 UNUSED, void * arg2 UNUSED, void * arg3 UNUSED)
 {
-    shutdown_power_off();
+    shutdown_power_off();   // Power off the machine.
 }
 
-// TODO
+// Terminates the current user program and returns the status to the kernel in eax.
 void syscall_exit(struct intr_frame *f UNUSED, void * arg1, void * arg2 UNUSED, void * arg3 UNUSED)
 {
+    // Reconstruct arguments.
     int status = (int) arg1;
+
+    // Kill the thread, exiting with passed status.
     kill_current_thread(status);
 }
 
-// TODO
+// Runs the passed executable with any given arguments.  Returns the pid, which
+// is -1 if it fails to load or run.
 void syscall_exec(struct intr_frame *f, void * arg1, void * arg2 UNUSED, void * arg3 UNUSED)
 {
+    // Reconstruct arguments.
     char * cmd_line = (char*) arg1;
+
+    // Execute the passed command.
     f->eax = (uint32_t) process_execute(cmd_line);
 }
 
-// TODO
+// Waits for a child process with pid and returns its exit status.  Returns -1
+// if the pid does not correspond to a direct child or if wait has already
+//  been called on pid.
 void syscall_wait(struct intr_frame *f, void * arg1, void * arg2 UNUSED, void * arg3 UNUSED)
 {
+    // Reconstruct arguments.
     tid_t tid = (tid_t) arg1;
+
+    // Wait on the passed process.
     f->eax = process_wait(tid);
 }
 
-// TODO
+// Creates a new file with the passed name, and returns if it was successful or
+// not.
 void syscall_create(struct intr_frame *f UNUSED, void * arg1, void * arg2, void * arg3 UNUSED)
 {
+    // Reconstruct arguments.
     char * file = (char*) arg1;
     unsigned initial_size = (unsigned) arg2;
+
     // Check if empty file name and fail
     if (file == NULL)
     {
-        kill_current_thread(-1);
+        kill_current_thread(-1);    // Exit with an error if so.
     // Otherwise create file
     }
     else
@@ -147,53 +163,61 @@ void syscall_create(struct intr_frame *f UNUSED, void * arg1, void * arg2, void 
     }
 }
 
-// TODO
+// Deletes a file with the passed name, and returns if it was successful or not.
 void syscall_remove(struct intr_frame *f, void * arg1, void * arg2 UNUSED, void * arg3 UNUSED)
 {
+    // Reconstruct arguments.
     char * file = (char*) arg1;
+
+    // Check if empty file name.
     if (file == NULL)
     {
-        f->eax = (uint32_t) -1;
+        f->eax = (uint32_t) -1;     // Return with an error if so.
     }
+    // Otherwise delete the file.
     else
     {
         acquire_filesys_access();   // Acquire lock for file system access
-        // remove the file, return if successful
+        // Remove the file, return if successful
         f->eax = (uint32_t) filesys_remove(file);
         release_filesys_access();   // Done with file system access
     }
 }
 
-// TODO
+// Opens a file with the passed name, and returns a file descriptor (fd) for it.
+// If the file could not be opened, -1 is returned.
 void syscall_open(struct intr_frame *f, void * arg1, void * arg2 UNUSED, void * arg3 UNUSED)
 {
+    // Reconstruct arguments.
     char * file = (char*) arg1;
     struct file_id *new_file_id;
     struct file *file_pt;
     struct thread *t = thread_current();
 
+    // Check if empty file name
     if (file == NULL)
     {
-        f->eax = (uint32_t) -1; // Return an error if passed NULL file
+        f->eax = (uint32_t) -1;     // Return an error if so.
     }
     else
+    // Otherwise open the file.
     {
-        acquire_filesys_access();   // Acquire lock for file system access
-        // Open the file, return the file pointer
-        file_pt = filesys_open(file);
-        release_filesys_access();   // Done with file system access
+        acquire_filesys_access();     // Acquire lock for file system access
+        file_pt = filesys_open(file); // Open the file, return the file pointer
+        release_filesys_access();     // Done with file system access
         // Check if open failed
         if (file_pt == NULL)
         {
-            f->eax = -1;    // Return an error
+            f->eax = -1;    // Return an error if so.
         }
         else
         {
             // Allocate a new file ID
             new_file_id = (struct file_id *) malloc(sizeof(struct file_id));
+            // Check if allocation fails.
             if (new_file_id == NULL)
             {
-                f->eax = (uint32_t) -1; // Return an error if allocation fails
+                f->eax = (uint32_t) -1; // Return an error if so.
             }
             else
             {
@@ -208,9 +232,11 @@ void syscall_open(struct intr_frame *f, void * arg1, void * arg2 UNUSED, void * 
     }
 }
 
-// TODO
+// Returns the size in bytes of the file corresponding to the passed fd.  Note
+// the file must be open.
 void syscall_filesize(struct intr_frame *f, void * arg1, void * arg2 UNUSED, void * arg3 UNUSED)
 {
+    // Reconstruct arguments.
     int fd = (int) arg1;
     struct file *file_to_access;
     struct thread *t = thread_current();
@@ -218,14 +244,14 @@ void syscall_filesize(struct intr_frame *f, void * arg1, void * arg2 UNUSED, voi
     // Get the file pointer
     file_to_access = file_fid_to_f(fd, &(t->files_opened));
     
-    // If there is an invalid file descriptor, return an error
+    // Check if there is an invalid file descriptor.
     if (file_to_access == NULL)
     {
-        f->eax = (uint32_t) -1;
+        f->eax = (uint32_t) -1;     // Return an error if so.
     }
+    // Otherwise get the size of the file.
     else
     {
-
         acquire_filesys_access();   // Acquire lock for file system access
         // Read from the file
         f->eax = (uint32_t) file_length(file_to_access);
@@ -233,15 +259,25 @@ void syscall_filesize(struct intr_frame *f, void * arg1, void * arg2 UNUSED, voi
     }
 }
 
-// TODO
+// Reads 'size' bytes from the file corresponding to the passed fd to the passed
+// buffer.  The number of bytes actually read is returned, which may be less
+// than 'size'.  If STDIN_FILENO (fd = 0) is passed, then input is taken from
+// from the keyboard.  Note the file must be open.
 void syscall_read(struct intr_frame *f, void * arg1, void * arg2, void * arg3)
 {
+    // Reconstruct arguments.
     int fd = (int) arg1;
     void *buffer = arg2;
     unsigned size = (unsigned) arg3;
     struct file *file_to_access;
     struct thread *t = thread_current();
     
+    // If the entire buffer is not in user space, terminate.
+    if (!is_user_vaddr(buffer + size))
+    {
+        kill_current_thread(-1);
+    }
+
     // Read from std_in
     if (fd == STDIN_FILENO)
     {
@@ -257,6 +293,7 @@ void syscall_read(struct intr_frame *f, void * arg1, void * arg2, void * arg3)
         // Return number of characters read
         f->eax = num_read;
     }
+    // Otherwise read from normal file.
     else
     {
         // Get the file pointer
@@ -272,20 +309,29 @@ void syscall_read(struct intr_frame *f, void * arg1, void * arg2, void * arg3)
             acquire_filesys_access();   // Acquire lock for file system access
             // Read from the file
             f->eax = (uint32_t) file_read(file_to_access, buffer, (off_t) size);
-            // Done, relinquish access to the file system.
-            release_filesys_access();
+            release_filesys_access();   // Done with file system access.
         }
     }
 }
 
-// TODO
+// Write 'size' bytes from the passed buffer to the file corresponding to the
+// passed fd.  The number of bytes actually written is returned, which may be
+// less than 'size'.  If STDOUT_FILENO (fd = 1) is passed, then buffer is
+// written to the console.  Note the file must be open.
 void syscall_write(struct intr_frame *f, void * arg1, void * arg2, void * arg3)
 {
+    // Reconstruct arguments.
     int fd = (int) arg1;
     void *buffer = arg2;
     unsigned size = (unsigned) arg3;
     struct file *file_to_access;
     struct thread *t = thread_current();
+    
+    // If the entire buffer is not in user space, terminate.
+    if (!is_user_vaddr(buffer + size))
+    {
+        kill_current_thread(-1);
+    }
     
     // Get the file pointer
     file_to_access = file_fid_to_f(fd, &(t->files_opened));
@@ -318,9 +364,11 @@ void syscall_write(struct intr_frame *f, void * arg1, void * arg2, void * arg3)
     }
 }
 
-// TODO
+// Changes the next byte to be read or written in fd to 'position', expressed
+// in bytes from the beginning of the file.  Note the file must be open.
 void syscall_seek(struct intr_frame *f UNUSED, void * arg1, void * arg2, void * arg3 UNUSED)
 {
+    // Reconstruct arguments.
     int fd = (int) arg1;
     unsigned position = (unsigned) arg2;
     struct file *file_to_access;
@@ -343,9 +391,11 @@ void syscall_seek(struct intr_frame *f UNUSED, void * arg1, void * arg2, void * 
     }
 }
 
-// TODO
+// Returns the position of the next byte to be read or written in fd, expressed
+// in bytes from the beginning of the file.  Note the file must be open.
 void syscall_tell(struct intr_frame *f UNUSED, void * arg1, void * arg2 UNUSED, void * arg3 UNUSED)
 {
+    // Reconstruct arguments.
     int fd = (int) arg1;
     struct file *file_to_access;
     struct thread *t = thread_current();
@@ -353,7 +403,7 @@ void syscall_tell(struct intr_frame *f UNUSED, void * arg1, void * arg2 UNUSED, 
     // Get the file pointer
     file_to_access = file_fid_to_f(fd, &(t->files_opened));
 
-    // If there is an invalid file descriptor, kill th thread
+    // If there is an invalid file descriptor, kill the thread
     if (file_to_access == NULL)
     {
         kill_current_thread(-1);
@@ -367,7 +417,7 @@ void syscall_tell(struct intr_frame *f UNUSED, void * arg1, void * arg2 UNUSED, 
     }
 }
 
-// TODO
+// Closes the file corresponding to the passed fd.  Note the file mist be open.
 void syscall_close(struct intr_frame *f UNUSED, void * arg1, void * arg2 UNUSED, void * arg3 UNUSED)
 {
     int fd = (int) arg1;

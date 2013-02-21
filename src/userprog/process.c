@@ -30,9 +30,6 @@ tid_t process_execute(const char *file_name) {
     tid_t tid;
     struct thread *current_thread = thread_current();
 
-    /* Child not yet loaded. TODO: SHOULD NOT BE NEEDED */ 
-    //sema_init(&(current_thread->child_loaded), 0);
-
     /* Make a copy of FILE_NAME.
        Otherwise there's a race between the caller and load(). */
     fn_copy = palloc_get_page(0);
@@ -60,7 +57,7 @@ tid_t process_execute(const char *file_name) {
         }
     }
 
-    palloc_free_page(proc_copy); /* Always clean up page for proc name */
+    palloc_free_page(proc_copy);    /* Always clean up page for proc name */
 
     return tid;
 }
@@ -109,9 +106,11 @@ static void start_process(void *file_name_) {
         argc++;
     }
     arg_start = esp;
-    // Word align stack pointer and allocate argc and argv
+
+    /* Word align stack pointer and allocate argc and argv. */
     esp -= (void*)((int)esp & 3);
-    // Setup argv buffer, done in reverse to match string parse order
+
+    /* Setup argv buffer, done in reverse to match string parse order. */
     esp -= sizeof(char**);
     *((char**)esp) = 0;
     for (i = argc-1; i >= 0; --i)
@@ -120,15 +119,19 @@ static void start_process(void *file_name_) {
         *((char**)esp) = (char*)arg_start;
         arg_start += strlen((char*)arg_start) + 1;
     }
-    // Pointer to argv
+
+    /* Pointer to argv */
     esp -= sizeof(char**);
     *((char***)esp) = esp + sizeof(char**);
-    // Argc
+
+    /* argc */
     esp -= sizeof(int);
     *((int*)esp) = argc;
-    // Fake return address
+
+    /* Fake return address */
     esp -= sizeof(void*);
-    // Update stack pointer in frame
+
+    /* Update stack pointer in frame */
     *(&if_.esp) = esp;
 
     /* Clean up page now that arguments are parsed */
@@ -161,46 +164,37 @@ int process_wait(tid_t child_tid) {
     struct list *child_list = &(thread_current()->children);
     int status;
 
-    //printf("WAITING ON: %d\n", child_tid); // DEBUG
-
     // Find the process from the the child tid
     if (child_list == NULL) {   // No children for process
         return -1;
     }
     for (e = list_begin(child_list); e != list_end(child_list); e = list_next(e)) {
         struct thread *current_thread = list_entry(e, struct thread, childelem);
-        //debug_backtrace_all();                              // DEBUG
-        //printf("\nThread loc: %x\n", current_thread);         // DEBUG
-        //printf("Thread name: %s\n", current_thread->name);  // DEBUG
         if (current_thread->tid == child_tid) {
             // If found thread with matching ID, use it
             thread_waited_on = current_thread;
             break;
         }
     }
-    // Check if process is a direct child, otherwise return -1
+    /* Check if process is a direct child, otherwise return error */
     if (thread_waited_on == NULL) {
         return -1;
     }
 
-    // Check if another process called wait on pid (check list and semaphore in thread indicating wait)
-    //printf("SEMAPHORE %d\n", (thread_waited_on->not_waited_on).value); // DEBUG
+    /* Check if another process called wait on pid. */
     if (!sema_try_down(&(thread_waited_on->not_waited_on))) {
-        // If already waited on, error, return -1
-        //printf("ALREADY WAITED ON\n"); // DEBUG
-        return -1;
+        return -1;  /* If already waited on, return error. */
     }
-    // Block until it exits
-    // attempt to down sempaphore in the thread...will block until process exits (exit must up it)
+    // Block until process exits. */
     sema_down(&(thread_waited_on->has_exited));
     
-    // Get exit status and destroy thread
-    // Don't need to check how it exited, killer should set exit status properly
+    /* Get exit status and destroy thread. */
     status = thread_waited_on->exit_status;
-    //printf("got %d", status); // DEBUG
-    // Destroy thread here as scheduler wont see it as prev
+
+    /* Destroy thread here as scheduler wont see it as prev. */
     list_remove(&(thread_waited_on->childelem));
     palloc_free_page(thread_waited_on);
+
     return status;
 }
 
@@ -412,10 +406,10 @@ bool load(const char *file_name, void (**eip) (void), void **esp) {
 done:
     /* We arrive here whether the load is successful or not. */
     if (success == true) {
-        file_deny_write(file);  // Deny writes while executing
-        t->executable = file;   // Record executable so it can be closed later
+        file_deny_write(file);  /* Deny writes while executing. */
+        t->executable = file;   /* Record executable so it can be closed. */
     } else {
-        file_close(file);
+        file_close(file);       /* On a failure, just close the file. */
     }
     return success;
 }
