@@ -7,6 +7,7 @@
 #include "threads/flags.h"
 #include "threads/interrupt.h"
 #include "threads/intr-stubs.h"
+#include "threads/malloc.h"
 #include "threads/palloc.h"
 #include "threads/switch.h"
 #include "threads/synch.h"
@@ -396,9 +397,12 @@ void thread_exit (void)
 #ifdef USERPROG // Code for user programs
 
   // TODO: Close all open files on exit
-  for (e = list_begin (&(t->files_opened)); e != list_end (&(t->files_opened)); e = list_next (e))
+  for (e = list_begin (&(t->files_opened)); e != list_end (&(t->files_opened)); )
   {
-    file_close (list_entry(e, struct file_id, elem)->f);
+    struct file_id * f_id = list_entry(e, struct file_id, elem);
+    file_close (f_id->f);
+    e = list_next (e); // Move to next element before deallocated previous
+    free((void*)f_id);
   }
 
   // If the thread has a parent, set it to ZOMBIE so wait can clean it up

@@ -140,6 +140,23 @@ struct file * file_fid_to_f(fid_t fd, struct list * file_list) {
     return NULL;
 }
 
+struct file_id * file_fid_to_f_id(fid_t fd, struct list * file_list) {
+    struct list_elem *e;
+    
+    // Ensure that list exists and is not empty 
+    if ((file_list == NULL) || (list_empty(file_list))) {
+        return NULL;
+    }
+    for (e = list_begin(file_list); e != list_end(file_list); e = list_next(e)) {
+        struct file_id *f_id = list_entry(e, struct file_id, elem);
+        if (f_id->fid == fd) {
+            return f_id;
+        }
+    }
+    // Not found if got here, return NULL pointer
+    return NULL;
+}
+
 /* Returns a fid to use for a new thread. */
 fid_t allocate_fid (void) {
     static fid_t next_fid = 3;
