@@ -81,6 +81,7 @@ static void kill(struct intr_frame *f) {
                thread_name(), f->vec_no, intr_name(f->vec_no));
         intr_dump_frame(f);
         printf ("%s: exit(%d)\n", thread_current()->name, -1);
+        thread_current()->exit_status = -1;
         thread_exit(); 
 
     case SEL_KCSEG:
