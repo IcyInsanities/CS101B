@@ -93,8 +93,9 @@ struct lock filesys_lock (created, filesys.c)
     critical code.
 enum thread_status (new state added, thread.h)
     THREAD_ZOMBIE
-        Differentiate between dead threads that can be reaped and those that can
-        not be reaped by using a zombie state for the former.
+        Differentiate between dead threads that can be reaped by the parent 
+        (those being waited on) and those that can not be reaped by the parent
+        (those not waited on) using a zombie state for the former.
 struct thread (added fields, thread.h)
     int exit_status
         Save the exit status of a thread so that it can be retreieved by a
@@ -114,7 +115,7 @@ struct thread (added fields, thread.h)
     struct thread *parent
         Pointer to the parent of a thread, used to determine if thread should
         wait for reaping or clean itself up. Also used to signal loading status
-        to parent.
+        of the executable to parent.
     struct semaphore child_loaded;      /*!< Indicates child process loaded. */
         This is used to signal to the parent when the child has finished loading
         after an exec call. This is signaled even if the loading failed.
