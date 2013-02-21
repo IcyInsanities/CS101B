@@ -413,7 +413,7 @@ done:
     /* We arrive here whether the load is successful or not. */
     if (success == true) {
         file_deny_write(file);  // Deny writes while executing
-        t->executable = NULL;   // Record executable so it can be closed later
+        t->executable = file;   // Record executable so it can be closed later
     } else {
         file_close(file);
     }

@@ -395,6 +395,8 @@ void thread_exit (void)
 
 #ifdef USERPROG // Code for user programs
 
+  // Close the executable file once it is done running
+  file_close(t->executable);
   process_exit ();    // Clean up process memory before destroying thread
 
   // Close all open files on exit
@@ -434,8 +436,6 @@ void thread_exit (void)
     }
   }
 
-  // Close the executable file once it is done running
-  file_close(t->executable);
   sema_up (&(t->has_exited)); // Indicate thread has exited
 #else // Code for threads
   t->status = THREAD_DYING;
