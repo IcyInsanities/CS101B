@@ -50,13 +50,11 @@ static void (*syscall_table[])(struct intr_frame *, void *, void *, void *) = {s
 static uint32_t syscall_num_arg[] = {0, 1, 1, 1, 2, 1, 1, 1, 3, 3, 2, 1, 1, 2, 1, 1, 1, 2, 1, 1};
 static uint32_t num_syscalls = 20;
 
-// SHIR
 void syscall_init(void)
 {
     intr_register_int(0x30, 3, INTR_ON, syscall_handler, "syscall");
 }
 
-// SHIR
 static void syscall_handler(struct intr_frame *f)
 {
     // Turn interrupts back on during system call

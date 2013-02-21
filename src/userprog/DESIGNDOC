@@ -50,7 +50,24 @@ donation, the overall system functions correctly.
 >> A2: Briefly describe how you implemented argument parsing.  How do
 >> you arrange for the elements of argv[] to be in the right order?
 >> How do you avoid overflowing the stack page?
-    TODO!!!
+    First, in process_execute a copy of the string is made to get the process
+name without the arguments in order to give it to the thread_create function.
+The argument parsing now continues in the start_process function. Here a copy of
+the original command line string is split into tokens and each is saved onto the
+stack, growing it downwards with each additional argument. Once all arguments
+are parsed onto the stack, we begin to create the stack itself. The stack
+pointer is word aligned and then the location of each argument is pushed onto
+the stack. As the arguments are in reverse order going up the stack, this means
+that the pointer to the last argument is pushed on first, correctly reversing
+the order to generate argv[]. Once argv is completed, a pointer to its start is
+pushed on along with the number of arguments as argc. Finally, a fake return
+address is allocated on the stack and the new stack pointer location is updated
+in the interrupt frame.
+    Currently, if the argument string passed take up the full page then we will
+grow past the stack page and page fault, terminating the program. As the stack
+is build top down, it uses the minimum possible space and without allocating a
+second stack page, we cannot do better.
+
 
 ---- RATIONALE ----
 
@@ -63,7 +80,13 @@ and to save the state between calls to strtok_r.
 >> A4: In Pintos, the kernel separates commands into a executable name
 >> and arguments.  In Unix-like systems, the shell does this
 >> separation.  Identify at least two advantages of the Unix approach.
-    TODO!!!
+    The UNIX approach allows for built in commands for the shell such as exit.
+As the command is always run in a new process here, it is impossible for the
+original process to be terminated from a command line argument. Similarly,
+shell functionality such as file redirects and piping output is likely much
+cleaner to implement in the shell then in the kernel. Much of this would need an
+ability to spawn multiple process, thus turning the kernel code into a mini-unix
+shell in order to handle the redirects.
 
                              SYSTEM CALLS
                              ============
@@ -116,16 +139,16 @@ struct thread (added fields, thread.h)
         Pointer to the parent of a thread, used to determine if thread should
         wait for reaping or clean itself up. Also used to signal loading status
         of the executable to parent.
-    struct semaphore child_loaded;      /*!< Indicates child process loaded. */
+    struct semaphore child_loaded
         This is used to signal to the parent when the child has finished loading
         after an exec call. This is signaled even if the loading failed.
-    struct file *executable;            /*!< File pointer to executable. */
+    struct file *executable
         This file pointer holds the executable file used by the thread so that
         writes can be prevented.
-    bool child_success;                 /*!< Flag to signal success of child load. */
+    bool child_success
         This boolean stores the success value of loading of the child which
         updates this so that exec can return correctly.
-    struct list_elem childelem;         /*!< List element for all children list. */
+    struct list_elem childelem
         This list_elem is used to maintain the children list for each thread
 Global variables in syscall.c
     static void (*syscall_table[])(struct intr_frame *, void *, void *, void *)
@@ -168,7 +191,11 @@ will be cleaned up inside the page fault handler.
 >> (e.g. calls to pagedir_get_page()) that might result?  What about
 >> for a system call that only copies 2 bytes of data?  Is there room
 >> for improvement in these numbers, and how much?
-    A system call only does the translation TODO
+    A system call only does the translation in the MMU. Thus we are at the
+minimum possible calls to pagedir_get_page which will be called as necessary to
+read and write data. For data spanning two pages, the theoretical minimum is 2
+calls, one for each page. This is because both a full page and 2 bytes can span
+at most 2 pages.
 
 >> B5: Briefly describe your implementation of the "wait" system call
 >> and how it interacts with process termination.
