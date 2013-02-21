@@ -51,14 +51,16 @@ tid_t process_execute(const char *file_name) {
     tid = thread_create(proc, PRI_DEFAULT, start_process, fn_copy);
     if (tid == TID_ERROR) {
         palloc_free_page(fn_copy);
-
-        /* Load failed, up semaphore so it may return. */
-        sema_up(&(current_thread->child_loaded));
     }
-    palloc_free_page(proc_copy); /* Always clean up page for proc name */
+    else {
+        /* Block until process is successfully loaded. */
+        sema_down(&(current_thread->child_loaded));
+        if (!current_thread->child_success) {
+            tid = TID_ERROR;
+        }
+    }
 
-    /* Block until process is successfully loaded. */
-    sema_down(&(current_thread->child_loaded));
+    palloc_free_page(proc_copy); /* Always clean up page for proc name */
 
     return tid;
 }
@@ -87,6 +89,9 @@ static void start_process(void *file_name_) {
     if (!success)
     {
         palloc_free_page(file_name);
+        /* Acknowledge that process has not been loaded properly. */
+        (t->parent)->child_success = false;
+        sema_up(&((t->parent)->child_loaded));
         thread_exit();
     }
 
@@ -130,6 +135,7 @@ static void start_process(void *file_name_) {
     palloc_free_page(file_name);
 
     /* Acknowledge that process has been loaded properly. */
+    (t->parent)->child_success = true;
     sema_up(&((t->parent)->child_loaded));
     /* Start the user process by simulating a return from an
        interrupt, implemented by intr_exit (in

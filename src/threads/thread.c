@@ -751,6 +751,7 @@ init_thread (struct thread *t, const char *name, int priority, struct thread *t_
   sema_init(&(t->has_exited), 0);
   sema_init(&(t->child_loaded), 0);
   t->parent = t_par;
+  t->executable = NULL;
 #endif
   //printf("SEMAPHORE INIT %d\n", (t->not_waited_on).value); // DEBUG
   old_level = intr_disable ();

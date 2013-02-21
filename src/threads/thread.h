@@ -128,6 +128,7 @@ struct thread {
     struct list pages;                  /*!< List of pages. */
     struct semaphore child_loaded;      /*!< Indicates child process loaded. */
     struct file *executable;            /*!< File pointer to executable. */
+    bool child_success;                 /*!< Flag to signal success of child load. */
     /**@}*/
 #endif
 
