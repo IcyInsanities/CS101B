@@ -227,7 +227,9 @@ thread_create (const char *name, int priority, thread_func *function, void *aux)
   tid = t->tid = allocate_tid ();
 
   /* Add thread to list of children. */
+#ifdef USERPROG
   list_push_back(&(thread_current()->children), &(t->childelem));
+#endif
 
   /* Stack frame for kernel_thread(). */
   kf = alloc_frame (t, sizeof *kf);
@@ -384,7 +386,9 @@ void
 thread_exit (void)
 {
   struct thread *t = thread_current();
+#ifdef USERPROG
   struct list_elem *e;
+#endif
 
   ASSERT (!intr_context ());
 
@@ -455,15 +459,18 @@ thread_exit (void)
 void
 thread_yield (void)
 {
-  struct thread *cur = thread_current ();
   enum intr_level old_level;
 
   ASSERT (!intr_context ());
 
   old_level = intr_disable ();
-  if (cur != idle_thread)
-    list_push_back (&ready_list, &cur->elem);
-  cur->status = THREAD_READY;
+  if (running_thread ()->status != THREAD_ZOMBIE)
+  {
+    struct thread *cur = thread_current ();
+    if (cur != idle_thread)
+      list_push_back (&ready_list, &cur->elem);
+    cur->status = THREAD_READY;
+  }
   schedule ();
   intr_set_level (old_level);
 }
@@ -714,7 +721,11 @@ is_thread (struct thread *t)
 /* Does basic initialization of T as a blocked thread named
    NAME. */
 static void
+#ifdef USERPROG
 init_thread (struct thread *t, const char *name, int priority, struct thread *t_par)
+#else
+init_thread (struct thread *t, const char *name, int priority, struct thread *t_par UNUSED)
+#endif
 {
   enum intr_level old_level;
 
