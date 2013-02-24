@@ -127,10 +127,14 @@ void sema_up(struct semaphore *sema) {
     intr_set_level(old_level);
 
     /* See if higher priority thread can now run */
-    if (yield)
-    {
-        thread_yield(); // TODO: COMMENTED OUT AS BREAKS USERPROG CODE
-    }
+#ifdef USERPROG
+//    if (yield && !intr_context ())
+//    {
+//        //thread_yield(); // TODO: COMMENTED OUT AS BREAKS USERPROG CODE
+//    }
+#else
+    thread_yield();
+#endif
 }
 
 static void sema_test_helper(void *sema_);
