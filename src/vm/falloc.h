@@ -1,15 +1,22 @@
-#ifndef VM_FRAME_H
-#define VM_FRAME_H
+#ifndef VM_FALLOC_H
+#define VM_FALLOC_H
 
 #include <stddef.h>
 
 /* How to allocate frames. */
-enum falloc_flags
+enum alloc_flags
   {
-    FAL_ASSERT = 001,           /* Panic on failure. */
-    FAL_ZERO = 002,             /* Zero frame contents. */
-    FAL_USER = 004              /* User frame. */
+    PAL_ASSERT = 001,           /* Panic on failure. */
+    PAL_ZERO = 002,             /* Zero frame contents. */
+    PAL_USER = 004              /* User frame. */
   };
+
+/*! A memory pool. */
+struct pool {
+    struct lock lock;                   /*!< Mutual exclusion. */
+    struct bitmap *used_map;            /*!< Bitmap of free pages. */
+    uint8_t *base;                      /*!< Base of pool. */
+};
 
 void falloc_init (size_t user_page_limit);
 void *falloc_get_frame (enum falloc_flags);
@@ -17,4 +24,4 @@ void *falloc_get_multiple (enum falloc_flags, size_t page_cnt);
 void falloc_free_frame (void *);
 void falloc_free_multiple (void *, size_t page_cnt);
 
-#endif /* vm/frame.h */
+#endif /* vm/falloc.h */

@@ -25,13 +25,6 @@
 #include "threads/synch.h"
 #include "threads/vaddr.h"
 
-/*! A memory pool. */
-struct pool {
-    struct lock lock;                   /*!< Mutual exclusion. */
-    struct bitmap *used_map;            /*!< Bitmap of free frames. */
-    uint8_t *base;                      /*!< Base of pool. */
-};
-
 /*! Two pools: one for kernel data, one for user frames. */
 static struct pool kernel_pool, user_pool;
 
@@ -87,7 +80,7 @@ void * falloc_get_multiple(enum palloc_flags flags, size_t frame_cnt) {
     }
     else {
         if (flags & PAL_ASSERT)
-            PANIC("palloc_get: out of frames");
+            PANIC("falloc_get: out of frames");
     }
 
     return frames;
