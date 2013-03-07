@@ -101,7 +101,8 @@ int main(void) {
            init_ram_pages * PGSIZE / 1024);
 
     /* Initialize memory system. */
-    palloc_init(user_page_limit);
+    falloc_init(user_page_limit);
+    palloc_init();
     malloc_init();
     paging_init();
 
