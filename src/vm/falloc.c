@@ -109,24 +109,11 @@ void falloc_init(size_t user_frame_limit)
     }
 }
 
-/*! Obtains a single free frame and returns its kernel virtual
-    address.
-    If PAL_USER is set, the frame is obtained from the user pool,
-    otherwise from the kernel pool.  If PAL_ZERO is set in FLAGS,
-    then the frame is filled with zeros.  If no frames are
-    available, returns a null pointer, unless PAL_ASSERT is set in
-    FLAGS, in which case the kernel panics. */
-void * falloc_get_frame(void *upage, enum alloc_flags flags, struct page_entry *sup_entry) {
- struct pool *pool = flags & PAL_USER ? &user_pool : &kernel_pool;
-    void *frame;
-    size_t frame_idx;
+frame *get_frame_addr(enum alloc_flags flags) {
     struct thread *t = thread_current();
-    uint32_t *pagedir = t->pagedir;                     /* Get page directory */
-    uint32_t *pte = lookup_page(pagedir, upage, true);  /* Get table entry */
     struct list_elem elem;
     struct frame *frame_entry;
     struct list *open_frame_list;
-
     /* Choose the correct frame list. */
     if (alloc_flags & PAL_USER) {
         open_frame_list = &open_frame_list_user;
@@ -157,6 +144,27 @@ void * falloc_get_frame(void *upage, enum alloc_flags flags, struct page_entry *
     /* Remove frame from list of open frames. */
     frame_entry = list_entry(elem, struct frame, open_elem);
     
+    return frame_entry;
+}
+
+/*! Obtains a single free frame and returns its kernel virtual
+    address.
+    If PAL_USER is set, the frame is obtained from the user pool,
+    otherwise from the kernel pool.  If PAL_ZERO is set in FLAGS,
+    then the frame is filled with zeros.  If no frames are
+    available, returns a null pointer, unless PAL_ASSERT is set in
+    FLAGS, in which case the kernel panics. */
+void * falloc_get_frame(void *upage, enum alloc_flags flags, struct page_entry *sup_entry) {
+    void *frame;
+    struct thread *t = thread_current();
+    uint32_t *pagedir = t->pagedir;                     /* Get page directory */
+    uint32_t *pte = lookup_page(pagedir, upage, true);  /* Get table entry */
+    struct list_elem elem;
+    struct frame *frame_entry;
+
+    /* Get the frame entry. */
+    frame_entry = get_frame_addr(flags);
+    
     /* TODO: associate frame with page. */
     frame_entry->pte = pte;
     frame_entry->sup_entry = sup_entry;
@@ -177,6 +185,8 @@ void falloc_free_frame(void *frame) {
     struct pool *pool;
     size_t frame_idx;
     struct frame *frame_entry = addr_to_frame(frame);
+    uint32_t pte = *(frame_entry->pte);
+    struct list *open_frame_list;
 
     ASSERT(pg_ofs(frame) == 0);
     if (frame == NULL)
@@ -196,13 +206,19 @@ void falloc_free_frame(void *frame) {
 #endif
 
     /* If it wasn't allocated, just return. */
-    if (!pte_is_present(*(frame_entry->pte)) {
+    if (!pte_is_present(pte) {
         return;
     }
     
-    /* TODO: Need to figure out if in kernel or user list */
+    /* TODO: Need to figure out if in kernel or user list. */
+    if (is_user_vaddr(pte_get_page(pte))) {
+        open_frame_list = &open_frame_list_user;
+    } else {
+        open_frame_list = &open_frame_list_kernel;
+    }
+    
     /* Add frame struct back to open list. */
-    list_push_back(&open_frame_list, &(frame_entry->open_elem));
+    list_push_back(open_frame_list, &(frame_entry->open_elem));
     
 }
 
@@ -235,10 +251,6 @@ bool frame_from_pool(const struct pool *pool, void *frame) {
     return frame_no >= start_frame && frame_no < end_frame;
 }
 
-static bool frame_from_list(const struct frame_list, void *frame) {
-    // use a bit in the pte to designate kernel vs user space? (better than
-    // searching lists)
-}
 /*! Returns a pointer to the frame struct for the passed address. */
 static frame *addr_to_frame(void *frame_addr) {
     return &(frame_list_kernel[pg_no(frame)]);
