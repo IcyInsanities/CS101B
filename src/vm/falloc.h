@@ -5,14 +5,15 @@
 
 /* How to allocate frames. */
 enum alloc_flags
-  {
+{
     PAL_ASSERT = 001,           /* Panic on failure. */
     PAL_ZERO = 002,             /* Zero frame contents. */
     PAL_USER = 004              /* User frame. */
-  };
+};
 
 /*! A memory pool. */
-struct pool {
+struct pool
+{
     struct lock lock;                   /*!< Mutual exclusion. */
     struct bitmap *used_map;            /*!< Bitmap of free pages. */
     uint8_t *base;                      /*!< Base of pool. */
