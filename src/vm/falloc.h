@@ -2,6 +2,7 @@
 #define VM_FALLOC_H
 
 #include <stddef.h>
+#include <list.h>
 
 /* How to allocate frames. */
 enum alloc_flags
@@ -18,6 +19,19 @@ struct pool {
     uint8_t *base;                      /*!< Base of pool. */
 };
 
+// TODO: frame struct
+// pointer to page
+// need to know supplemental page
+// 
+/*! A frame entry struct. */
+struct frame {
+    uint32_t *pte                   /*< Related page table entry. */
+    struct page_entry *sup_entry    /*!< Supplemental page table entry. */
+    struct list_elem process_elem;  /*!< List element for process. */
+    struct list_elem open_elem;     /*!< List element for open list. */
+}
+
+struct 
 void falloc_init (size_t user_page_limit);
 void *falloc_get_frame (enum falloc_flags);
 void *falloc_get_multiple (enum falloc_flags, size_t page_cnt);

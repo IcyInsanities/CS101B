@@ -13,6 +13,8 @@
    just fine for demonstration purposes. */
 
 #include "vm/falloc.h"
+#include "userprog/pagedir.h"
+#include "threads/thread.h"
 #include <bitmap.h>
 #include <debug.h>
 #include <inttypes.h>
@@ -24,6 +26,9 @@
 #include "threads/loader.h"
 #include "threads/synch.h"
 #include "threads/vaddr.h"
+
+// TODO: Need a list of frame structs
+static struct list frame_list;
 
 /*! Two pools: one for kernel data, one for user frames. */
 static struct pool kernel_pool, user_pool;
@@ -49,18 +54,28 @@ void falloc_init(size_t user_frame_limit) {
     init_pool(&kernel_pool, free_start, kernel_frames, "kernel pool");
     init_pool(&user_pool, free_start + kernel_frames * PGSIZE,
               user_frames, "user pool");
+              
+    /* Initialize the frame list. */
+    list_init(&frame_list);
+    
+    /* Fill the list, pinning each frame in it? */
+    
 }
 
-/*! Obtains and returns a group of frame_CNT contiguous free frames.
+/*! Obtains and returns a group of FRAME_CNT contiguous free frames.
     If PAL_USER is set, the frames are obtained from the user pool,
     otherwise from the kernel pool.  If PAL_ZERO is set in FLAGS,
     then the frames are filled with zeros.  If too few frames are
     available, returns a null pointer, unless PAL_ASSERT is set in
     FLAGS, in which case the kernel panics. */
-void * falloc_get_multiple(enum palloc_flags flags, size_t frame_cnt) {
+// TODO: modify to take pointer to pte as argument
+void * falloc_get_multiple(void *upage, enum alloc_flags flags, size_t frame_cnt) {
     struct pool *pool = flags & PAL_USER ? &user_pool : &kernel_pool;
     void *frames;
     size_t frame_idx;
+    struct thread *t = thread_current();
+    uint32_t *pagedir = t->pagedir;                     /* Get page directory */
+    uint32_t *pte = lookup_page(pagedir, upage, true);  /* Get table entry */
 
     if (frame_cnt == 0)
         return NULL;
@@ -83,6 +98,17 @@ void * falloc_get_multiple(enum palloc_flags flags, size_t frame_cnt) {
             PANIC("falloc_get: out of frames");
     }
 
+    // TODO: need to save returned pointer address somewhere
+    
+    // Remove frame from list of open frames
+    list_pop_front(&frame_list);
+    
+    list_push_back(&frame_list, );
+    
+    // TODO: associate frame with page
+    // NOTE: need to force read/write bit to always be valid
+    pagedir_set_page(pagedir, upage, frames, pte_is_read_write(*pte));
+    
     return frames;
 }
 
@@ -93,8 +119,8 @@ void * falloc_get_multiple(enum palloc_flags flags, size_t frame_cnt) {
     then the frame is filled with zeros.  If no frames are
     available, returns a null pointer, unless PAL_ASSERT is set in
     FLAGS, in which case the kernel panics. */
-void * falloc_get_frame(enum palloc_flags flags) {
-    return palloc_get_multiple(flags, 1);
+void * falloc_get_frame(void *upage, enum alloc_flags flags) {
+    return palloc_get_multiple(upage, flags, 1);
 }
 
 /*! Frees the FRAME_CNT frames starting at FRAMES. */
@@ -157,3 +183,5 @@ static bool frame_from_pool(const struct pool *pool, void *frame) {
     return frame_no >= start_frame && frame_no < end_frame;
 }
 
+// TODO: implement frame_clean
+// TODO: implement frame_evict
