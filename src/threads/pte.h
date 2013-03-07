@@ -75,6 +75,7 @@ static inline uintptr_t pd_no(const void *va) {
 #define PTE_U 0x4               /*!< 1=user/kernel, 0=kernel only. */
 #define PTE_A 0x20              /*!< 1=accessed, 0=not acccessed. */
 #define PTE_D 0x40              /*!< 1=dirty, 0=not dirty (PTEs only). */
+#define PTE_PIN 0x100           /*!< 1=pinned, 0=not pinned. */
 /*! @} */
 
 /*! Returns a PDE that points to page table PT. */
@@ -110,6 +111,16 @@ static inline uint32_t pte_create_user(void *page, bool writable) {
 /*! Returns a pointer to the page that page table entry PTE points to. */
 static inline void *pte_get_page(uint32_t pte) {
   return ptov(pte & PTE_ADDR);
+}
+
+/*! Returns whether page is pinned or not. */
+static inline bool *pte_is_pinned(uint32_t pte) {
+  return (bool) pte & PTE_PIN;
+}
+
+/*! Returns whether page is read/write or not. */
+static inline bool *pte_is_read_write(uint32_t pte) {
+  return (bool) pte & PTE_W;
 }
 
 #endif /* threads/pte.h */
