@@ -129,4 +129,9 @@ void palloc_free_page(void *page) {
     palloc_free_multiple(page, 1);
 }
 
-static
+static bool palloc_page_less(const struct list_elem *A,
+                             const struct list_elem *B, 
+                             void* aux UNUSED) {
+ 
+    return TRUE;
+}

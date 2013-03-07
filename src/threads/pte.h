@@ -123,5 +123,9 @@ static inline bool pte_is_read_write(uint32_t pte) {
   return (bool) pte & PTE_W;
 }
 
+static inline bool pte_is_present(uint32_t pte) {
+  return (bool) pte & PTE_P;
+}
+
 #endif /* threads/pte.h */
 
