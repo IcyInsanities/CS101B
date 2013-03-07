@@ -25,16 +25,14 @@
 #include "threads/vaddr.h"
 #include "vm/falloc.h"
 
-/*! Global kernel pagedir for paging data */
-static uint32_t *kernel_vm_pagedir;
 
 /*! Initializes the page allocator.  At most USER_PAGE_LIMIT
     pages are put into the user pool. */
 void palloc_init(size_t user_page_limit)
 {
-    /* Allocate the kernel page table into a frame */
-    kernel_vm_pagedir = get_frame_addr(PAL_ZERO | PAL_ASSERT);
-    
+    /* Does nothing for now? */
+    // TODO!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+    // Or maybe not.
 }
 
 /*! Obtains and returns a group of PAGE_CNT contiguous free pages.

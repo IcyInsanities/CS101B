@@ -50,6 +50,11 @@ void falloc_init(size_t user_frame_limit)
     uint32_t i;
     extern char _start, _end_kernel_text;
 
+    /* Initialize lists */
+    list_init(&open_frame_list_user);
+    list_init(&open_frame_list_kernel);
+    list_init(&init_page_dir_sup);
+
     /* Free memory starts at 1 MB and runs to the end of RAM. */
     uint8_t *free_start = ptov(1024 * 1024);
     uint8_t *free_end = ptov(init_ram_pages * PGSIZE);
@@ -67,9 +72,17 @@ void falloc_init(size_t user_frame_limit)
     frame_list_user   = ptov(1024 * 1024) + sizeof(struct frame) * (1024*1024/PGSIZE + kernel_frames);
     uint32_t num_frame_used = 1024 * 1024 + sizeof(struct frame) * (user_frames + kernel_frames)
     num_frame_used = pg_round_up(num_frame_used) / PGSIZE;
-    
+    /* Compute space for page_entry structs for these frames */
+    num_frame_for_pagedif = (sizeof(page_entry) * num_frame_used / PGSIZE) + 1;
+    /* Repeat computation to ensure space for the new frames/pages to be allocated
+       and account for worst case of new pd table allocations */
+    num_frame_for_pagedif = (sizeof(page_entry)
+                    * (num_frame_used + num_frame_for_pagedif) * 2 / PGSIZE) + 1;
+    num_frame_used += num_frame_for_pagedif;
+
     /* Map and pin the first num_frame_used frames into init_page_dir */
     pd = init_page_dir = ptov(num_frame_used * PGSIZE);
+    struct page_entry *page_entry_list = num_frame_used * PGSIZE;
     num_frame_used++;
     pt = NULL;
     for (page = 0; page < num_frame_used; page++)
@@ -88,44 +101,21 @@ void falloc_init(size_t user_frame_limit)
         }
 
         pt[pte_idx] = pte_is_pinned(pte_create_kernel(vaddr, !in_kernel_text));
-        
+
         /* Initialize frame entries */
         frame_list_kernel[page].pte = pt[pte_idx];
         frame_list_kernel[page].sup_entry = NULL;
         frame_list_kernel[page].owner = NULL;
-    }
-    
-    struct page_entry *page_entry_list = num_frame_used * PGSIZE;
-    /* Compute space for page_entry structs for these frames */
-    num_frame_for_pagedif = (sizeof(page_entry) * num_frame_used / PGSIZE) + 1;
-    /* Repeat computation to ensure space for the new frames to be allocated and
-       account for worst case of new pd table allocations */
-    num_frame_for_pagedif = (sizeof(page_entry)
-                    * (num_frame_used + 2*num_frame_for_pagedif) / PGSIZE) + 1;
-    num_frame_used += num_frame_for_pagedif;
-    /* Create page_entry structs */
-    for (page = num_frame_used - num_frame_for_pagedif; page < num_frame_used; page++)
-    {
-        uintptr_t paddr = page * PGSIZE;
-        char *vaddr = ptov(paddr);
-        size_t pde_idx = pd_no(vaddr);
-        size_t pte_idx = pt_no(vaddr);
-        
-        if (pd[pde_idx] == 0)
-        {
-            pt = ptov(num_frame_used * PGSIZE);;
-            num_frame_used++;
-            pd[pde_idx] = pde_create(pt);
-        }
 
-        pt[pte_idx] = pte_is_pinned(pte_create_kernel(vaddr, true));
-        
         /* Initialize page_entry */
         page_entry[page].vaddr = vaddr;
         page_entry[page].source = FRAME_PAGE;
         page_entry[page].data = paddr;
+
+        /* Will already be sorted by physical address */
+        list_push_back(&init_page_dir_sup, page_entry[page].elem);
     }
-    
+
     /* Build open frame table entries, don't care about entry value */
     if (num_frame_used > kernel_frames)
     {
@@ -152,30 +142,30 @@ frame *get_frame_addr(enum alloc_flags flags) {
     } else {
         open_frame_list = &open_frame_list_kernel;
     }
-    
+
     /* DEBUG: If attempting to allocate frame, and out of frames, panic. */
     if (list_empty(open_frame_list) {
         PANIC("falloc_get: out of kernel frames");
-        
+
     /* Otherwise, get an open frame. */
     } else {
         elem = list_pop_front(open_frame_list);
     }
-    
+
     if (flags & PAL_ZERO) {
         // TODO: zero frame if necessary
         //memset(frame, 0, PGSIZE);
-        
+
     }
-    
+
     /* TODO: if failed to get frame (even after evicting) and assert flag set, panic */
     //if (flags & PAL_ASSERT) {
     //    PANIC("falloc_get: out of frames");
     //}
-    
+
     /* Remove frame from list of open frames. */
     frame_entry = list_entry(elem, struct frame, open_elem);
-    
+
     return frame_entry;
 }
 
@@ -196,19 +186,19 @@ void * falloc_get_frame(void *upage, enum alloc_flags flags, struct page_entry *
 
     /* Get the frame entry. */
     frame_entry = get_frame_addr(flags);
-    
+
     /* TODO: associate frame with page. */
     frame_entry->pte = pte;
     frame_entry->sup_entry = sup_entry;
     frame_entry->owner = t;
     // TODO: add to process list?
-    
+
     /* NOTE: need to force read/write bit to always be valid. */
     pagedir_set_page(pagedir, upage, frame, pte_is_read_write(*pte));
-    
+
     /* TODO: Associate frame address with frame entry struct. */
     //frame_list_kernel[pg_no(frame)] = frame_entry;  // TODO: May want to change this to be more robust
-    
+
     return frames;
 }
 
@@ -241,17 +231,17 @@ void falloc_free_frame(void *frame) {
     if (!pte_is_present(pte) {
         return;
     }
-    
+
     /* TODO: Need to figure out if in kernel or user list. */
     if (is_user_vaddr(pte_get_page(pte))) {
         open_frame_list = &open_frame_list_user;
     } else {
         open_frame_list = &open_frame_list_kernel;
     }
-    
+
     /* Add frame struct back to open list. */
     list_push_back(open_frame_list, &(frame_entry->open_elem));
-    
+
 }
 
 /*! Initializes pool P as starting at START and ending at END,

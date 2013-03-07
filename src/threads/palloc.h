@@ -19,6 +19,8 @@ struct page_entry
     
     enum page_load source;          /*!< Location type of page data */
     void *data;                     /*!< Pointer to data location, unused if zero page */
+    
+    struct listelem elem;           /*!< Enable putting page entries into list */
 };
 
 void palloc_init (size_t user_page_limit);
