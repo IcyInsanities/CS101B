@@ -3,6 +3,7 @@
 
 #include <stddef.h>
 #include <list.h>
+#include "threads/synch.h"
 
 /* How to allocate frames. */
 enum alloc_flags
@@ -26,16 +27,16 @@ struct pool
 // 
 /*! A frame entry struct. */
 struct frame {
-    uint32_t *pte                   /*!< Related page table entry. */
-    struct page_entry *sup_entry    /*!< Supplemental page table entry. */
-    struct thread *owner            /*!< Thread which owns the frame. */
+    uint32_t *pte;                  /*!< Related page table entry. */
+    struct page_entry *sup_entry;   /*!< Supplemental page table entry. */
+    struct thread *owner;           /*!< Thread which owns the frame. */
     struct list_elem process_elem;  /*!< List element for process. */
     struct list_elem open_elem;     /*!< List element for open list. */
-}
+};
 
 void falloc_init (size_t user_page_limit);
-void *falloc_get_frame (enum falloc_flags);
-void *falloc_get_multiple (enum falloc_flags, size_t page_cnt);
+void *falloc_get_frame (enum alloc_flags);
+void *falloc_get_multiple (enum alloc_flags, size_t page_cnt);
 void falloc_free_frame (void *);
 void falloc_free_multiple (void *, size_t page_cnt);
 

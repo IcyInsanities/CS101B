@@ -28,7 +28,7 @@
 
 /*! Initializes the page allocator.  At most USER_PAGE_LIMIT
     pages are put into the user pool. */
-void palloc_init(size_t user_page_limit)
+void palloc_init(void)
 {
     /* Does nothing for now? */
     // TODO!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
