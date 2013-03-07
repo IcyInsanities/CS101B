@@ -25,31 +25,16 @@
 #include "threads/vaddr.h"
 #include "vm/falloc.h"
 
-/*! Global pool for kernel data */
-static struct pool kernel_vpool;
+/*! Global kernel pagedir for paging data */
+static uint32_t *kernel_vm_pagedir;
 
 /*! Initializes the page allocator.  At most USER_PAGE_LIMIT
     pages are put into the user pool. */
 void palloc_init(size_t user_page_limit)
 {
-    /* Allocate the kernel page table */
-    kernel_vpool = falloc_get_frame(PAL_ZERO | PAL_ASSERT);
+    /* Allocate the kernel page table into a frame */
+    kernel_vm_pagedir = get_frame_addr(PAL_ZERO | PAL_ASSERT);
     
-
-    /* Free memory starts at 1 MB and runs to the end of RAM. */
-    uint8_t *free_start = ptov(1024 * 1024);
-    uint8_t *free_end = ptov(init_ram_pages * PGSIZE);
-    size_t free_pages = (free_end - free_start) / PGSIZE;
-    size_t user_pages = free_pages / 2;
-    size_t kernel_pages;
-    if (user_pages > user_page_limit)
-        user_pages = user_page_limit;
-    kernel_pages = free_pages - user_pages;
-
-    /* Give half of memory to kernel, half to user. */
-    init_pool(&kernel_pool, free_start, kernel_pages, "kernel pool");
-    init_pool(&user_pool, free_start + kernel_pages * PGSIZE,
-              user_pages, "user pool");
 }
 
 /*! Obtains and returns a group of PAGE_CNT contiguous free pages.
@@ -130,8 +115,8 @@ void palloc_free_page(void *page) {
 }
 
 static bool palloc_page_less(const struct list_elem *A,
-                             const struct list_elem *B, 
+                             const struct list_elem *B,
                              void* aux UNUSED) {
- 
+
     return TRUE;
 }

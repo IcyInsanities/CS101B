@@ -90,10 +90,42 @@ void falloc_init(size_t user_frame_limit)
         pt[pte_idx] = pte_is_pinned(pte_create_kernel(vaddr, !in_kernel_text));
         
         /* Initialize frame entries */
-        frame_list_kernel[i].pte = pt[pte_idx];
-        frame_list_kernel[i].sup_entry = NULL;
-        frame_list_kernel[i].owner = NULL;
+        frame_list_kernel[page].pte = pt[pte_idx];
+        frame_list_kernel[page].sup_entry = NULL;
+        frame_list_kernel[page].owner = NULL;
     }
+    
+    struct page_entry *page_entry_list = num_frame_used * PGSIZE;
+    /* Compute space for page_entry structs for these frames */
+    num_frame_for_pagedif = (sizeof(page_entry) * num_frame_used / PGSIZE) + 1;
+    /* Repeat computation to ensure space for the new frames to be allocated and
+       account for worst case of new pd table allocations */
+    num_frame_for_pagedif = (sizeof(page_entry)
+                    * (num_frame_used + 2*num_frame_for_pagedif) / PGSIZE) + 1;
+    num_frame_used += num_frame_for_pagedif;
+    /* Create page_entry structs */
+    for (page = num_frame_used - num_frame_for_pagedif; page < num_frame_used; page++)
+    {
+        uintptr_t paddr = page * PGSIZE;
+        char *vaddr = ptov(paddr);
+        size_t pde_idx = pd_no(vaddr);
+        size_t pte_idx = pt_no(vaddr);
+        
+        if (pd[pde_idx] == 0)
+        {
+            pt = ptov(num_frame_used * PGSIZE);;
+            num_frame_used++;
+            pd[pde_idx] = pde_create(pt);
+        }
+
+        pt[pte_idx] = pte_is_pinned(pte_create_kernel(vaddr, true));
+        
+        /* Initialize page_entry */
+        page_entry[page].vaddr = vaddr;
+        page_entry[page].source = FRAME_PAGE;
+        page_entry[page].data = paddr;
+    }
+    
     /* Build open frame table entries, don't care about entry value */
     if (num_frame_used > kernel_frames)
     {
