@@ -30,11 +30,9 @@
 
 // TODO: Need a list of frame structs
 
-static struct list open_frame_list;
-static void **allocated_frames;
+static struct list open_frame_list_user;
+static struct list open_frame_list_kernel;
 
-static struct frame* frame_list_kernel;
-static struct frame* frame_list_user;
 static uint32_t user_frames;
 static uint32_t kernel_frames;
 
@@ -48,6 +46,7 @@ void falloc_init(size_t user_frame_limit)
 {
     uint32_t *pd, *pt;
     size_t page;
+    uint32_t i;
     extern char _start, _end_kernel_text;
 
     /* Free memory starts at 1 MB and runs to the end of RAM. */
@@ -69,8 +68,8 @@ void falloc_init(size_t user_frame_limit)
     num_frame_used = pg_round_up(num_frame_used) / PGSIZE;
     
     /* Map and pin the first num_frame_used frames into init_page_dir */
+    pd = init_page_dir = ptov(num_frame_used * PGSIZE);
     num_frame_used++;
-    pd = init_page_dir = pg_round_up(frame_list_user + sizeof(struct frame) * user_frames);
     pt = NULL;
     for (page = 0; page < num_frame_used; page++)
     {
@@ -80,22 +79,33 @@ void falloc_init(size_t user_frame_limit)
         size_t pte_idx = pt_no(vaddr);
         bool in_kernel_text = &_start <= vaddr && vaddr < &_end_kernel_text;
 
-        if (pd[pde_idx] == 0) {
-            pt = palloc_get_page(PAL_ASSERT | PAL_ZERO);
+        if (pd[pde_idx] == 0)
+        {
+            pt = ptov(num_frame_used * PGSIZE);;
+            num_frame_used++;
             pd[pde_idx] = pde_create(pt);
         }
 
-        pt[pte_idx] = pte_create_kernel(vaddr, !in_kernel_text);
+        pt[pte_idx] = pte_is_pinned(pte_create_kernel(vaddr, !in_kernel_text));
+        
+        /* Initialize frame entries */
+        frame_list_kernel[i].pte = pt[pte_idx];
+        frame_list_kernel[i].sup_entry = NULL;
+        frame_list_kernel[i].owner = NULL;
     }
-    /* Setup open frame list */
-    
-    init_pool(&kernel_pool, free_start, kernel_frames, "kernel pool");
-    init_pool(&user_pool, free_start + kernel_frames * PGSIZE,
-              user_frames, "user pool");
-
-
-    /* Fill the list, pinning each frame in it? */
-
+    /* Build open frame table entries, don't care about entry value */
+    if (num_frame_used > kernel_frames)
+    {
+        PANIC("Falloc_init used more frames than kernel has");
+    }
+    for (i = num_frame_used < kernel_frames; ; i++)
+    {
+        list_push_back(&open_frame_list_kernel, frame_list_kernel[i].open_elem);
+    }
+    for (i = 0; i < user_frames; i++)
+    {
+        list_push_back(&open_frame_list_user, frame_list_user[i].open_elem);
+    }
 }
 
 /*! Obtains a single free frame and returns its kernel virtual
