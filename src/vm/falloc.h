@@ -33,11 +33,13 @@ struct frame {
     struct list_elem open_elem;     /*!< List element for open list. */
 }
 
-struct 
 void falloc_init (size_t user_page_limit);
 void *falloc_get_frame (enum falloc_flags);
 void *falloc_get_multiple (enum falloc_flags, size_t page_cnt);
 void falloc_free_frame (void *);
 void falloc_free_multiple (void *, size_t page_cnt);
+
+static void init_pool(struct pool *, void *base, size_t page_cnt, const char *name);
+static bool page_from_pool(const struct pool *, void *page);
 
 #endif /* vm/falloc.h */

@@ -165,7 +165,7 @@ static void paging_init(void) {
     size_t page;
     extern char _start, _end_kernel_text;
 
-    pd = init_page_dir = palloc_get_page(PAL_ASSERT | PAL_ZERO);
+    pd = init_page_dir; /* Address set in falloc_init */
     pt = NULL;
     for (page = 0; page < init_ram_pages; page++) {
         uintptr_t paddr = page * PGSIZE;

@@ -23,44 +23,79 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <string.h>
+#include "threads/init.h"
 #include "threads/loader.h"
 #include "threads/synch.h"
 #include "threads/vaddr.h"
 
 // TODO: Need a list of frame structs
+
 static struct list open_frame_list;
 static void **allocated_frames;
+
+static struct frame* frame_list_kernel;
+static struct frame* frame_list_user;
+static uint32_t user_frames;
+static uint32_t kernel_frames;
+
 
 /*! Two pools: one for kernel data, one for user frames. */
 static struct pool kernel_pool, user_pool;
 
-static void init_pool(struct pool *, void *base, size_t frame_cnt,
-                      const char *name);
-static bool frame_from_pool(const struct pool *, void *frame);
-
 /*! Initializes the frame allocator.  At most USER_FRAME_LIMIT
     frames are put into the user pool. */
-void falloc_init(size_t user_frame_limit) {
+void falloc_init(size_t user_frame_limit)
+{
+    uint32_t *pd, *pt;
+    size_t page;
+    extern char _start, _end_kernel_text;
+
     /* Free memory starts at 1 MB and runs to the end of RAM. */
     uint8_t *free_start = ptov(1024 * 1024);
-    uint8_t *free_end = ptov(init_ram_frames * PGSIZE);
+    uint8_t *free_end = ptov(init_ram_pages * PGSIZE);
     size_t free_frames = (free_end - free_start) / PGSIZE;
-    size_t user_frames = free_frames / 2;
-    size_t kernel_frames;
+    /* Give half of memory to kernel, half to user. */
+    user_frames = free_frames / 2;
     if (user_frames > user_frame_limit)
+    {
         user_frames = user_frame_limit;
+    }
     kernel_frames = free_frames - user_frames;
 
-    /* Give half of memory to kernel, half to user. */
+    /* Initialize frame table, take space out of kernel frames */
+    frame_list_kernel = ptov(1024 * 1024);
+    frame_list_user   = ptov(1024 * 1024) + sizeof(struct frame) * (1024*1024/PGSIZE + kernel_frames);
+    uint32_t num_frame_used = 1024 * 1024 + sizeof(struct frame) * (user_frames + kernel_frames)
+    num_frame_used = pg_round_up(num_frame_used) / PGSIZE;
+    
+    /* Map and pin the first num_frame_used frames into init_page_dir */
+    num_frame_used++;
+    pd = init_page_dir = pg_round_up(frame_list_user + sizeof(struct frame) * user_frames);
+    pt = NULL;
+    for (page = 0; page < num_frame_used; page++)
+    {
+        uintptr_t paddr = page * PGSIZE;
+        char *vaddr = ptov(paddr);
+        size_t pde_idx = pd_no(vaddr);
+        size_t pte_idx = pt_no(vaddr);
+        bool in_kernel_text = &_start <= vaddr && vaddr < &_end_kernel_text;
+
+        if (pd[pde_idx] == 0) {
+            pt = palloc_get_page(PAL_ASSERT | PAL_ZERO);
+            pd[pde_idx] = pde_create(pt);
+        }
+
+        pt[pte_idx] = pte_create_kernel(vaddr, !in_kernel_text);
+    }
+    /* Setup open frame list */
+    
     init_pool(&kernel_pool, free_start, kernel_frames, "kernel pool");
     init_pool(&user_pool, free_start + kernel_frames * PGSIZE,
               user_frames, "user pool");
-              
-    /* Initialize the frame list. */
-    list_init(&frame_list);
-    
+
+
     /* Fill the list, pinning each frame in it? */
-    
+
 }
 
 /*! Obtains a single free frame and returns its kernel virtual
@@ -97,7 +132,7 @@ void * falloc_get_frame(void *upage, enum alloc_flags flags, struct page_entry *
         if (flags & PAL_ASSERT)
             PANIC("falloc_get: out of frames");
     }
-    
+
     /* Remove frame from list of open frames. */
     elem = list_pop_front(&open_frame_list);
     frame_entry = list_entry(elem, struct frame, open_elem);
@@ -112,8 +147,7 @@ void * falloc_get_frame(void *upage, enum alloc_flags flags, struct page_entry *
     
     /* TODO: Associate frame address with frame entry struct. */
     frame_list_kernel[pg_no(frame)] = frame_entry; 
-    
-    
+
     return frames;
 }
 
@@ -152,7 +186,7 @@ void falloc_free_frame(void *frame) {
 
 /*! Initializes pool P as starting at START and ending at END,
     naming it NAME for debugging purposes. */
-static void init_pool(struct pool *f, void *base, size_t frame_cnt,
+void init_pool(struct pool *f, void *base, size_t frame_cnt,
                       const char *name) {
     /* We'll put the pool's used_map at its base.
        Calculate the space needed for the bitmap
@@ -171,7 +205,7 @@ static void init_pool(struct pool *f, void *base, size_t frame_cnt,
 }
 
 /*! Returns true if frame was allocated from POOL, false otherwise. */
-static bool frame_from_pool(const struct pool *pool, void *frame) {
+bool frame_from_pool(const struct pool *pool, void *frame) {
     size_t frame_no = pg_no(frame);
     size_t start_frame = pg_no(pool->base);
     size_t end_frame = start_frame + bitmap_size(pool->used_map);
