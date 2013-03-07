@@ -32,7 +32,7 @@ void pagedir_destroy(uint32_t *pd) {
     if (pd == NULL)
         return;
 
-    ASSERT(pd != init_page_dir);
+    //ASSERT(pd != init_page_dir);
     for (pde = pd; pde < pd + pd_no(PHYS_BASE); pde++)
     if (*pde & PTE_P) {
         uint32_t *pt = pde_get_pt(*pde);
@@ -94,7 +94,7 @@ bool pagedir_set_page(uint32_t *pd, void *upage, void *kpage, bool writable) {
     ASSERT(pg_ofs(kpage) == 0);
     ASSERT(is_user_vaddr(upage));
     ASSERT(vtop(kpage) >> PTSHIFT < init_ram_pages);
-    ASSERT(pd != init_page_dir);
+    //ASSERT(pd != init_page_dir);
 
     pte = lookup_page(pd, upage, true);
 

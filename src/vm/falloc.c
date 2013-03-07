@@ -29,7 +29,6 @@
 #include "threads/vaddr.h"
 
 // TODO: Need a list of frame structs
-
 static struct list open_frame_list_user;
 static struct list open_frame_list_kernel;
 
@@ -151,13 +150,14 @@ void * falloc_get_frame(void *upage, enum alloc_flags flags, struct page_entry *
     frame_entry->pte = pte;
     frame_entry->sup_entry = sup_entry;
     frame_entry->owner = t;
+    // TODO: add to process list?
     
     /* NOTE: need to force read/write bit to always be valid. */
     pagedir_set_page(pagedir, upage, frame, pte_is_read_write(*pte));
     
     /* TODO: Associate frame address with frame entry struct. */
-    frame_list_kernel[pg_no(frame)] = frame_entry; 
-
+    frame_list_kernel[pg_no(frame)] = frame_entry;  // TODO: May want to change this to be more robust
+    
     return frames;
 }
 
@@ -188,7 +188,7 @@ void falloc_free_frame(void *frame) {
     list_push_back(&open_frame_list, &(frame_entry->open_elem));
     
     /* Disassociate frame address from frame struct. */
-    frame_list_kernel[pg_no(frame)] = NULL;
+    frame_list_kernel[pg_no(frame)] = NULL; // TODO: May want to change this to be more robust
     
     ASSERT(bitmap_all(pool->used_map, frame_idx, 1));
     bitmap_set_multiple(pool->used_map, frame_idx, 1, false);
