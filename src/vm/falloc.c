@@ -176,7 +176,7 @@ frame *get_frame_addr(enum alloc_flags flags) {
     then the frame is filled with zeros.  If no frames are
     available, returns a null pointer, unless PAL_ASSERT is set in
     FLAGS, in which case the kernel panics. */
-void * falloc_get_frame(void *upage, enum alloc_flags flags, struct page_entry *sup_entry) {
+void *falloc_get_frame(void *upage, enum alloc_flags flags, struct page_entry *sup_entry) {
     void *frame;
     struct thread *t = thread_current();
     uint32_t *pagedir = t->pagedir;                     /* Get page directory */
@@ -204,31 +204,16 @@ void * falloc_get_frame(void *upage, enum alloc_flags flags, struct page_entry *
 
 /*! Frees the frame at frame. */
 void falloc_free_frame(void *frame) {
-    struct pool *pool;
-    size_t frame_idx;
     struct frame *frame_entry = addr_to_frame(frame);
     uint32_t pte = *(frame_entry->pte);
     struct list *open_frame_list;
-
-    ASSERT(pg_ofs(frame) == 0);
-    if (frame == NULL)
-        return;
-
-    if (frame_from_pool(&kernel_pool, frame))
-        pool = &kernel_pool;
-    else if (frame_from_pool(&user_pool, frame))
-        pool = &user_pool;
-    else
-        NOT_REACHED();
-
-    frame_idx = pg_no(frame) - pg_no(pool->base);
 
 #ifndef NDEBUG
     memset(frame, 0xcc, PGSIZE);
 #endif
 
     /* If it wasn't allocated, just return. */
-    if (!pte_is_present(pte) {
+    if (!pte_is_present(pte)) {
         return;
     }
 

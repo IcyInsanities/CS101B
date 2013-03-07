@@ -26,6 +26,8 @@
 #include "vm/falloc.h"
 
 
+static list alloc_page_list_user;
+
 /*! Initializes the page allocator.  At most USER_PAGE_LIMIT
     pages are put into the user pool. */
 void palloc_init(size_t user_page_limit)
@@ -112,9 +114,43 @@ void palloc_free_page(void *page) {
     palloc_free_multiple(page, 1);
 }
 
+/* A comparison of page entries based on virtual address for list elements */
 static bool palloc_page_less(const struct list_elem *A,
                              const struct list_elem *B,
                              void* aux UNUSED) {
+                             
+    uint8_t *vaddrA = list_entry(A, struct page_entry, elem)->vaddr;
+    uint8_t *vaddrB = list_entry(B, struct page_entry, elem)->vaddr;
+ 
+    return vaddrA < vaddrB;
+}
 
-    return TRUE;
+bool palloc_block_open(void *start_addr, size_t block_size) {
+
+    struct list *alloc_page_list;
+    void *end_addr;
+    
+    // calculate ending address (start_addr + page_size*block_size - 1)
+    end_addr = start_addr + (block_size*PGSIZE - 1);
+    
+    // need to check for overflow
+    if (start_addr > end_addr)
+    
+    
+    // need to confirm entire block is in smae space
+    // need to check wrap around case
+    // need to first determine if in user or kernel space
+    if (is_user_vaddr(start_addr) {
+        alloc_page_list = &alloc_page_list_user;
+    } else {
+        //alloc_page_list = &kernel_list (update name)
+    }
+    // loop until start address is found
+    for (e = list_begin(&alloc_page_list
+    
+    
+    // if next element in list is < ending_address, it isnt open
+        // also, make sure to check that there IS a next element (if not, then it is open)
+        
+    return 1;
 }
