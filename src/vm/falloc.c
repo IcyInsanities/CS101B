@@ -28,7 +28,8 @@
 #include "threads/vaddr.h"
 
 // TODO: Need a list of frame structs
-static struct list frame_list;
+static struct list open_frame_list;
+static void **allocated_frames;
 
 /*! Two pools: one for kernel data, one for user frames. */
 static struct pool kernel_pool, user_pool;
@@ -62,56 +63,6 @@ void falloc_init(size_t user_frame_limit) {
     
 }
 
-/*! Obtains and returns a group of FRAME_CNT contiguous free frames.
-    If PAL_USER is set, the frames are obtained from the user pool,
-    otherwise from the kernel pool.  If PAL_ZERO is set in FLAGS,
-    then the frames are filled with zeros.  If too few frames are
-    available, returns a null pointer, unless PAL_ASSERT is set in
-    FLAGS, in which case the kernel panics. */
-// TODO: modify to take pointer to pte as argument
-void * falloc_get_multiple(void *upage, enum alloc_flags flags, size_t frame_cnt) {
-    struct pool *pool = flags & PAL_USER ? &user_pool : &kernel_pool;
-    void *frames;
-    size_t frame_idx;
-    struct thread *t = thread_current();
-    uint32_t *pagedir = t->pagedir;                     /* Get page directory */
-    uint32_t *pte = lookup_page(pagedir, upage, true);  /* Get table entry */
-
-    if (frame_cnt == 0)
-        return NULL;
-
-    lock_acquire(&pool->lock);
-    frame_idx = bitmap_scan_and_flip(pool->used_map, 0, frame_cnt, false);
-    lock_release(&pool->lock);
-
-    if (frame_idx != BITMAP_ERROR)
-        frames = pool->base + PGSIZE * frame_idx;
-    else
-        frames = NULL;
-
-    if (frames != NULL) {
-        if (flags & PAL_ZERO)
-            memset(frames, 0, PGSIZE * frame_cnt);
-    }
-    else {
-        if (flags & PAL_ASSERT)
-            PANIC("falloc_get: out of frames");
-    }
-
-    // TODO: need to save returned pointer address somewhere
-    
-    // Remove frame from list of open frames
-    list_pop_front(&frame_list);
-    
-    list_push_back(&frame_list, );
-    
-    // TODO: associate frame with page
-    // NOTE: need to force read/write bit to always be valid
-    pagedir_set_page(pagedir, upage, frames, pte_is_read_write(*pte));
-    
-    return frames;
-}
-
 /*! Obtains a single free frame and returns its kernel virtual
     address.
     If PAL_USER is set, the frame is obtained from the user pool,
@@ -119,39 +70,84 @@ void * falloc_get_multiple(void *upage, enum alloc_flags flags, size_t frame_cnt
     then the frame is filled with zeros.  If no frames are
     available, returns a null pointer, unless PAL_ASSERT is set in
     FLAGS, in which case the kernel panics. */
-void * falloc_get_frame(void *upage, enum alloc_flags flags) {
-    return palloc_get_multiple(upage, flags, 1);
-}
-
-/*! Frees the FRAME_CNT frames starting at FRAMES. */
-void falloc_free_multiple(void *frames, size_t frame_cnt) {
-    struct pool *pool;
+void * falloc_get_frame(void *upage, enum alloc_flags flags, struct page_entry *sup_entry) {
+ struct pool *pool = flags & PAL_USER ? &user_pool : &kernel_pool;
+    void *frame;
     size_t frame_idx;
+    struct thread *t = thread_current();
+    uint32_t *pagedir = t->pagedir;                     /* Get page directory */
+    uint32_t *pte = lookup_page(pagedir, upage, true);  /* Get table entry */
+    struct list_elem elem;
+    struct frame *frame_entry;
 
-    ASSERT(pg_ofs(frames) == 0);
-    if (frames == NULL || frame_cnt == 0)
-        return;
+    lock_acquire(&pool->lock);
+    frame_idx = bitmap_scan_and_flip(pool->used_map, 0, 1, false);
+    lock_release(&pool->lock);
 
-    if (frame_from_pool(&kernel_pool, frames))
-        pool = &kernel_pool;
-    else if (frame_from_pool(&user_pool, frames))
-        pool = &user_pool;
+    if (frame_idx != BITMAP_ERROR)
+        frames = pool->base + PGSIZE * frame_idx;
     else
-        NOT_REACHED();
+        frame = NULL;
 
-    frame_idx = pg_no(frames) - pg_no(pool->base);
-
-#ifndef NDEBUG
-    memset(frames, 0xcc, PGSIZE * frame_cnt);
-#endif
-
-    ASSERT(bitmap_all(pool->used_map, frame_idx, frame_cnt));
-    bitmap_set_multiple(pool->used_map, frame_idx, frame_cnt, false);
+    if (frame != NULL) {
+        if (flags & PAL_ZERO)
+            memset(frame, 0, PGSIZE);
+    }
+    else {
+        if (flags & PAL_ASSERT)
+            PANIC("falloc_get: out of frames");
+    }
+    
+    /* Remove frame from list of open frames. */
+    elem = list_pop_front(&open_frame_list);
+    frame_entry = list_entry(elem, struct frame, open_elem);
+    
+    /* TODO: associate frame with page. */
+    frame_entry->pte = pte;
+    frame_entry->sup_entry = sup_entry;
+    frame_entry->owner = t;
+    
+    /* NOTE: need to force read/write bit to always be valid. */
+    pagedir_set_page(pagedir, upage, frame, pte_is_read_write(*pte));
+    
+    /* TODO: Associate frame address with frame entry struct. */
+    frame_list_kernel[pg_no(frame)] = frame_entry; 
+    
+    
+    return frames;
 }
 
 /*! Frees the frame at frame. */
 void falloc_free_frame(void *frame) {
-    falloc_free_multiple(frame, 1);
+    struct pool *pool;
+    size_t frame_idx;
+    struct frame *frame_entry = pg_no(frame);
+
+    ASSERT(pg_ofs(frame) == 0);
+    if (frame == NULL)
+        return;
+
+    if (frame_from_pool(&kernel_pool, frame))
+        pool = &kernel_pool;
+    else if (frame_from_pool(&user_pool, frame))
+        pool = &user_pool;
+    else
+        NOT_REACHED();
+
+    frame_idx = pg_no(frame) - pg_no(pool->base);
+
+#ifndef NDEBUG
+    memset(frame, 0xcc, PGSIZE);
+#endif
+
+    /* Add frame struct back to open list. */
+    list_push_back(&open_frame_list, &(frame_entry->open_elem));
+    
+    /* Disassociate frame address from frame struct. */
+    frame_list_kernel[pg_no(frame)] = NULL;
+    
+    ASSERT(bitmap_all(pool->used_map, frame_idx, 1));
+    bitmap_set_multiple(pool->used_map, frame_idx, 1, false);
 }
 
 /*! Initializes pool P as starting at START and ending at END,

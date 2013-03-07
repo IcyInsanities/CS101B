@@ -26,8 +26,9 @@ struct pool
 // 
 /*! A frame entry struct. */
 struct frame {
-    uint32_t *pte                   /*< Related page table entry. */
+    uint32_t *pte                   /*!< Related page table entry. */
     struct page_entry *sup_entry    /*!< Supplemental page table entry. */
+    struct thread *owner            /*!< Thread which owns the frame. */
     struct list_elem process_elem;  /*!< List element for process. */
     struct list_elem open_elem;     /*!< List element for open list. */
 }

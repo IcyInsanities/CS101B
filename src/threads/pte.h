@@ -114,12 +114,12 @@ static inline void *pte_get_page(uint32_t pte) {
 }
 
 /*! Returns whether page is pinned or not. */
-static inline bool *pte_is_pinned(uint32_t pte) {
+static inline bool pte_is_pinned(uint32_t pte) {
   return (bool) pte & PTE_PIN;
 }
 
 /*! Returns whether page is read/write or not. */
-static inline bool *pte_is_read_write(uint32_t pte) {
+static inline bool pte_is_read_write(uint32_t pte) {
   return (bool) pte & PTE_W;
 }
 
