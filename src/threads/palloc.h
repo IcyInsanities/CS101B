@@ -2,6 +2,8 @@
 #define THREADS_PALLOC_H
 
 #include <stddef.h>
+#include <list.h>
+#include "vm/falloc.h"
 
 /* Indicate where to find page data */
 enum page_load
@@ -20,10 +22,10 @@ struct page_entry
     enum page_load source;          /*!< Location type of page data */
     void *data;                     /*!< Pointer to data location, unused if zero page */
     
-    struct listelem elem;           /*!< Enable putting page entries into list */
+    struct list_elem elem;          /*!< Enable putting page entries into list */
 };
 
-void palloc_init (size_t user_page_limit);
+void palloc_init (void);
 void *palloc_get_page (enum alloc_flags);
 void *palloc_get_multiple (enum alloc_flags, size_t page_cnt);
 void palloc_free_page (void *);
