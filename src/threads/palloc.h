@@ -8,9 +8,10 @@
 /* How to allocate pages. */
 enum palloc_flags
 {
-    PAL_ASSERT = 001,           /* Panic on failure. */
-    PAL_ZERO = 002,             /* Zero frame contents. */
-    PAL_USER = 004              /* User frame. */
+    PAL_ASSERT = 0x01,           /* Panic on failure. */
+    PAL_ZERO = 0x02,             /* Zero frame contents. */
+    PAL_USER = 0x04,             /* User frame. */
+    PAL_PIN  = 0x08              /* User frame. */
 };
 
 /* Indicate where to find page data */
