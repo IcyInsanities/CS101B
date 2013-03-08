@@ -28,6 +28,7 @@
 #include "threads/vaddr.h"
 #include "threads/pte.h"
 #include "vm/falloc.h"
+#include "userprog/syscall.h"
 
 static bool palloc_block_valid(void *start_addr, size_t block_size);
 static bool palloc_page_less(const struct list_elem *A,
@@ -61,6 +62,7 @@ void *palloc_make_multiple_addr(void * start_addr,
     /* Page data should not be in a frame. */
     if (load_type == FRAME_PAGE) {
         // TODO: handle
+        ASSERT(false);
     }
     
     /* Use to correct pool based on whether it is paging data or not. */
@@ -267,6 +269,7 @@ void palloc_free_multiple(void *pages, size_t page_cnt) {
     /* Make sure the block to free is valid. */
     if(!palloc_block_valid(pages, page_cnt)) {
         // Kill process
+        kill_current_thread(1);
     }
     
     /* Check if from user or kernel space. */
@@ -296,6 +299,7 @@ void palloc_free_multiple(void *pages, size_t page_cnt) {
             /* If reached the end of paging list, page was not allocated, kill process. */
             else if (list_next(e) == list_end(alloc_page_list) && paging_list) {
                 // TODO: Kill process
+                kill_current_thread(1);
             }
         }
         
@@ -307,7 +311,7 @@ void palloc_free_multiple(void *pages, size_t page_cnt) {
     }
     
     /* Go through all the pages in the block, freeing them. */
-    for (e = list_begin(alloc_page_list), i = 0;
+    for (e = &(start_page->elem), i = 0;
         e != list_end(alloc_page_list), i < page_cnt;
         e = list_next(e), i++)
     {
@@ -319,10 +323,11 @@ void palloc_free_multiple(void *pages, size_t page_cnt) {
         
             // TODO: Kill the process if user
             if (user_space) {
-                
+                kill_current_thread(1);
             }
             // TODO: Kernel panic if kernel
             else {
+                PANIC("palloc_free: unallocated page in block to free");
                 
             }
         }
@@ -366,6 +371,8 @@ bool palloc_block_open(void *start_addr, size_t block_size) {
     struct list_elem *e;
     struct list_elem *next_page;
     struct page_entry *start_page;
+    bool page_found = false;
+    bool paging_list = false;
     
     /* Calculate ending address of the block. */
     end_addr = start_addr + (block_size*PGSIZE - 1);
@@ -376,30 +383,66 @@ bool palloc_block_open(void *start_addr, size_t block_size) {
         return false;
     }
 
-    /* If in user space, get list of supplemental page entries from process. */
-    if (is_user_vaddr(start_addr)) {
-        alloc_page_list = &(t->page_entries);
-    }
-    /* Otherwise, get list of supplemental page entries from kernel. */
-    else {
-        alloc_page_list = init_page_dir_sup;
-    }
+    // TODO: NEED TO FUCKING CHANGE THIS TO SEARCH BOTH LIST
+    ///* If in user space, get list of supplemental page entries from process. */
+    //if (is_user_vaddr(start_addr)) {
+    //    alloc_page_list = &(t->page_entries);
+    //}
+    ///* Otherwise, get list of supplemental page entries from kernel. */
+    //else {
+    //    alloc_page_list = init_page_dir_sup;
+    //}
+    //
+    ///* Loop until start address is reached in allocated list. */
+    //for (e = list_begin(alloc_page_list); e != list_end(alloc_page_list);
+    //    e = list_next(e))
+    //{
+    //    start_page = list_entry(e, struct page_entry, elem);
+    //    
+    //    /* If reached the end of list, no more allocated pages, block open. */
+    //    if (list_next(e) == list_end(alloc_page_list)) {
+    //        return true;
+    //    }
+    //    /* If reached starting address, can check unallocated until end addr */
+    //    else if (((void *) start_page->vaddr) >= start_addr) {
+    //        /* Get the next allocated page. */
+    //        next_page = list_next(e); // DEBUG: should this be next or current???
+    //        break;
+    //    }
+    //}
     
-    /* Loop until start address is reached in allocated list. */
-    for (e = list_begin(alloc_page_list); e != list_end(alloc_page_list);
-        e = list_next(e))
-    {
-        start_page = list_entry(e, struct page_entry, elem);
-        
-        /* If reached the end of list, no more allocated pages, block open. */
-        if (list_next(e) == list_end(alloc_page_list)) {
-            return true;
+    /* Look in the process list for the starting page first. */
+    alloc_page_list = &(t->page_entries);
+    
+    while (!page_found) {
+    
+        /* Find the starting address in the supplemental page table. */
+        for (e = list_begin(alloc_page_list); e != list_end(alloc_page_list);
+            e = list_next(e))
+        {
+            start_page = list_entry(e, struct page_entry, elem);
+            
+            /* If a match is found, it is allocated and not open. */
+            if (((void *) start_page->vaddr) == start_addr) {
+                return false;
+            }
+            /* If end of paging list, no more allocated pages, block open. */
+            else if (list_next(e) == list_end(alloc_page_list) && paging_list) {
+                return true;
+            }
+            /* If reached starting address, can check unallocated until end addr */
+            else if (((void *) start_page->vaddr) > start_addr) {
+                /* Get the next allocated page. */
+                next_page = start_page; // DEBUG: should this be next or current???
+                page_found = true;
+                break;
+            }
         }
-        /* If reached starting address, can check unallocated until end addr */
-        else if (((void *) start_page->vaddr) >= start_addr) {
-            /* Get the next allocated page. */
-            next_page = list_next(e);
-            break;
+        
+        /* Move on to paging list if not in process list. */
+        if (!page_found) {
+            paging_list = true;
+            alloc_page_list = init_page_dir_sup;
         }
     }
     
@@ -428,6 +471,46 @@ static bool palloc_block_valid(void *start_addr, size_t block_size) {
     }
 }
 
+// TODO: finish implementing this properly
+struct page_entry *palloc_addr_to_page_entry(void *page_addr) {
+    struct list *alloc_page_list;
+    struct thread *t = thread_current();
+    struct list_elem *e;
+    struct page_entry *page;
+    bool page_found = false;
+    bool paging_list = false;
+    
+    /* Look in the process list for the page first. */
+    alloc_page_list = &(t->page_entries);
+    
+    while (!page_found) {
+    
+        /* Find the address in the supplemental page table. */
+        for (e = list_begin(alloc_page_list); e != list_end(alloc_page_list);
+            e = list_next(e))
+        {
+            page = list_entry(e, struct page_entry, elem);
+            
+            /* If found address, return its supplemental entry */
+            if (((void *) page->vaddr) == page_addr) {
+                return page;
+            }
+            /* If end of paging list, not allocated, return NULL. */
+            else if (list_next(e) == list_end(alloc_page_list) && paging_list) {
+                return NULL;
+            }
+            
+        }
+        
+        /* Move on to paging list if not in process list. */
+        if (!page_found) {
+            paging_list = true;
+            alloc_page_list = init_page_dir_sup;
+        }
+    }
+    
+    return NULL;
+}
 //[x]palloc_make_page_addr()
 //[x]palloc_make_multiple_addr()
 //address first argument

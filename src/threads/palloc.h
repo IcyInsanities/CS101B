@@ -47,5 +47,6 @@ void *palloc_make_page_addr(void *, enum palloc_flags, enum page_load, void *, v
 void *palloc_make_multiple_addr(void *, enum palloc_flags, size_t page_cnt, enum page_load, void *, void *);
 void *_palloc_get_multiple(enum palloc_flags, size_t page_cnt, enum page_load, void *, void *);
 void *_palloc_get_page(enum palloc_flags flags, enum page_load, void *, void *);
+struct page_entry *palloc_addr_to_page_entry(void *);
 
 #endif /* threads/palloc.h */

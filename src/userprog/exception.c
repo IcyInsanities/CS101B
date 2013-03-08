@@ -148,7 +148,7 @@ static void page_fault(struct intr_frame *f) {
 
     struct thread *t = thread_current();
     uint32_t *pagedir = t->pagedir;
-    struct page_entry *pg_entry = palloc_addr_to_page_entry(fault_page, 1);
+    struct page_entry *pg_entry = palloc_addr_to_page_entry(fault_page);
     
     /* Special case: handle stack pointer increase. The maximum size increase
        is 64 bytes, a new page is allocated which will be faulted in the
@@ -159,7 +159,7 @@ static void page_fault(struct intr_frame *f) {
             kill_current_thread(-1); /* Failed to increase stack */
         }
         /* Need to reobtain page_entry to fault stack page in */
-        pg_entry = palloc_addr_to_page_entry(t->stack_bottom, 1);
+        pg_entry = palloc_addr_to_page_entry(t->stack_bottom);
     }
     
     /* Handle rights violation if page was present, or if no expected at address

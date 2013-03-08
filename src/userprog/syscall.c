@@ -15,7 +15,6 @@
 #define INVALID_FILE_ID -1      // File identifier for an invalid file.
 
 static void syscall_handler(struct intr_frame *);
-void kill_current_thread(int status);
 
 // Prototypes for system call functions
 void syscall_halt    (struct intr_frame *, void * arg1, void * arg2, void * arg3);
