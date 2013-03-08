@@ -479,38 +479,9 @@ static bool load_segment(struct file *file, off_t ofs, uint8_t *upage,
     ASSERT((read_bytes + zero_bytes) % PGSIZE == 0);
     ASSERT(pg_ofs(upage) == 0);
     ASSERT(ofs % PGSIZE == 0);
-
-    file_seek(file, ofs);
-    while (read_bytes > 0 || zero_bytes > 0) {
-        /* Calculate how to fill this page.
-           We will read PAGE_READ_BYTES bytes from FILE
-           and zero the final PAGE_ZERO_BYTES bytes. */
-        size_t page_read_bytes = read_bytes < PGSIZE ? read_bytes : PGSIZE;
-        size_t page_zero_bytes = PGSIZE - page_read_bytes;
-
-        /* Get a page of memory. */
-        uint8_t *kpage = palloc_get_page(PAL_USER);
-        if (kpage == NULL)
-            return false;
-
-        /* Load this page. */
-        if (file_read(file, kpage, page_read_bytes) != (int) page_read_bytes) {
-            palloc_free_page(kpage);
-            return false;
-        }
-        memset(kpage + page_read_bytes, 0, page_zero_bytes);
-
-        // TODO: Lazy allocation, will fault in
-        ///* Add the page to the process's address space. */
-        //if (!install_page(upage, kpage, writable)) {
-        //    palloc_free_page(kpage);
-        //    return false;
-        //}
-
-        /* Advance. */
-        read_bytes -= page_read_bytes;
-        zero_bytes -= page_zero_bytes;
-        upage += PGSIZE;
+    
+    if (NULL == _palloc_get_multiple(PAL_USER, pg_round_up(read_bytes)/PGSIZE, FILE_PAGE, file, ofs)) {
+        return false;
     }
     return true;
 }
@@ -518,22 +489,11 @@ static bool load_segment(struct file *file, off_t ofs, uint8_t *upage,
 /*! Create a minimal stack by mapping a zeroed page at the top of
     user virtual memory. */
 static bool setup_stack(void **esp) {
-    uint8_t *kpage;
-    bool success = false;
 
-    kpage = palloc_make_page_addr(PHYS_BASE - PGSIZE, PAL_USER | PAL_ZERO);
-    if (kpage != NULL) {
-        success = install_page(((uint8_t *) PHYS_BASE) - PGSIZE, kpage, true);
-        if (success)
-            *esp = PHYS_BASE;
-        else
-            palloc_free_page(kpage);
+    if (NULL == palloc_make_page_addr(PHYS_BASE - PGSIZE, PAL_USER | PAL_ZERO)) {
+        return false;
     }
-    
-    /* TODO: Get frame without waiting for page fault on stack */
-    // falloc_get_frame(kpage, 
-    
-    return success;
+    return true;
 }
 
 /*! Adds a mapping from user virtual address UPAGE to kernel

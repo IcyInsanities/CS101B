@@ -30,6 +30,7 @@ struct page_entry
     
     enum page_load source;          /*!< Location type of page data */
     void *data;                     /*!< Pointer to data location, unused if zero page */
+    void *f_ofs;                    /*!< Offset inside file */
     
     struct list_elem elem;          /*!< Enable putting page entries into list */
 };
