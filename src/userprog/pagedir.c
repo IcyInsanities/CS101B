@@ -19,7 +19,7 @@ static void invalidate_pagedir(uint32_t *);
     addresses, but none for user virtual addresses.  Returns the new page
     directory, or a null pointer if memory allocation fails. */
 uint32_t * pagedir_create(void) {
-    uint32_t *pd = palloc_get_page(0);
+    uint32_t *pd = palloc_get_page(PAL_PIN);
     if (pd != NULL)
         memcpy(pd, init_page_dir, PGSIZE);
     return pd;
@@ -65,7 +65,7 @@ uint32_t * lookup_page(uint32_t *pd, const void *vaddr, bool create) {
     pde = pd + pd_no(vaddr);
     if (*pde == 0)  {
         if (create) {
-            pt = palloc_get_page(PAL_ZERO);
+            pt = palloc_get_page(PAL_ZERO | PAL_PIN);
             if (pt == NULL) 
                 return NULL; 
 

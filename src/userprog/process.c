@@ -500,11 +500,12 @@ static bool load_segment(struct file *file, off_t ofs, uint8_t *upage,
         }
         memset(kpage + page_read_bytes, 0, page_zero_bytes);
 
-        /* Add the page to the process's address space. */
-        if (!install_page(upage, kpage, writable)) {
-            palloc_free_page(kpage);
-            return false;
-        }
+        // TODO: Lazy allocation, will fault in
+        ///* Add the page to the process's address space. */
+        //if (!install_page(upage, kpage, writable)) {
+        //    palloc_free_page(kpage);
+        //    return false;
+        //}
 
         /* Advance. */
         read_bytes -= page_read_bytes;
@@ -520,7 +521,7 @@ static bool setup_stack(void **esp) {
     uint8_t *kpage;
     bool success = false;
 
-    kpage = palloc_get_page(PAL_USER | PAL_ZERO);
+    kpage = palloc_make_page_addr(PHYS_BASE - PGSIZE, PAL_USER | PAL_ZERO);
     if (kpage != NULL) {
         success = install_page(((uint8_t *) PHYS_BASE) - PGSIZE, kpage, true);
         if (success)
@@ -528,6 +529,10 @@ static bool setup_stack(void **esp) {
         else
             palloc_free_page(kpage);
     }
+    
+    /* TODO: Get frame without waiting for page fault on stack */
+    // falloc_get_frame(kpage, 
+    
     return success;
 }
 
