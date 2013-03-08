@@ -68,11 +68,12 @@ void falloc_init(size_t user_frame_limit)
         user_frames = user_frame_limit;
     }
     kernel_frames = free_frames - user_frames;
+    kernel_frames += 1024 * 1024 / PGSIZE;
 
     /* Initialize frame table, take space out of kernel frames */
     frame_list_kernel = ptov(1024 * 1024);
-    frame_list_user   = ptov(1024 * 1024) + sizeof(struct frame) * (1024*1024/PGSIZE + kernel_frames);
-    uint32_t num_frame_used = 1024 * 1024 + sizeof(struct frame) * (user_frames + kernel_frames);
+    frame_list_user   = ptov(1024 * 1024) + sizeof(struct frame) * (kernel_frames);
+    uint32_t num_frame_used = sizeof(struct frame) * (user_frames + kernel_frames);
     num_frame_used = (uint32_t) pg_round_up((void *) num_frame_used) / PGSIZE;
     /* Compute space for page_entry structs for these frames */
     uint32_t num_frame_for_pagedir = (sizeof(struct page_entry) * num_frame_used / PGSIZE) + 1;
