@@ -480,7 +480,7 @@ static bool load_segment(struct file *file, off_t ofs, uint8_t *upage,
     ASSERT(pg_ofs(upage) == 0);
     ASSERT(ofs % PGSIZE == 0);
     
-    if (NULL == _palloc_get_multiple(PAL_USER, pg_round_up(read_bytes)/PGSIZE, FILE_PAGE, file, ofs)) {
+    if (NULL == _palloc_get_multiple(PAL_USER, (uint32_t) pg_round_up((void*)read_bytes)/PGSIZE, FILE_PAGE, file, ofs)) {
         return false;
     }
     return true;

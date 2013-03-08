@@ -46,7 +46,8 @@ void *palloc_make_multiple_addr(void * start_addr,
                                 enum palloc_flags flags, 
                                 size_t page_cnt,
                                 enum page_load load_type, 
-                                void *data) {
+                                void *data,
+                                void *f_ofs) {
                                 
     struct list *alloc_page_list;
     int i;
@@ -54,6 +55,7 @@ void *palloc_make_multiple_addr(void * start_addr,
     uint32_t *pagedir;
     uint32_t *pte;
     void *vaddr;
+    void *curr_f_ofs = f_ofs;
     
     /* Page data should not be in a frame. */
     if (load_type == FRAME_PAGE) {
@@ -98,6 +100,15 @@ void *palloc_make_multiple_addr(void * start_addr,
             page_i->data = data;
         }
         
+        if (load_type == FILE_PAGE) {
+            /* Get the file offset. */
+            curr_f_ofs += PGSIZE;
+            page_i->f_ofs = curr_f_ofs;
+        }
+        else {
+            page_i->f_ofs = NULL;
+        }
+        
         pte = lookup_page(pagedir, vaddr, true);
         
         /* Pin the page if necessary. */
@@ -119,7 +130,7 @@ void *palloc_make_page_addr(void * start_addr, enum palloc_flags flags,
                             enum page_load load_type, void *data) {
 
     /* Allocate one page at the specified address, and return. */
-    return palloc_make_multiple_addr(start_addr, flags, 1, load_type, data);
+    return palloc_make_multiple_addr(start_addr, flags, 1, load_type, data, NULL);
 
 }
 
@@ -131,12 +142,12 @@ void *palloc_make_page_addr(void * start_addr, enum palloc_flags flags,
     FLAGS, in which case the kernel panics. */
 void *palloc_get_multiple(enum palloc_flags flags, size_t page_cnt) {
 
-    return _palloc_get_multiple(flags, page_cnt, ZERO_PAGE, NULL);
+    return _palloc_get_multiple(flags, page_cnt, ZERO_PAGE, NULL, NULL);
 }
     
         // take enum page_load
     // take void* to data
-void *_palloc_get_multiple(enum palloc_flags flags, size_t page_cnt, enum page_load load_type, void *data) {
+void *_palloc_get_multiple(enum palloc_flags flags, size_t page_cnt, enum page_load load_type, void *data, void *f_ofs) {
     /*
     struct pool *pool = flags & PAL_USER ? &user_pool : &kernel_pool;
     void *pages;
@@ -189,7 +200,7 @@ void *_palloc_get_multiple(enum palloc_flags flags, size_t page_cnt, enum page_l
     }
     
     /* Allocate the block. */
-    start_addr = palloc_make_multiple_addr(start_addr, page_cnt, 1, load_type, data);
+    start_addr = palloc_make_multiple_addr(start_addr, page_cnt, 1, load_type, data, f_ofs);
     
     return start_addr;
 }
@@ -202,11 +213,11 @@ void *_palloc_get_multiple(enum palloc_flags flags, size_t page_cnt, enum page_l
     available, returns a null pointer, unless PAL_ASSERT is set in
     FLAGS, in which case the kernel panics. */
 void *palloc_get_page(enum palloc_flags flags) {
-    return _palloc_get_page(flags, ZERO_PAGE, NULL);
+    return _palloc_get_page(flags, ZERO_PAGE, NULL, NULL);
 }
 
-void *_palloc_get_page(enum palloc_flags flags, enum page_load load_type, void *data) {
-    return _palloc_get_multiple(flags, 1, load_type, data);
+void *_palloc_get_page(enum palloc_flags flags, enum page_load load_type, void *data, void *f_ofs) {
+    return _palloc_get_multiple(flags, 1, load_type, data, f_ofs);
 }
 
 /*! Frees the PAGE_CNT pages starting at PAGES. */
