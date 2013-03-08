@@ -51,7 +51,7 @@ void *palloc_make_multiple_addr(void * start_addr,
                                 void *f_ofs) {
                                 
     struct list *alloc_page_list;
-    int i;
+    uint32_t i;
     struct thread *t = thread_current();
     uint32_t *pagedir;
     uint32_t *pte;
@@ -94,6 +94,7 @@ void *palloc_make_multiple_addr(void * start_addr,
         /* Initialize the page. */
         page_i->vaddr = vaddr;
         page_i->source = load_type; // DEBUG: set to zero page by default for now
+
         if (load_type == ZERO_PAGE) {
             page_i->data = NULL;
         }
@@ -115,6 +116,11 @@ void *palloc_make_multiple_addr(void * start_addr,
         /* Pin the page if necessary. */
         if (flags & PAL_PIN) {
            *pte = *pte | PTE_PIN;
+        }
+        
+        /* Check if read only. */
+        if (flags & PAL_READO) {
+            *pte = *pte & (~PTE_W);
         }
 
         // TODO: need to handle flags properly (done? -shir)
@@ -177,10 +183,9 @@ void *_palloc_get_multiple(enum palloc_flags flags, size_t page_cnt, enum page_l
     
     return pages;
     */
-    struct list *alloc_page_list;
+    
     void *start_addr;
     int i;
-    struct thread *t = thread_current();
     
     /* Look for an open block. */
     for (i = 1; i < NUM_PAGES; i++) {
@@ -201,7 +206,7 @@ void *_palloc_get_multiple(enum palloc_flags flags, size_t page_cnt, enum page_l
     }
     
     /* Allocate the block. */
-    start_addr = palloc_make_multiple_addr(start_addr, page_cnt, 1, load_type, data, f_ofs);
+    start_addr = palloc_make_multiple_addr(start_addr, flags, page_cnt, load_type, data, f_ofs);
     
     return start_addr;
 }
@@ -249,7 +254,7 @@ void palloc_free_multiple(void *pages, size_t page_cnt) {
     
 */
     
-    int i = 0;
+    uint32_t i = 0;
     void *vaddr = pages;
     struct list *alloc_page_list;
     bool user_space;
@@ -391,7 +396,7 @@ bool palloc_block_open(void *start_addr, size_t block_size) {
             return true;
         }
         /* If reached starting address, can check unallocated until end addr */
-        else if (start_page->vaddr >= start_addr) {
+        else if (((void *) start_page->vaddr) >= start_addr) {
             /* Get the next allocated page. */
             next_page = list_next(e);
             break;
@@ -399,7 +404,7 @@ bool palloc_block_open(void *start_addr, size_t block_size) {
     }
     
     /* If the next alloc page is after ending address, block is open. */
-    if (list_entry(next_page, struct page_entry, elem)->vaddr > end_addr) {
+    if (((void *) list_entry(next_page, struct page_entry, elem)->vaddr) > end_addr) {
         return true;
     }
     /* Otherwise, the block is not open. */
@@ -437,3 +442,5 @@ static bool palloc_block_valid(void *start_addr, size_t block_size) {
     // account for pin flag
 
 // should we panic or kill the process on an invalid block? (requested block wraps, crosses kernel-user boundary, etc?)
+
+// implement read only (PAL_READO)
