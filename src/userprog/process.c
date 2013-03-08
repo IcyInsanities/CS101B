@@ -509,6 +509,10 @@ static bool load_segment(struct file *file, off_t ofs, uint8_t *upage,
     if (NULL == palloc_make_multiple_addr(upage, flags, (uint32_t) pg_round_up((void*)read_bytes)/PGSIZE, FILE_PAGE, file, (void *) ofs)) {
         return false;
     }
+    /* Account for full pages of zero bytes */
+    if (NULL == palloc_make_multiple_addr(upage + (uint32_t) pg_round_up((void*) read_bytes), flags, zero_bytes/PGSIZE, ZERO_PAGE, NULL, NULL)) {
+        return false;
+    }
     return true;
 }
 
