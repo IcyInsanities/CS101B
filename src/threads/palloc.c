@@ -53,6 +53,7 @@ void *palloc_make_multiple_addr(void * start_addr,
     struct thread *t = thread_current();
     uint32_t *pagedir;
     uint32_t *pte;
+    void *vaddr;
     
     /* Page data should not be in a frame. */
     if (load_type == FRAME_PAGE) {
@@ -81,8 +82,11 @@ void *palloc_make_multiple_addr(void * start_addr,
         
         ASSERT (page_i != NULL);
         
+        /* Get the vrtual address for the page. */
+        vaddr = (uint8_t *) (start_addr + (i * PGSIZE));
+        
         /* Initialize the page. */
-        page_i->vaddr = (uint8_t *) (start_addr + (i * PGSIZE));
+        page_i->vaddr = vaddr;
         page_i->source = load_type; // DEBUG: set to zero page by default for now
         if (load_type == ZERO_PAGE) {
             page_i->data = NULL;
@@ -91,7 +95,7 @@ void *palloc_make_multiple_addr(void * start_addr,
             page_i->data = data;
         }
         
-        pte = lookup_page(pagedir, *vaddr, true);
+        pte = lookup_page(pagedir, vaddr, true);
         
         /* Pin the page if necessary. */
         if (flags & PAL_PIN) {
