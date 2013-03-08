@@ -51,6 +51,8 @@ void *palloc_make_multiple_addr(void * start_addr,
     struct list *alloc_page_list;
     int i;
     struct thread *t = thread_current();
+    uint32_t *pagedir;
+    uint32_t *pte;
     
     /* Page data should not be in a frame. */
     if (load_type == FRAME_PAGE) {
@@ -60,8 +62,10 @@ void *palloc_make_multiple_addr(void * start_addr,
     /* Use to correct pool based on whether requested user or kernel space. */
     if (flags & PAL_USER) {
         alloc_page_list = &(t->page_entries);
+        pagedir = t->pagedir;
     } else {
         alloc_page_list = init_page_dir_sup;
+        pagedir = init_page_dir;
     }
     
     /* If block at specified address is not open, return NULL. */
@@ -87,7 +91,13 @@ void *palloc_make_multiple_addr(void * start_addr,
             page_i->data = data;
         }
         
-        // TODO: check flag whether should pin or not
+        pte = lookup_page(pagedir, *vaddr, true);
+        
+        /* Pin the page if necessary. */
+        if (flags & PAL_PIN) {
+           *pte = *pte | PTE_PIN;
+        }
+
         // TODO: need to handle flags properly
         
         /* Add to list of allocated pages in order by address. */
@@ -291,7 +301,6 @@ void palloc_free_multiple(void *pages, size_t page_cnt) {
         /* Go to the next page. */
         vaddr += PGSIZE;
     }
-        
     
 }
 
