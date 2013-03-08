@@ -21,6 +21,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <list.h>
+#include "threads/fmalloc.h"
 #include "threads/init.h"
 #include "threads/loader.h"
 #include "threads/synch.h"
@@ -127,10 +128,10 @@ void *palloc_make_multiple_addr(void * start_addr,
 }
 
 void *palloc_make_page_addr(void * start_addr, enum palloc_flags flags,
-                            enum page_load load_type, void *data) {
+                            enum page_load load_type, void *data, void *f_ofs) {
 
     /* Allocate one page at the specified address, and return. */
-    return palloc_make_multiple_addr(start_addr, flags, 1, load_type, data, NULL);
+    return palloc_make_multiple_addr(start_addr, flags, 1, load_type, data, f_ofs);
 
 }
 
