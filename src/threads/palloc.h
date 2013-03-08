@@ -9,9 +9,10 @@
 enum palloc_flags
 {
     PAL_ASSERT = 0x01,           /* Panic on failure. */
-    PAL_ZERO = 0x02,             /* Zero frame contents. */
-    PAL_USER = 0x04,             /* User frame. */
-    PAL_PIN  = 0x08              /* User frame. */
+    PAL_ZERO   = 0x02,           /* Zero page contents. */
+    PAL_USER   = 0x04,           /* User page. */
+    PAL_PIN    = 0x08            /* Pin page. */
+    PAL_PAGING = 0x10            /* Paging data. */
 };
 
 /* Indicate where to find page data */
