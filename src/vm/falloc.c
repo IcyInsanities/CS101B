@@ -29,6 +29,8 @@
 #include "threads/pte.h"
 #include "threads/synch.h"
 #include "threads/vaddr.h"
+#include "filesys/filesys.h"
+#include "filesys/file.h"
 
 static struct frame *addr_to_frame(void *frame_addr);
 
@@ -193,7 +195,8 @@ void *falloc_get_frame(void *upage, bool user, struct page_entry *sup_entry)
     uint32_t *pagedir = t->pagedir;                     /* Get page directory */
     uint32_t *pte = lookup_page(pagedir, upage, true);  /* Get table entry */
     struct frame *frame_entry;
-
+    uint32_t bytes_read;
+    
     /* Get the frame entry. */
     frame_entry = get_frame_addr(user);
     frame = frame_entry->faddr;
@@ -213,6 +216,8 @@ void *falloc_get_frame(void *upage, bool user, struct page_entry *sup_entry)
         memset(frame, 0, PGSIZE);
         break;
     case FILE_PAGE:
+        bytes_read = (uint32_t) file_read(sup_entry->data, upage, (off_t) PGSIZE);
+        memset(upage + bytes_read, 0,  PGSIZE - bytes_read);
     case SWAP_PAGE:
         memset(frame, 0, PGSIZE);
         break;
