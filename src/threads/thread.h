@@ -130,6 +130,7 @@ struct thread {
     /**@}*/
 #endif
 
+    struct list frames;                 /*!< List of owned frames. */
     struct list page_entries;           /*!< List of supplemental page entries. */
 
     /*! Owned by thread.c. */

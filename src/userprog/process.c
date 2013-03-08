@@ -202,7 +202,28 @@ int process_wait(tid_t child_tid) {
 void process_exit(void) {
     struct thread *cur = thread_current();
     uint32_t *pd;
+    struct list_elem *e;
 
+    /* Clean up all frames and pages, and related data. */
+    // Things to clean up in thread struct
+    //      - supplemental page entries (t->page_entries)
+    //      - free all frames
+    //      - free all pages
+
+    /* Free all the frames in the process. */
+    while (!list_empty(&(cur->frames))) {
+        e = list_front(&(cur->frames));
+        struct frame *frame_e = list_entry(e, struct frame, process_elem);
+        falloc_free_frame(frame_e->faddr);
+    }
+    
+    /* Free all the pages in the process. */
+    while (!list_empty(&(cur->page_entries))) {
+        e = list_front(&(cur->page_entries));
+        struct page_entry *page_e = list_entry(e, struct page_entry, elem);
+        palloc_free_page(page_e->vaddr);
+    }
+    
     /* Destroy the current process's page directory and switch back
        to the kernel-only page directory. */
     pd = cur->pagedir;

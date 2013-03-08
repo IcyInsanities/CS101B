@@ -146,6 +146,8 @@ struct frame *get_frame_addr(bool user)
     struct list_elem *elem;
     struct frame *frame_entry;
     struct list *open_frame_list;
+    struct thread *t = thread_current();
+    
     /* Choose the correct frame list. */
     if (user)
     {
@@ -172,6 +174,11 @@ struct frame *get_frame_addr(bool user)
 
     /* Remove frame from list of open frames. */
     frame_entry = list_entry(elem, struct frame, open_elem);
+    
+    /* Add to process list if in user space. */
+    if (user) {
+        list_push_back(&(t->frames), &(frame_entry->process_elem));
+    }
 
     return frame_entry;
 }
@@ -195,8 +202,6 @@ void *falloc_get_frame(void *upage, bool user, struct page_entry *sup_entry)
     frame_entry->pte = pte;
     frame_entry->sup_entry = sup_entry;
     frame_entry->owner = t;
-    
-    // TODO: add to process list
 
     /* NOTE: need to force read/write bit to always be valid. */
     pagedir_set_page(pagedir, upage, frame, pte_is_read_write(*pte));
@@ -212,7 +217,7 @@ void *falloc_get_frame(void *upage, bool user, struct page_entry *sup_entry)
         memset(frame, 0, PGSIZE);
         break;
     case FRAME_PAGE:    /* Cannot have page already in frame */
-        ASSERT(false);    
+        ASSERT(false);
     }
     sup_entry->source = FRAME_PAGE;
     sup_entry->data = frame;
@@ -231,6 +236,7 @@ void falloc_free_frame(void *frame)
     uint32_t pte = *(frame_entry->pte);
     void *upage = pte_get_page(pte);                    /* Get virtual addr */
     struct list *open_frame_list;
+    bool user_space;
     
 #ifndef NDEBUG
     memset(frame, 0xcc, PGSIZE);
@@ -247,10 +253,12 @@ void falloc_free_frame(void *frame)
     if (is_user_vaddr(upage))
     {
         open_frame_list = open_frame_list_user;
+        user_space = true;
     }
     else
     {
         open_frame_list = open_frame_list_kernel;
+        user_space = false;
     }
 
     /* Remove page from pagedir */
@@ -258,6 +266,12 @@ void falloc_free_frame(void *frame)
     
     /* Add frame struct back to open list. */
     list_push_back(open_frame_list, &(frame_entry->open_elem));
+    
+    /* Remove from process list if in user space. */
+    if (user_space) {
+        list_remove(&(frame_entry->process_elem));
+    }
+    
 }
 
 // TODO: Don't need pool stuff

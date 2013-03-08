@@ -21,7 +21,7 @@ struct pool
 // 
 /*! A frame entry struct. */
 struct frame {
-    void *faddr;                    /*!< Adress of corresponding frame. */
+    void *faddr;                    /*!< Address of corresponding frame. */
     uint32_t *pte;                  /*!< Related page table entry. */
     struct page_entry *sup_entry;   /*!< Supplemental page table entry. */
     struct thread *owner;           /*!< Thread which owns the frame. */
