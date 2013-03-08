@@ -42,33 +42,85 @@ void palloc_init(void)
     then the pages are filled with zeros.  If too few pages are
     available, returns a null pointer, unless PAL_ASSERT is set in
     FLAGS, in which case the kernel panics. */
-void * palloc_get_multiple(enum palloc_flags flags, size_t page_cnt) {
-    //struct pool *pool = flags & PAL_USER ? &user_pool : &kernel_pool;
-    //void *pages;
-    //size_t page_idx;
-    //
-    //if (page_cnt == 0)
-    //    return NULL;
-    //
-    //lock_acquire(&pool->lock);
-    //page_idx = bitmap_scan_and_flip(pool->used_map, 0, page_cnt, false);
-    //lock_release(&pool->lock);
-    //
-    //if (page_idx != BITMAP_ERROR)
-    //    pages = pool->base + PGSIZE * page_idx;
-    //else
-    //    pages = NULL;
-    //
-    //if (pages != NULL) {
-    //    if (flags & PAL_ZERO)
-    //        memset(pages, 0, PGSIZE * page_cnt);
-    //}
-    //else {
-    //    if (flags & PAL_ASSERT)
-    //        PANIC("palloc_get: out of pages");
-    //}
-    //
-    //return pages;
+
+void * palloc_get_multiple(enum alloc_flags flags, size_t page_cnt) {
+    /*
+    struct pool *pool = flags & PAL_USER ? &user_pool : &kernel_pool;
+    void *pages;
+    size_t page_idx;
+    
+    if (page_cnt == 0)
+        return NULL;
+    
+    lock_acquire(&pool->lock);
+    page_idx = bitmap_scan_and_flip(pool->used_map, 0, page_cnt, false);
+    lock_release(&pool->lock);
+    
+    if (page_idx != BITMAP_ERROR)
+        pages = pool->base + PGSIZE * page_idx;
+    else
+        pages = NULL;
+    
+    if (pages != NULL) {
+        if (flags & PAL_ZERO)
+            memset(pages, 0, PGSIZE * page_cnt);
+    }
+    else {
+        if (flags & PAL_ASSERT)
+            PANIC("palloc_get: out of pages");
+    }
+    
+    return pages;
+    */
+    struct list *alloc_page_list;
+    void *start_addr;
+    int i;
+    struct thread *t = thread_current();
+    
+    /* Use to correct pool based on whether requested user or kernel space. */
+    if (flags & PAL_USER) {
+        alloc_page_list = &(t->page_entries);
+    } else {
+        alloc_page_list = init_page_dir_sup;
+    }
+    
+    /* Look for an open block. */
+    for (i = 1; i < NUM_PAGES; i++) {
+        /* Get the next page address. */
+        start_addr = (void *) (i * PGSIZE);
+        
+        /* If the block is open, allocate it */
+        if (palloc_block_open(start_addr, page_cnt) {
+            break;
+        }
+        /* If reached end of address space and nothing found, nothing to
+           allocate. */
+        else {
+            return NULL;
+        }
+        /* Otherwise keep looking. */
+        
+    }
+    
+    /* Allocate all pages for the block. */
+    for (i = 0; i < page_cnt; i++) {
+        
+        /* Create a supplemental entry for the page. */
+        struct page_entry *page_i = (struct page_entry *) fmalloc(sizeof(struct page_entry));
+        
+        ASSERT (page_i != NULL);
+        
+        /* Initialize the page. */
+        page_i->vaddr = (uint8_t *) (start_addr + (i * PGSIZE));
+        page_i->source = ZERO_PAGE; // DEBUG: set to zero page by default for now
+        // TODO: need to handle flags properly
+        
+        /* Add to list of allocated pages in order by address. */
+        list_insert_ordered(alloc_page_list, &(page_i->elem), palloc_page_less, NULL);
+        
+    }
+    
+    return start_addr;
 }
 
 /*! Obtains a single free page and returns its kernel virtual
@@ -84,28 +136,37 @@ void * palloc_get_page(enum palloc_flags flags) {
 
 /*! Frees the PAGE_CNT pages starting at PAGES. */
 void palloc_free_multiple(void *pages, size_t page_cnt) {
-//    struct pool *pool;
-//    size_t page_idx;
-//
-//    ASSERT(pg_ofs(pages) == 0);
-//    if (pages == NULL || page_cnt == 0)
-//        return;
-//
-//    if (page_from_pool(&kernel_pool, pages))
-//        pool = &kernel_pool;
-//    else if (page_from_pool(&user_pool, pages))
-//        pool = &user_pool;
-//    else
-//        NOT_REACHED();
-//
-//    page_idx = pg_no(pages) - pg_no(pool->base);
-//
-//#ifndef NDEBUG
-//    memset(pages, 0xcc, PGSIZE * page_cnt);
-//#endif
-//
-//    ASSERT(bitmap_all(pool->used_map, page_idx, page_cnt));
-//    bitmap_set_multiple(pool->used_map, page_idx, page_cnt, false);
+/*
+    struct pool *pool;
+    size_t page_idx;
+
+    ASSERT(pg_ofs(pages) == 0);
+    if (pages == NULL || page_cnt == 0)
+        return;
+
+    if (page_from_pool(&kernel_pool, pages))
+        pool = &kernel_pool;
+    else if (page_from_pool(&user_pool, pages))
+        pool = &user_pool;
+    else
+        NOT_REACHED();
+
+    page_idx = pg_no(pages) - pg_no(pool->base);
+
+#ifndef NDEBUG
+    memset(pages, 0xcc, PGSIZE * page_cnt);
+#endif
+
+    ASSERT(bitmap_all(pool->used_map, page_idx, page_cnt));
+    bitmap_set_multiple(pool->used_map, page_idx, page_cnt, false);
+    
+*/
+
+    /* If an unallocated page is in the block can't free. */
+        // Kill the process if user
+        // Kernel panic if kernel
+        
+    
 }
 
 /*! Frees the page at PAGE. */

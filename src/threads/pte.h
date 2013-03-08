@@ -34,6 +34,7 @@
 #define PDMASK  BITMASK(PDSHIFT, PDBITS)   /*!< Page directory bits (22:31). */
 /*! @} */
 
+#define NUM_PAGES 1 << (PTBITS + PGBITS)
 /*! Obtains page table index from a virtual address. */
 static inline unsigned pt_no(const void *va) {
     return ((uintptr_t) va & PTMASK) >> PTSHIFT;
