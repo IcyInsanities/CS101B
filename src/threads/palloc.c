@@ -25,7 +25,13 @@
 #include "threads/loader.h"
 #include "threads/synch.h"
 #include "threads/vaddr.h"
+#include "threads/pte.h"
 #include "vm/falloc.h"
+
+static bool palloc_block_valid(void *start_addr, size_t block_size);
+static bool palloc_page_less(const struct list_elem *A,
+                             const struct list_elem *B,
+                             void* aux UNUSED);
 
 /*! Initializes the page allocator.  At most USER_PAGE_LIMIT
     pages are put into the user pool. */
@@ -36,14 +42,84 @@ void palloc_init(void)
     // Or maybe not.
 }
 
+void *palloc_make_multiple_addr(void * start_addr,
+                                enum palloc_flags flags, 
+                                size_t page_cnt,
+                                enum page_load load_type, 
+                                void *data) {
+                                
+    struct list *alloc_page_list;
+    int i;
+    struct thread *t = thread_current();
+    
+    /* Page data should not be in a frame. */
+    if (load_type == FRAME_PAGE) {
+        // TODO: handle
+    }
+    
+    /* Use to correct pool based on whether requested user or kernel space. */
+    if (flags & PAL_USER) {
+        alloc_page_list = &(t->page_entries);
+    } else {
+        alloc_page_list = init_page_dir_sup;
+    }
+    
+    /* If block at specified address is not open, return NULL. */
+    if (!palloc_block_open(start_addr, page_cnt)) {
+        return NULL;
+    }
+    
+    /* Allocate all pages for the block. */
+    for (i = 0; i < page_cnt; i++) {
+        
+        /* Create a supplemental entry for the page. */
+        struct page_entry *page_i = (struct page_entry *) fmalloc(sizeof(struct page_entry));
+        
+        ASSERT (page_i != NULL);
+        
+        /* Initialize the page. */
+        page_i->vaddr = (uint8_t *) (start_addr + (i * PGSIZE));
+        page_i->source = load_type; // DEBUG: set to zero page by default for now
+        if (load_type == ZERO_PAGE) {
+            page_i->data = NULL;
+        }
+        else {
+            page_i->data = data;
+        }
+        
+        // TODO: check flag whether should pin or not
+        // TODO: need to handle flags properly
+        
+        /* Add to list of allocated pages in order by address. */
+        list_insert_ordered(alloc_page_list, &(page_i->elem), palloc_page_less, NULL);
+        
+    }
+    
+    return start_addr;
+}
+
+void *palloc_make_page_addr(void * start_addr, enum palloc_flags flags,
+                            enum page_load load_type, void *data) {
+
+    /* Allocate one page at the specified address, and return. */
+    return palloc_make_multiple_addr(start_addr, flags, 1, load_type, data);
+
+}
+
 /*! Obtains and returns a group of PAGE_CNT contiguous free pages.
     If PAL_USER is set, the pages are obtained from the user pool,
     otherwise from the kernel pool.  If PAL_ZERO is set in FLAGS,
     then the pages are filled with zeros.  If too few pages are
     available, returns a null pointer, unless PAL_ASSERT is set in
     FLAGS, in which case the kernel panics. */
+void *palloc_get_multiple(enum palloc_flags flags, size_t page_cnt) {
 
-void * palloc_get_multiple(enum alloc_flags flags, size_t page_cnt) {
+    return _palloc_get_multiple(flags, page_cnt, ZERO_PAGE, NULL);
+}
+    
+        // take enum page_load
+    // take void* to data
+void *_palloc_get_multiple(enum palloc_flags flags, size_t page_cnt, enum page_load load_type, void *data) {
     /*
     struct pool *pool = flags & PAL_USER ? &user_pool : &kernel_pool;
     void *pages;
@@ -77,20 +153,13 @@ void * palloc_get_multiple(enum alloc_flags flags, size_t page_cnt) {
     int i;
     struct thread *t = thread_current();
     
-    /* Use to correct pool based on whether requested user or kernel space. */
-    if (flags & PAL_USER) {
-        alloc_page_list = &(t->page_entries);
-    } else {
-        alloc_page_list = init_page_dir_sup;
-    }
-    
     /* Look for an open block. */
     for (i = 1; i < NUM_PAGES; i++) {
         /* Get the next page address. */
         start_addr = (void *) (i * PGSIZE);
         
         /* If the block is open, allocate it */
-        if (palloc_block_open(start_addr, page_cnt) {
+        if (palloc_block_open(start_addr, page_cnt)) {
             break;
         }
         /* If reached end of address space and nothing found, nothing to
@@ -102,23 +171,8 @@ void * palloc_get_multiple(enum alloc_flags flags, size_t page_cnt) {
         
     }
     
-    /* Allocate all pages for the block. */
-    for (i = 0; i < page_cnt; i++) {
-        
-        /* Create a supplemental entry for the page. */
-        struct page_entry *page_i = (struct page_entry *) fmalloc(sizeof(struct page_entry));
-        
-        ASSERT (page_i != NULL);
-        
-        /* Initialize the page. */
-        page_i->vaddr = (uint8_t *) (start_addr + (i * PGSIZE));
-        page_i->source = ZERO_PAGE; // DEBUG: set to zero page by default for now
-        // TODO: need to handle flags properly
-        
-        /* Add to list of allocated pages in order by address. */
-        list_insert_ordered(alloc_page_list, &(page_i->elem), palloc_page_less, NULL);
-        
-    }
+    /* Allocate the block. */
+    start_addr = palloc_make_multiple_addr(start_addr, page_cnt, 1, load_type, data);
     
     return start_addr;
 }
@@ -130,8 +184,12 @@ void * palloc_get_multiple(enum alloc_flags flags, size_t page_cnt) {
     then the page is filled with zeros.  If no pages are
     available, returns a null pointer, unless PAL_ASSERT is set in
     FLAGS, in which case the kernel panics. */
-void * palloc_get_page(enum palloc_flags flags) {
-    return palloc_get_multiple(flags, 1);
+void *palloc_get_page(enum palloc_flags flags) {
+    return _palloc_get_page(flags, ZERO_PAGE, NULL);
+}
+
+void *_palloc_get_page(enum palloc_flags flags, enum page_load load_type, void *data) {
+    return _palloc_get_multiple(flags, 1, load_type, data);
 }
 
 /*! Frees the PAGE_CNT pages starting at PAGES. */
@@ -161,10 +219,78 @@ void palloc_free_multiple(void *pages, size_t page_cnt) {
     bitmap_set_multiple(pool->used_map, page_idx, page_cnt, false);
     
 */
-
-    /* If an unallocated page is in the block can't free. */
-        // Kill the process if user
-        // Kernel panic if kernel
+    
+    int i = 0;
+    void *vaddr = pages;
+    struct list *alloc_page_list;
+    bool user_space;
+    struct page_entry *start_page;
+    struct list_elem *e;
+    struct thread *t = thread_current();
+    
+    /* Make sure the block to free is valid. */
+    if(!palloc_block_valid(pages, page_cnt)) {
+        // Kill process
+    }
+    
+    /* If in user space, get list of supplemental page entries from process. */
+    if (is_user_vaddr(pages)) {
+        alloc_page_list = &(t->page_entries);
+        user_space = true;
+    }
+    /* Otherwise, get list of supplemental page entries from kernel. */
+    else {
+        alloc_page_list = init_page_dir_sup;
+        user_space = false;
+    }
+    
+    /* Find the starting address in the supplemental page table. */
+    for (e = list_begin(alloc_page_list); e != list_end(alloc_page_list);
+        e = list_next(e))
+    {
+        start_page = list_entry(e, struct page_entry, elem);
+        
+        /* If reached the end of list, page was not allocated, kill process. */
+        if (list_next(e) == list_end(alloc_page_list)) {
+            // Kill process
+        }
+        /* If reached starting address, can start freeing. */
+        else if (start_page->vaddr == pages) {
+            break;
+        }
+    }
+    
+    /* Go through all the pages in the block, freeing them. */
+    for (e = list_begin(alloc_page_list); e != list_end(alloc_page_list);
+        e = list_next(e))
+    {
+    
+        struct page_entry *page_e = list_entry(e, struct page_entry, elem);
+        
+        /* If an unallocated page is in the block, can't free. */
+        if (palloc_block_open(vaddr, 1)) { // TODO: modiify to compare vaddr with page_e->vaddr...more efficient
+        
+            // TODO: Kill the process if user
+            if (user_space) {
+                
+            }
+            // TODO: Kernel panic if kernel
+            else {
+                
+            }
+        }
+        /* Otherwise, free the page. */
+        else {
+            
+            /* Remove page from allocated list. */
+            list_remove(&(page_e->elem));
+            
+            /* Free the supplemental page entry. */
+            ffree((void *) page_e);
+        }
+        /* Go to the next page. */
+        vaddr += PGSIZE;
+    }
         
     
 }
@@ -200,7 +326,7 @@ bool palloc_block_open(void *start_addr, size_t block_size) {
     
     /* If the address overflowed, or entire block is not in the same space, the
        block is not open. */
-    if (start_addr > end_addr || is_user_vaddr(start_addr) != is_user_vaddr(start_addr)) {
+    if (!palloc_block_valid(start_addr, block_size)) {
         return false;
     }
 
@@ -240,3 +366,33 @@ bool palloc_block_open(void *start_addr, size_t block_size) {
         return false;
     }
 }
+
+static bool palloc_block_valid(void *start_addr, size_t block_size) {
+    void *end_addr;
+    
+    /* Calculate ending address of the block. */
+    end_addr = start_addr + (block_size*PGSIZE - 1);
+    
+    /* If the address overflowed, or entire block is not in the same space, the
+       block is not open. */
+    if (start_addr > end_addr || is_user_vaddr(start_addr) != is_user_vaddr(start_addr)) {
+        return false;
+    } else {
+        return true;
+    }
+}
+
+//[x]palloc_make_page_addr()
+//[x]palloc_make_multiple_addr()
+//address first argument
+
+// modify allocator functions
+    // [x]take enum page_load
+    // [x]take void* to data
+    
+    //[x]page_load cannot == FRAME_PAGE (in palloc.h)
+    // [x]data not used if zero page
+    // [x]old functions wrapper for new functions that always call with 0 page
+    // account for pin flag
+
+// should we panic or kill the process on an invalid block? (requested block wraps, crosses kernel-user boundary, etc?)
