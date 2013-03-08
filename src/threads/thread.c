@@ -219,7 +219,7 @@ thread_create (const char *name, int priority, thread_func *function, void *aux)
   ASSERT (function != NULL);
 
   /* Allocate thread. */
-  t = palloc_get_page (PAL_ZERO);
+  t = palloc_get_page (PAL_PAGING | PAL_PIN | PAL_ZERO);
   if (t == NULL)
     return TID_ERROR;
 

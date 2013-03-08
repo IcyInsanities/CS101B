@@ -104,7 +104,7 @@ void * fmalloc(size_t size) {
         /* SIZE is too big for any descriptor.
            Allocate enough pages to hold SIZE plus an arena. */
         size_t page_cnt = DIV_ROUND_UP(size + sizeof *a, PGSIZE);
-        a = palloc_get_multiple(PAL_PIN, page_cnt);
+        a = palloc_get_multiple(PAL_PAGING | PAL_PIN, page_cnt);
         if (a == NULL)
             return NULL;
 
@@ -123,7 +123,7 @@ void * fmalloc(size_t size) {
         size_t i;
 
         /* Allocate a page. */
-        a = palloc_get_page(PAL_PIN);
+        a = palloc_get_page(PAL_PAGING | PAL_PIN);
         if (a == NULL) {
             lock_release(&d->lock);
             return NULL; 
