@@ -8,6 +8,7 @@
 
 /* Page directory with kernel mappings only. */
 extern uint32_t *init_page_dir;
+extern struct list *init_page_dir_sup;
 
 #endif /* threads/init.h */
 

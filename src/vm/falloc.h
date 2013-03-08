@@ -5,6 +5,7 @@
 #include <list.h>
 #include "threads/palloc.h"
 #include "threads/synch.h"
+#include "threads/thread.h"
 
 /* How to allocate frames. */
 enum alloc_flags
@@ -35,7 +36,8 @@ struct frame {
     struct list_elem open_elem;     /*!< List element for open list. */
 };
 
-void falloc_init (size_t user_page_limit);
+
+void falloc_init(size_t user_page_limit);
 struct frame *get_frame_addr(enum alloc_flags flags);
 void *falloc_get_frame(void *upage, enum alloc_flags flags, struct page_entry *sup_entry);
 void falloc_free_frame(void *frame);

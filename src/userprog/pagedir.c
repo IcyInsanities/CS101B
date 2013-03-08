@@ -51,7 +51,8 @@ void pagedir_destroy(uint32_t *pd) {
     page directory PD.  If PD does not have a page table for VADDR, behavior
     depends on CREATE.  If CREATE is true, then a new page table is created and
     a pointer into it is returned.  Otherwise, a null pointer is returned. */
-static uint32_t * lookup_page(uint32_t *pd, const void *vaddr, bool create) {
+// DEBUG>: static uint32_t * lookup_page(uint32_t *pd, const void *vaddr, bool create) {
+uint32_t * lookup_page(uint32_t *pd, const void *vaddr, bool create) {
     uint32_t *pt, *pde;
 
     ASSERT(pd != NULL);

@@ -5,6 +5,8 @@
 #include <list.h>
 #include "vm/falloc.h"
 
+enum alloc_flags;
+
 /* Indicate where to find page data */
 enum page_load
 {

@@ -130,6 +130,8 @@ struct thread {
     /**@}*/
 #endif
 
+    struct list page_entries;           /*!< List of supplemental page entries. */
+
     /*! Owned by thread.c. */
     /**@{*/
     unsigned magic;                     /* Detects stack overflow. */
