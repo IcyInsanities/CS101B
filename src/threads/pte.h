@@ -76,7 +76,7 @@ static inline uintptr_t pd_no(const void *va) {
 #define PTE_U 0x4               /*!< 1=user/kernel, 0=kernel only. */
 #define PTE_A 0x20              /*!< 1=accessed, 0=not acccessed. */
 #define PTE_D 0x40              /*!< 1=dirty, 0=not dirty (PTEs only). */
-#define PTE_PIN 0x100           /*!< 1=pinned, 0=not pinned. */
+#define PTE_PIN 0x200           /*!< 1=pinned, 0=not pinned. */
 /*! @} */
 
 /*! Returns a PDE that points to page table PT. */

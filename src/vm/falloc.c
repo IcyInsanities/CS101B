@@ -52,7 +52,7 @@ void frame_evict(bool user);
     frames are put into the user pool. */
 void falloc_init(size_t user_frame_limit)
 {
-    uint32_t *pd, *pt;
+    uint32_t *pd, *pt, *pt_phys;
     size_t page;
     uint32_t i;
     extern char _start, _end_kernel_text;
@@ -71,9 +71,9 @@ void falloc_init(size_t user_frame_limit)
     kernel_frames += 1024 * 1024 / PGSIZE;
 
     /* Initialize frame table, take space out of kernel frames */
-    frame_list_kernel = ptov(1024 * 1024);
-    frame_list_user   = ptov(1024 * 1024) + sizeof(struct frame) * (kernel_frames);
-    uint32_t num_frame_used = sizeof(struct frame) * (user_frames + kernel_frames);
+    frame_list_kernel = (struct frame *) (1024 * 1024);
+    frame_list_user   = (struct frame *) (1024 * 1024 + sizeof(struct frame) * (kernel_frames));
+    uint32_t num_frame_used = 1024 * 1024 + sizeof(struct frame) * (user_frames + kernel_frames);
     num_frame_used = (uint32_t) pg_round_up((void *) num_frame_used) / PGSIZE;
     /* Compute space for page_entry structs for these frames */
     uint32_t num_frame_for_pagedir = (sizeof(struct page_entry) * num_frame_used / PGSIZE) + 1;
@@ -85,11 +85,12 @@ void falloc_init(size_t user_frame_limit)
     num_frame_used += num_frame_for_pagedir;
 
     /* Put global variables into frame */
-    pd = init_page_dir = ptov(num_frame_used * PGSIZE);
+    pd = (uint32_t *) (num_frame_used * PGSIZE);
+    memset(pd, 0, PGSIZE);
     num_frame_used++;
     init_page_dir_sup = (struct list *) (num_frame_used * PGSIZE);
-    open_frame_list_user = init_page_dir_sup + sizeof(struct list);
-    open_frame_list_kernel = open_frame_list_user + sizeof(struct list);
+    open_frame_list_user = (struct list *) (num_frame_used * PGSIZE + sizeof(struct list));
+    open_frame_list_kernel = (struct list *) (num_frame_used * PGSIZE + 2*sizeof(struct list));
     num_frame_used++;
     /* Initialize lists */
     list_init(open_frame_list_user);
@@ -97,6 +98,7 @@ void falloc_init(size_t user_frame_limit)
     list_init(init_page_dir_sup);
     /* Map and pin the first num_frame_used frames into init_page_dir */
     pt = NULL;
+    pt_phys = NULL;
     for (page = 0; page < num_frame_used; page++)
     {
         uintptr_t paddr = page * PGSIZE;
@@ -107,16 +109,19 @@ void falloc_init(size_t user_frame_limit)
 
         if (pd[pde_idx] == 0)
         {
-            pt = ptov(num_frame_used * PGSIZE);;
+            pt_phys = (uint32_t *) (num_frame_used * PGSIZE);
+            memset(pt_phys, 0, PGSIZE);
+            pt = ptov((uintptr_t) pt_phys);
             num_frame_used++;
             pd[pde_idx] = pde_create(pt);
+            pd[pde_idx] = pde_create(pt) | PTE_P | PTE_PIN;
         }
-
-        pt[pte_idx] = pte_is_pinned(pte_create_kernel(vaddr, !in_kernel_text));
+        
+        pt_phys[pte_idx] = pte_create_kernel(vaddr, !in_kernel_text) | PTE_P | PTE_PIN;
 
         /* Initialize frame entries */
         frame_list_kernel[page].faddr = (void *) paddr;
-        frame_list_kernel[page].pte = &(pt[pte_idx]);
+        frame_list_kernel[page].pte = &(pt_phys[pte_idx]);
         frame_list_kernel[page].sup_entry = NULL;
         frame_list_kernel[page].owner = NULL;
 
@@ -134,7 +139,7 @@ void falloc_init(size_t user_frame_limit)
     {
         PANIC("Falloc_init used more frames than kernel has");
     }
-    for (i = num_frame_used < kernel_frames; ; i++)
+    for (i = num_frame_used; i < kernel_frames; i++)
     {
         list_push_back(open_frame_list_kernel, &(frame_list_kernel[i].open_elem));
     }
@@ -142,6 +147,15 @@ void falloc_init(size_t user_frame_limit)
     {
         list_push_back(open_frame_list_user, &(frame_list_user[i].open_elem));
     }
+    
+    /* Convert address back into virtual address now that done writing to them */
+    frame_list_kernel = ptov((uintptr_t) frame_list_kernel);
+    frame_list_user = ptov((uintptr_t) frame_list_user);
+    init_page_dir = ptov((uintptr_t) pd);
+    init_page_dir_sup = ptov((uintptr_t) init_page_dir_sup);
+    open_frame_list_user = ptov((uintptr_t) open_frame_list_user);
+    open_frame_list_kernel = ptov((uintptr_t) open_frame_list_kernel);
+        
 }
 
 struct frame *get_frame_addr(bool user)
