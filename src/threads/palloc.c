@@ -62,13 +62,13 @@ void *palloc_make_multiple_addr(void * start_addr,
         // TODO: handle
     }
     
-    /* Use to correct pool based on whether requested user or kernel space. */
-    if (flags & PAL_USER) {
-        alloc_page_list = &(t->page_entries);
-        pagedir = t->pagedir;
-    } else {
+    /* Use to correct pool based on whether it is paging data or not. */
+    if (flags & PAL_PAGING) {
         alloc_page_list = init_page_dir_sup;
         pagedir = init_page_dir;
+    } else {
+        alloc_page_list = &(t->page_entries);
+        pagedir = t->pagedir;
     }
     
     /* If block at specified address is not open, return NULL. */
@@ -255,42 +255,55 @@ void palloc_free_multiple(void *pages, size_t page_cnt) {
     struct page_entry *start_page;
     struct list_elem *e;
     struct thread *t = thread_current();
+    bool start_page_found = false;
+    bool paging_list = false;
     
     /* Make sure the block to free is valid. */
     if(!palloc_block_valid(pages, page_cnt)) {
         // Kill process
     }
     
-    /* If in user space, get list of supplemental page entries from process. */
+    /* Check if from user or kernel space. */
     if (is_user_vaddr(pages)) {
-        alloc_page_list = &(t->page_entries);
         user_space = true;
     }
-    /* Otherwise, get list of supplemental page entries from kernel. */
     else {
-        alloc_page_list = init_page_dir_sup;
         user_space = false;
     }
     
-    /* Find the starting address in the supplemental page table. */
-    for (e = list_begin(alloc_page_list); e != list_end(alloc_page_list);
-        e = list_next(e))
-    {
-        start_page = list_entry(e, struct page_entry, elem);
-        
-        /* If reached the end of list, page was not allocated, kill process. */
-        if (list_next(e) == list_end(alloc_page_list)) {
-            // Kill process
+    /* Look in the process list for the page first. */
+    alloc_page_list = &(t->page_entries);
+    
+    while (!start_page_found) {
+    
+        /* Find the starting address in the supplemental page table. */
+        for (e = list_begin(alloc_page_list); e != list_end(alloc_page_list);
+            e = list_next(e))
+        {
+            start_page = list_entry(e, struct page_entry, elem);
+            
+            /* If reached starting address, can start freeing. */
+            if (start_page->vaddr == pages) {
+                start_page_found = true;
+                break;
+            }
+            /* If reached the end of paging list, page was not allocated, kill process. */
+            else if (list_next(e) == list_end(alloc_page_list) && paging_list) {
+                // TODO: Kill process
+            }
         }
-        /* If reached starting address, can start freeing. */
-        else if (start_page->vaddr == pages) {
-            break;
+        
+        /* Move on to paging list if not in process list. */
+        if (!start_page_found) {
+            paging_list = true;
+            alloc_page_list = init_page_dir_sup;
         }
     }
     
     /* Go through all the pages in the block, freeing them. */
-    for (e = list_begin(alloc_page_list); e != list_end(alloc_page_list);
-        e = list_next(e))
+    for (e = list_begin(alloc_page_list), i = 0;
+        e != list_end(alloc_page_list), i < page_cnt;
+        e = list_next(e), i++)
     {
     
         struct page_entry *page_e = list_entry(e, struct page_entry, elem);
