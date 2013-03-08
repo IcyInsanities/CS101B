@@ -42,7 +42,7 @@ void palloc_init(void)
     then the pages are filled with zeros.  If too few pages are
     available, returns a null pointer, unless PAL_ASSERT is set in
     FLAGS, in which case the kernel panics. */
-void * palloc_get_multiple(enum alloc_flags flags, size_t page_cnt) {
+void * palloc_get_multiple(enum palloc_flags flags, size_t page_cnt) {
     //struct pool *pool = flags & PAL_USER ? &user_pool : &kernel_pool;
     //void *pages;
     //size_t page_idx;
@@ -78,7 +78,7 @@ void * palloc_get_multiple(enum alloc_flags flags, size_t page_cnt) {
     then the page is filled with zeros.  If no pages are
     available, returns a null pointer, unless PAL_ASSERT is set in
     FLAGS, in which case the kernel panics. */
-void * palloc_get_page(enum alloc_flags flags) {
+void * palloc_get_page(enum palloc_flags flags) {
     return palloc_get_multiple(flags, 1);
 }
 

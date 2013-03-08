@@ -43,8 +43,8 @@ static uint32_t user_frames;
 static uint32_t kernel_frames;
 
 
-/*! Two pools: one for kernel data, one for user frames. */
-static struct pool kernel_pool, user_pool;
+void frame_evict(bool user);
+
 
 /*! Initializes the frame allocator.  At most USER_FRAME_LIMIT
     frames are put into the user pool. */
@@ -112,6 +112,7 @@ void falloc_init(size_t user_frame_limit)
         pt[pte_idx] = pte_is_pinned(pte_create_kernel(vaddr, !in_kernel_text));
 
         /* Initialize frame entries */
+        frame_list_kernel[page].faddr = (void *) paddr;
         frame_list_kernel[page].pte = &(pt[pte_idx]);
         frame_list_kernel[page].sup_entry = NULL;
         frame_list_kernel[page].owner = NULL;
@@ -140,36 +141,34 @@ void falloc_init(size_t user_frame_limit)
     }
 }
 
-struct frame *get_frame_addr(enum alloc_flags flags) {
+struct frame *get_frame_addr(bool user)
+{
     struct list_elem *elem;
     struct frame *frame_entry;
     struct list *open_frame_list;
     /* Choose the correct frame list. */
-    if (flags & PAL_USER) {
+    if (user)
+    {
         open_frame_list = open_frame_list_user;
-    } else {
+    }
+    else
+    {
         open_frame_list = open_frame_list_kernel;
     }
 
-    /* DEBUG: If attempting to allocate frame, and out of frames, panic. */
-    if (list_empty(open_frame_list)) {
-        PANIC("falloc_get: out of kernel frames");
-
+    /* If attempting to allocate frame, and out of frames, try evicting. */
+    if (list_empty(open_frame_list))
+    {
+        frame_evict(user);
+    }
+    
+    /* If still no empty frame, panic system */
+    if (list_empty(open_frame_list))
+    {
+        PANIC("falloc_get: out of frames");
+    }
     /* Otherwise, get an open frame. */
-    } else {
-        elem = list_pop_front(open_frame_list);
-    }
-
-    if (flags & PAL_ZERO) {
-        // TODO: zero frame if necessary
-        //memset(frame, 0, PGSIZE);
-
-    }
-
-    /* TODO: if failed to get frame (even after evicting) and assert flag set, panic */
-    //if (flags & PAL_ASSERT) {
-    //    PANIC("falloc_get: out of frames");
-    //}
+    elem = list_pop_front(open_frame_list);
 
     /* Remove frame from list of open frames. */
     frame_entry = list_entry(elem, struct frame, open_elem);
@@ -179,30 +178,44 @@ struct frame *get_frame_addr(enum alloc_flags flags) {
 
 /*! Obtains a single free frame and returns its kernel virtual
     address.
-    If PAL_USER is set, the frame is obtained from the user pool,
-    otherwise from the kernel pool.  If PAL_ZERO is set in FLAGS,
-    then the frame is filled with zeros.  If no frames are
-    available, returns a null pointer, unless PAL_ASSERT is set in
-    FLAGS, in which case the kernel panics. */
-void *falloc_get_frame(void *upage, enum alloc_flags flags, struct page_entry *sup_entry) {
+    If no frames are available, the kernel panics. */
+void *falloc_get_frame(void *upage, bool user, struct page_entry *sup_entry)
+{
     void *frame;
     struct thread *t = thread_current();
     uint32_t *pagedir = t->pagedir;                     /* Get page directory */
     uint32_t *pte = lookup_page(pagedir, upage, true);  /* Get table entry */
-    struct list_elem elem;
     struct frame *frame_entry;
 
     /* Get the frame entry. */
-    frame_entry = get_frame_addr(flags);
+    frame_entry = get_frame_addr(user);
+    frame = frame_entry->faddr;
 
     /* TODO: associate frame with page. */
     frame_entry->pte = pte;
     frame_entry->sup_entry = sup_entry;
     frame_entry->owner = t;
-    // TODO: add to process list?
+    
+    // TODO: add to process list
 
     /* NOTE: need to force read/write bit to always be valid. */
     pagedir_set_page(pagedir, upage, frame, pte_is_read_write(*pte));
+    
+    // TODO: need to load data
+    switch (sup_entry->source)
+    {
+    case ZERO_PAGE:
+        memset(frame, 0, PGSIZE);
+        break;
+    case FILE_PAGE:
+    case SWAP_PAGE:
+        memset(frame, 0, PGSIZE);
+        break;
+    case FRAME_PAGE:    /* Cannot have page already in frame */
+        ASSERT(false);    
+    }
+    sup_entry->source = FRAME_PAGE;
+    sup_entry->data = frame;
 
     /* TODO: Associate frame address with frame entry struct. */
     //frame_list_kernel[pg_no(frame)] = frame_entry;  // TODO: May want to change this to be more robust
@@ -211,60 +224,71 @@ void *falloc_get_frame(void *upage, enum alloc_flags flags, struct page_entry *s
 }
 
 /*! Frees the frame at frame. */
-void falloc_free_frame(void *frame) {
+void falloc_free_frame(void *frame)
+{
     struct frame *frame_entry = addr_to_frame(frame);
+    uint32_t *pd = thread_current()->pagedir;      /* Get page directory */
     uint32_t pte = *(frame_entry->pte);
+    void *upage = pte_get_page(pte);                    /* Get virtual addr */
     struct list *open_frame_list;
-
+    
 #ifndef NDEBUG
     memset(frame, 0xcc, PGSIZE);
 #endif
 
     /* If it wasn't allocated, just return. */
-    if (!pte_is_present(pte)) {
+    // TODO: should this be an error? -Shir
+    if (!pte_is_present(pte))
+    {
         return;
     }
 
     /* TODO: Need to figure out if in kernel or user list. */
-    if (is_user_vaddr(pte_get_page(pte))) {
+    if (is_user_vaddr(upage))
+    {
         open_frame_list = open_frame_list_user;
-    } else {
+    }
+    else
+    {
         open_frame_list = open_frame_list_kernel;
     }
 
+    /* Remove page from pagedir */
+    pagedir_clear_page(pd, upage);
+    
     /* Add frame struct back to open list. */
     list_push_back(open_frame_list, &(frame_entry->open_elem));
-
 }
 
-/*! Initializes pool P as starting at START and ending at END,
-    naming it NAME for debugging purposes. */
-void init_pool(struct pool *f, void *base, size_t frame_cnt,
-                      const char *name) {
-    /* We'll put the pool's used_map at its base.
-       Calculate the space needed for the bitmap
-       and subtract it from the pool's size. */
-    size_t bm_frames = DIV_ROUND_UP(bitmap_buf_size(frame_cnt), PGSIZE);
-    if (bm_frames > frame_cnt)
-        PANIC("Not enough memory in %s for bitmap.", name);
-    frame_cnt -= bm_frames;
-
-    printf("%zu frames available in %s.\n", frame_cnt, name);
-
-    /* Initialize the pool. */
-    lock_init(&f->lock);
-    f->used_map = bitmap_create_in_buf(frame_cnt, base, bm_frames * PGSIZE);
-    f->base = base + bm_frames * PGSIZE;
-}
-
-/*! Returns true if frame was allocated from POOL, false otherwise. */
-bool frame_from_pool(const struct pool *pool, void *frame) {
-    size_t frame_no = pg_no(frame);
-    size_t start_frame = pg_no(pool->base);
-    size_t end_frame = start_frame + bitmap_size(pool->used_map);
-
-    return frame_no >= start_frame && frame_no < end_frame;
-}
+// TODO: Don't need pool stuff
+///*! Initializes pool P as starting at START and ending at END,
+//    naming it NAME for debugging purposes. */
+//void init_pool(struct pool *f, void *base, size_t frame_cnt,
+//                      const char *name) {
+//    /* We'll put the pool's used_map at its base.
+//       Calculate the space needed for the bitmap
+//       and subtract it from the pool's size. */
+//    size_t bm_frames = DIV_ROUND_UP(bitmap_buf_size(frame_cnt), PGSIZE);
+//    if (bm_frames > frame_cnt)
+//        PANIC("Not enough memory in %s for bitmap.", name);
+//    frame_cnt -= bm_frames;
+//
+//    printf("%zu frames available in %s.\n", frame_cnt, name);
+//
+//    /* Initialize the pool. */
+//    lock_init(&f->lock);
+//    f->used_map = bitmap_create_in_buf(frame_cnt, base, bm_frames * PGSIZE);
+//    f->base = base + bm_frames * PGSIZE;
+//}
+//
+///*! Returns true if frame was allocated from POOL, false otherwise. */
+//bool frame_from_pool(const struct pool *pool, void *frame) {
+//    size_t frame_no = pg_no(frame);
+//    size_t start_frame = pg_no(pool->base);
+//    size_t end_frame = start_frame + bitmap_size(pool->used_map);
+//
+//    return frame_no >= start_frame && frame_no < end_frame;
+//}
 
 /*! Returns a pointer to the frame struct for the passed address. */
 static struct frame *addr_to_frame(void *frame_addr) {
@@ -273,3 +297,9 @@ static struct frame *addr_to_frame(void *frame_addr) {
 
 // TODO: implement frame_clean
 // TODO: implement frame_evict
+
+/*! Selects a frame for eviction */
+void frame_evict(bool user)
+{
+    return;
+}

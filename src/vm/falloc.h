@@ -7,14 +7,6 @@
 #include "threads/synch.h"
 #include "threads/thread.h"
 
-/* How to allocate frames. */
-enum alloc_flags
-{
-    PAL_ASSERT = 001,           /* Panic on failure. */
-    PAL_ZERO = 002,             /* Zero frame contents. */
-    PAL_USER = 004              /* User frame. */
-};
-
 /*! A memory pool. */
 struct pool
 {
@@ -29,6 +21,7 @@ struct pool
 // 
 /*! A frame entry struct. */
 struct frame {
+    void *faddr;                    /*!< Adress of corresponding frame. */
     uint32_t *pte;                  /*!< Related page table entry. */
     struct page_entry *sup_entry;   /*!< Supplemental page table entry. */
     struct thread *owner;           /*!< Thread which owns the frame. */
@@ -38,12 +31,12 @@ struct frame {
 
 
 void falloc_init(size_t user_page_limit);
-struct frame *get_frame_addr(enum alloc_flags flags);
-void *falloc_get_frame(void *upage, enum alloc_flags flags, struct page_entry *sup_entry);
+struct frame *get_frame_addr(bool user);
+void *falloc_get_frame(void *upage, bool user, struct page_entry *sup_entry);
 void falloc_free_frame(void *frame);
 
-
-static void init_pool(struct pool *, void *base, size_t page_cnt, const char *name);
-static bool page_from_pool(const struct pool *, void *page);
+// TODO: Don't need pool stuff
+//static void init_pool(struct pool *, void *base, size_t page_cnt, const char *name);
+//static bool page_from_pool(const struct pool *, void *page);
 
 #endif /* vm/falloc.h */

@@ -5,7 +5,13 @@
 #include <list.h>
 #include "vm/falloc.h"
 
-enum alloc_flags;
+/* How to allocate pages. */
+enum palloc_flags
+{
+    PAL_ASSERT = 001,           /* Panic on failure. */
+    PAL_ZERO = 002,             /* Zero frame contents. */
+    PAL_USER = 004              /* User frame. */
+};
 
 /* Indicate where to find page data */
 enum page_load
@@ -28,8 +34,8 @@ struct page_entry
 };
 
 void palloc_init (void);
-void *palloc_get_page (enum alloc_flags);
-void *palloc_get_multiple (enum alloc_flags, size_t page_cnt);
+void *palloc_get_page (enum palloc_flags);
+void *palloc_get_multiple (enum palloc_flags, size_t page_cnt);
 void palloc_free_page (void *);
 void palloc_free_multiple (void *, size_t page_cnt);
 
