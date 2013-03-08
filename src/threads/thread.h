@@ -132,6 +132,7 @@ struct thread {
 
     struct list frames;                 /*!< List of owned frames. */
     struct list page_entries;           /*!< List of supplemental page entries. */
+    void *stack_bottom;
 
     /*! Owned by thread.c. */
     /**@{*/

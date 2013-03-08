@@ -2,21 +2,28 @@
 #include <inttypes.h>
 #include <stdio.h>
 #include "userprog/gdt.h"
+#include "threads/init.h"
 #include "threads/interrupt.h"
+#include "threads/palloc.h"
+#include "threads/pte.h"
 #include "threads/thread.h"
 #include "threads/vaddr.h"
+#include "userprog/pagedir.h"
+#include "userprog/syscall.h"
+#include "vm/falloc.h"
 
 /*! Number of page faults processed. */
 static long long page_fault_cnt;
 
 static void kill(struct intr_frame *);
 static void page_fault(struct intr_frame *);
+static inline void print_page_fault(void *, bool, bool, bool);
 
 /*! Registers handlers for interrupts that can be caused by user programs.
 
     In a real Unix-like OS, most of these interrupts would be passed along to
     the user process in the form of signals, as described in [SV-386] 3-24 and
-    3-25, but we don't implement signals.  Instead, we'll make them simply kill
+    3-25, but we don't implement signals.  Instead, we'll make them simply `
     the user process.
 
     Page faults are an exception.  Here they are treated the same way as other
@@ -70,7 +77,7 @@ static void kill(struct intr_frame *f) {
        the kernel.  Real Unix-like operating systems pass most
        exceptions back to the process via signals, but we don't
        implement them. */
-     
+
     /* The interrupt frame's code segment value tells us where the
        exception originated. */
     switch (f->cs) {
@@ -82,7 +89,7 @@ static void kill(struct intr_frame *f) {
         intr_dump_frame(f);
         printf ("%s: exit(%d)\n", thread_current()->name, -1);
         thread_current()->exit_status = -1;
-        thread_exit(); 
+        thread_exit();
 
     case SEL_KCSEG:
         /* Kernel's code segment, which indicates a kernel bug.
@@ -90,7 +97,7 @@ static void kill(struct intr_frame *f) {
            may cause kernel exceptions--but they shouldn't arrive
            here.)  Panic the kernel to make the point.  */
         intr_dump_frame(f);
-        PANIC("Kernel bug - unexpected interrupt in kernel"); 
+        PANIC("Kernel bug - unexpected interrupt in kernel");
 
     default:
         /* Some other code segment?  Shouldn't happen.  Panic the
@@ -117,6 +124,7 @@ static void page_fault(struct intr_frame *f) {
     bool write;        /* True: access was write, false: access was read. */
     bool user;         /* True: access by user, false: access by kernel. */
     void *fault_addr;  /* Fault address. */
+    void *fault_page;  /* Fault address page. */
 
     /* Obtain faulting address, the virtual address that was accessed to cause
        the fault.  It may point to code or to data.  It is not necessarily the
@@ -124,6 +132,7 @@ static void page_fault(struct intr_frame *f) {
        See [IA32-v2a] "MOV--Move to/from Control Registers" and
        [IA32-v3a] 5.15 "Interrupt 14--Page Fault Exception (#PF)". */
     asm ("movl %%cr2, %0" : "=r" (fault_addr));
+    fault_page = pg_round_down(fault_addr);
 
     /* Turn interrupts back on (they were only off so that we could
        be assured of reading CR2 before it changed). */
@@ -136,20 +145,58 @@ static void page_fault(struct intr_frame *f) {
     not_present = (f->error_code & PF_P) == 0;
     write = (f->error_code & PF_W) != 0;
     user = (f->error_code & PF_U) != 0;
+
+    struct thread *t = thread_current();
+    uint32_t *pagedir = t->pagedir;
+    struct page_entry *pg_entry = palloc_addr_to_page_entry(fault_page, 1);
     
-    /* Determine if in system call and end user program */
-    if (!user && is_user_vaddr(fault_addr)) {
-        kill_current_thread(-1);
-    } else {
-        /* To implement virtual memory, delete the rest of the function
-           body, and replace it with code that brings in the page to
-           which fault_addr refers. */
-        printf("Page fault at %p: %s error %s page in %s context.\n",
-               fault_addr,
-               not_present ? "not present" : "rights violation",
-               write ? "writing" : "reading",
-               user ? "user" : "kernel");
-        kill(f);
+    /* Special case: handle stack pointer increase. The maximum size increase
+       is 64 bytes, a new page is allocated which will be faulted in the
+       remainder of this function call */
+    if ((pg_entry == NULL) && (t->stack_bottom == fault_addr + 64)) {
+        t->stack_bottom -= PGSIZE;
+        if (NULL == palloc_make_page_addr(t->stack_bottom, PAL_USER | PAL_ZERO, ZERO_PAGE, NULL, NULL)) {
+            kill_current_thread(-1); /* Failed to increase stack */
+        }
+        /* Need to reobtain page_entry to fault stack page in */
+        pg_entry = palloc_addr_to_page_entry(t->stack_bottom, 1);
     }
+    
+    /* Handle rights violation if page was present, or if no expected at address
+       This kills user process or system if in kernel but not syscall */
+    if (!not_present || pg_entry == NULL) {
+        print_page_fault(fault_addr, not_present, write, user);
+        intr_dump_frame(f);
+        if (user || (!user && is_user_vaddr(fault_addr))) {
+            kill_current_thread(-1);
+        }
+        else {
+           PANIC("Kernel bug - unexpected interrupt in kernel");
+        }
+    }
+
+    /* If in kernel paging entries and not present, check for bad alias, as all
+       paging entries are always pinned */
+    if (!user) {
+        uint32_t ker_pte = *(lookup_page(init_page_dir, fault_page, false));
+        /* Bad alias, set page and try again */
+        if (pte_is_present(ker_pte)) {
+            void *paddr = pagedir_get_page(init_page_dir, fault_page);
+            pagedir_set_page(pagedir, paddr, fault_page, pte_is_read_write(ker_pte));
+            return;
+        }
+    }
+    
+    /* Process expect datas in this address, handle reading it in */
+    // TODO: do we care about frame address here?
+    falloc_get_frame(fault_page, user || (!user && is_user_vaddr(fault_addr)), pg_entry);
 }
 
+static inline void print_page_fault(void *fault_addr, bool not_present,
+                                    bool write, bool user) {
+    printf("Page fault at %p: %s error %s page in %s context.\n",
+            fault_addr,
+            not_present ? "not present" : "rights violation",
+            write ? "writing" : "reading",
+            user ? "user" : "kernel");
+}

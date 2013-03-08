@@ -770,6 +770,9 @@ init_thread (struct thread *t, const char *name, int priority, struct thread *t_
   t->parent = t_par;
   t->executable = NULL;
 #endif
+
+  t->stack_bottom = PHYS_BASE - PGSIZE;
+
   old_level = intr_disable ();
   list_push_back (&all_list, &t->allelem);
   intr_set_level (old_level);
