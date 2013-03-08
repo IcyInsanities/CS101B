@@ -98,7 +98,6 @@ void *palloc_make_multiple_addr(void * start_addr,
             page_i->data = data;
         }
         
-<<<<<<< Updated upstream
         pte = lookup_page(pagedir, vaddr, true);
         
         /* Pin the page if necessary. */
@@ -106,11 +105,7 @@ void *palloc_make_multiple_addr(void * start_addr,
            *pte = *pte | PTE_PIN;
         }
 
-        // TODO: need to handle flags properly
-=======
-        // TODO: check flag whether should pin or not
         // TODO: need to handle flags properly (done? -shir)
->>>>>>> Stashed changes
         
         /* Add to list of allocated pages in order by address. */
         list_insert_ordered(alloc_page_list, &(page_i->elem), palloc_page_less, NULL);
