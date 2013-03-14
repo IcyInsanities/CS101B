@@ -227,6 +227,7 @@ void *_palloc_get_page(enum palloc_flags flags, enum page_load load_type, void *
 }
 
 /*! Frees the PAGE_CNT pages starting at PAGES. */
+// TODO: DELTETION FROM KERNEL PAGEDIR AFFECTS ALL PROCESSES
 void palloc_free_multiple(void *pages, size_t page_cnt) {
 /*
     struct pool *pool;

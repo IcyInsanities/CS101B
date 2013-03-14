@@ -222,8 +222,7 @@ void *falloc_get_frame(void *upage, bool user, struct page_entry *sup_entry)
 
     /* NOTE: need to force read/write bit to always be valid. */
     pagedir_set_page(pagedir, upage, frame, pte_is_read_write(*pte));
-    if (!user)  /* Put into kernel pagedir too */
-    {
+    if (pte_is_pinned(*pte)) {
         pagedir_set_page(init_page_dir, upage, frame, pte_is_read_write(*pte));
     }
     
@@ -285,7 +284,6 @@ void falloc_free_frame(void *frame)
     }
 
     /* Remove page from pagedir */
-    // TODO: DELTETION FROM KERNEL PAGEDIR AFFECTS ALL PROCESSES
     pagedir_clear_page(pd, upage);
     
     /* Add frame struct back to open list. */
