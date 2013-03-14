@@ -24,6 +24,7 @@
 #include "threads/pte.h"
 #include "threads/thread.h"
 #include "vm/falloc.h"
+#include "vm/swalloc.h"
 
 #ifdef USERPROG
 
@@ -109,6 +110,7 @@ int main(void) {
     malloc_init();
     fmalloc_init();
     paging_init();
+    swalloc_init();
 
     /* Segmentation. */
 #ifdef USERPROG

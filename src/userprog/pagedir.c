@@ -126,7 +126,7 @@ void * pagedir_get_page(uint32_t *pd, const void *uaddr) {
 
 /*! Marks user virtual page UPAGE "not present" in page directory PD.  Later
     accesses to the page will fault.  Other bits in the page table entry are
-    preserved.
+    preserved. The pinned bit is also reset to mark as unpinned.
 
     UPAGE need not be mapped. */
 void pagedir_clear_page(uint32_t *pd, void *upage) {
@@ -137,7 +137,7 @@ void pagedir_clear_page(uint32_t *pd, void *upage) {
 
     pte = lookup_page(pd, upage, false);
     if (pte != NULL && (*pte & PTE_P) != 0) {
-        *pte &= ~PTE_P;
+        *pte &= ~(PTE_P | PTE_PIN);
         invalidate_pagedir(pd);
     }
 }

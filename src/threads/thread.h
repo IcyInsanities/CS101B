@@ -130,6 +130,7 @@ struct thread {
     /**@}*/
 #endif
 
+    struct list swaps;                  /*!< List of owned swaps. */
     struct list frames;                 /*!< List of owned frames. */
     struct list page_entries;           /*!< List of supplemental page entries. */
     void *stack_bottom;
