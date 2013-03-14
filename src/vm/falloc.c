@@ -155,7 +155,6 @@ void falloc_init(size_t user_frame_limit)
     init_page_dir_sup = ptov((uintptr_t) init_page_dir_sup);
     open_frame_list_user = ptov((uintptr_t) open_frame_list_user);
     open_frame_list_kernel = ptov((uintptr_t) open_frame_list_kernel);
-        
 }
 
 struct frame *get_frame_addr(bool user)
@@ -223,6 +222,10 @@ void *falloc_get_frame(void *upage, bool user, struct page_entry *sup_entry)
 
     /* NOTE: need to force read/write bit to always be valid. */
     pagedir_set_page(pagedir, upage, frame, pte_is_read_write(*pte));
+    if (!user)  /* Put into kernel pagedir too */
+    {
+        pagedir_set_page(init_page_dir, upage, frame, pte_is_read_write(*pte));
+    }
     
     // TODO: need to load data
     switch (sup_entry->source)
@@ -282,6 +285,7 @@ void falloc_free_frame(void *frame)
     }
 
     /* Remove page from pagedir */
+    // TODO: DELTETION FROM KERNEL PAGEDIR AFFECTS ALL PROCESSES
     pagedir_clear_page(pd, upage);
     
     /* Add frame struct back to open list. */

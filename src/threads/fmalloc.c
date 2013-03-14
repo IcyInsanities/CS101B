@@ -33,9 +33,13 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <string.h>
+#include "threads/init.h"
 #include "threads/palloc.h"
+#include "threads/pte.h"
 #include "threads/synch.h"
 #include "threads/vaddr.h"
+#include "userprog/pagedir.h"
+#include "vm/falloc.h"
 
 
 /*! Descriptor. */
@@ -54,6 +58,7 @@ struct arena {
     unsigned magic;             /*!< Always set to ARENA_MAGIC. */
     struct desc *desc;          /*!< Owning descriptor, null for big block. */
     size_t free_cnt;            /*!< Free blocks; pages in big block. */
+    struct page_entry pg_ent;   /*!< Page entry struct for fmalloc pages. */
 };
 
 /*! Free block. */
@@ -88,6 +93,7 @@ void * fmalloc(size_t size) {
     struct desc *d;
     struct block *b;
     struct arena *a;
+    void *page;
 
     /* A null pointer satisfies a request for 0 bytes. */
     if (size == 0)
@@ -100,20 +106,9 @@ void * fmalloc(size_t size) {
             break;
     }
 
+    /* fmalloc doesn't handle multi-page allocations */
     if (d == descs + desc_cnt) {
-        /* SIZE is too big for any descriptor.
-           Allocate enough pages to hold SIZE plus an arena. */
-        size_t page_cnt = DIV_ROUND_UP(size + sizeof *a, PGSIZE);
-        a = palloc_get_multiple(PAL_PAGING | PAL_PIN, page_cnt);
-        if (a == NULL)
-            return NULL;
-
-        /* Initialize the arena to indicate a big block of PAGE_CNT
-           pages, and return it. */
-        a->magic = ARENA_MAGIC;
-        a->desc = NULL;
-        a->free_cnt = page_cnt;
-        return a + 1;
+        return NULL;
     }
 
     lock_acquire(&d->lock);
@@ -123,12 +118,24 @@ void * fmalloc(size_t size) {
         size_t i;
 
         /* Allocate a page. */
-        a = palloc_get_page(PAL_PAGING | PAL_PIN);
-        if (a == NULL) {
+        //a = palloc_get_page(PAL_PAGING | PAL_PIN);
+        page = palloc_get_open_addr(false, 1);
+        if (page == NULL) {
             lock_release(&d->lock);
             return NULL; 
         }
-
+        
+        /* Put page into frame and install */
+        struct frame *f = get_frame_addr(false);
+        uint32_t *pte = lookup_page(init_page_dir, page, true);
+        pagedir_set_page(init_page_dir, page, f->faddr, pte_is_read_write(*pte) | PTE_PIN);
+        /* Now set up page_entry for page */
+        a = page;
+        a->pg_ent.vaddr = page;
+        a->pg_ent.source = FRAME_PAGE;
+        a->pg_ent.data = f;
+        list_insert_ordered(init_page_dir_sup, &(a->pg_ent.elem), palloc_page_less, NULL);
+        
         /* Initialize arena and add its blocks to the free list. */
         a->magic = ARENA_MAGIC;
         a->desc = d;

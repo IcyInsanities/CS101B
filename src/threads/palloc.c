@@ -28,12 +28,10 @@
 #include "threads/vaddr.h"
 #include "threads/pte.h"
 #include "vm/falloc.h"
+#include "userprog/pagedir.h"
 #include "userprog/syscall.h"
 
 static bool palloc_block_valid(void *start_addr, size_t block_size);
-static bool palloc_page_less(const struct list_elem *A,
-                             const struct list_elem *B,
-                             void* aux UNUSED);
 
 /*! Initializes the page allocator.  At most USER_PAGE_LIMIT
     pages are put into the user pool. */
@@ -352,7 +350,7 @@ void palloc_free_page(void *page) {
 }
 
 /*! A comparison of page entries based on virtual address for list elements */
-static bool palloc_page_less(const struct list_elem *A,
+bool palloc_page_less(const struct list_elem *A,
                              const struct list_elem *B,
                              void* aux UNUSED) {
                              
