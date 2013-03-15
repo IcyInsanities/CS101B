@@ -108,6 +108,26 @@ bool pagedir_set_page(uint32_t *pd, void *upage, void *kpage, bool writable) {
         return false;
     }
 }
+bool pagedir_set_page_kernel(uint32_t *pd, void *upage, void *kpage, bool writable) {
+    uint32_t *pte;
+
+    ASSERT(pg_ofs(upage) == 0);
+    ASSERT(pg_ofs(kpage) == 0);
+    //ASSERT(is_user_vaddr(upage));
+    ASSERT((uint32_t) kpage >> PTSHIFT < init_ram_pages);
+    //ASSERT(pd != init_page_dir);
+
+    pte = lookup_page(pd, upage, true);
+
+    if (pte != NULL) {
+        ASSERT((*pte & PTE_P) == 0);
+        *pte = pte_create_kernel(kpage, writable);
+        return true;
+    }
+    else {
+        return false;
+    }
+}
 
 /*! Looks up the physical address that corresponds to user virtual address
     UADDR in PD.  Returns the kernel virtual address corresponding to that

@@ -111,14 +111,13 @@ void *palloc_make_multiple_addr(void * start_addr,
             page_i->f_ofs = NULL;
         }
 
-        pte = lookup_page(pagedir, vaddr, true);
         if (flags & PAL_USER) {
-            *pte = pte_create_user(f->addr, !(flags & PAL_READO))
+            pagedir_set_page(pagedir, vaddr, f->faddr, !(flags & PAL_READO));
         } else {
-            *pte = pte_create_kernel(f->addr, !(flags & PAL_READO))
+            pagedir_set_page_kernel(pagedir, vaddr, f->faddr, !(flags & PAL_READO));
         }
-        pagedir_set_page(pagedir, vaddr, f->faddr, !(flags & PAL_READO));
-
+        
+        pte = lookup_page(pagedir, vaddr, true);
         /* Pin the page if necessary. */
         if (flags & PAL_PIN) {
            *pte = *pte | PTE_PIN;
