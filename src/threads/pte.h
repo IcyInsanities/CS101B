@@ -82,6 +82,7 @@ static inline uintptr_t pd_no(const void *va) {
 /*! Returns a PDE that points to page table PT. */
 static inline uint32_t pde_create(uint32_t *pt) {
     ASSERT(pg_ofs(pt) == 0);
+    ASSERT ((uint32_t) pt >> PTSHIFT < init_ram_pages);
     return ((uint32_t) pt)| PTE_U | PTE_W;
     //return vtop(pt) | PTE_U | PTE_W;
 }
@@ -97,18 +98,19 @@ static inline uint32_t *pde_get_pt(uint32_t pde) {
     The PTE's page is readable.
     If WRITABLE is true then it will be writable as well.
     The page will be usable only by ring 0 code (the kernel). */
-static inline uint32_t pte_create_kernel(void *page, bool writable) {
-    ASSERT (pg_ofs (page) == 0);
-    //return vtop(page) | (writable ? PTE_W : 0);
-    return ((uint32_t) page) | (writable ? PTE_W : 0);
+static inline uint32_t pte_create_kernel(void *ppage, bool writable) {
+    ASSERT (pg_ofs (ppage) == 0);
+    ASSERT ((uint32_t) ppage >> PTSHIFT < init_ram_pages);
+    //return vtop(ppage) | (writable ? PTE_W : 0);
+    return ((uint32_t) ppage) | (writable ? PTE_W : 0);
 }
 
 /*! Returns a PTE that points to PAGE.
     The PTE's page is readable.
     If WRITABLE is true then it will be writable as well.
     The page will be usable by both user and kernel code. */
-static inline uint32_t pte_create_user(void *page, bool writable) {
-    return pte_create_kernel(page, writable) | PTE_U;
+static inline uint32_t pte_create_user(void *ppage, bool writable) {
+    return pte_create_kernel(ppage, writable) | PTE_U;
 }
 
 /*! Returns a pointer to the page that page table entry PTE points to. */
