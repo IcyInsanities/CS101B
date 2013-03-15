@@ -8,16 +8,14 @@
  
 /*! A swap entry struct. */
 struct swap {
-    void *swaddr;                   /*!< Address of corresponding swap. */
-    struct page_entry *sup_entry;   /*!< Supplemental page table entry. */
-    struct thread *owner;           /*!< Thread which owns the swap. */
+    block_sector_t start_sector;    /*!< Starting sector of swap. */
+    bool in_use;                    /*!< Marks a swap as used or open. */
     struct list_elem process_elem;  /*!< List element for process. */
     struct list_elem open_elem;     /*!< List element for open list. */
 };
 
 void swalloc_init(void);
-struct swap *get_swap_addr(void);
-void *swalloc_get_swap(void *upage, struct page_entry *sup_entry);
-void swalloc_free_swap(void *swap);
+struct swap *swalloc_get_swap(void);
+void swalloc_free_swap(struct swap *);
 
 #endif /* vm/swalloc.h */

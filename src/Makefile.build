@@ -63,8 +63,8 @@ userprog_SRC += userprog/gdt.c		# GDT initialization.
 userprog_SRC += userprog/tss.c		# TSS management.
 
 # No virtual memory code yet.
-vm_SRC = vm/falloc.c			# Some file.
-vm_SRC += vm/swalloc.c			# Some file.
+vm_SRC = vm/falloc.c			# Frame allocator.
+vm_SRC += vm/swalloc.c			# Swap allocator.
 
 # Filesystem code.
 filesys_SRC  = filesys/filesys.c	# Filesystem core.
