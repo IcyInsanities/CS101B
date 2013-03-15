@@ -128,7 +128,11 @@ void * fmalloc(size_t size) {
         /* Put page into frame and install */
         struct frame *f = get_frame_addr(false);
         uint32_t *pte = lookup_page(init_page_dir, page, true);
-        pagedir_set_page(init_page_dir, page, f->faddr, pte_is_read_write(*pte) | PTE_PIN);
+        *pte |= PTE_PIN;
+        uint32_t *pte2 = lookup_page(thread_current()->pagedir, page, true);
+        *pte2 = *pte;
+        pagedir_set_page(init_page_dir, page, f->faddr, true);
+        pagedir_set_page(thread_current()->pagedir, page, f->faddr, true);
         /* Now set up page_entry for page */
         a = page;
         a->pg_ent.vaddr = page;
