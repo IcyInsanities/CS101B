@@ -185,25 +185,9 @@ void *_palloc_get_multiple(enum palloc_flags flags, size_t page_cnt, enum page_l
     */
     
     void *start_addr;
-    int i;
-    
+
     /* Look for an open block. */
-    for (i = 1; i < NUM_PAGES; i++) {
-        /* Get the next page address. */
-        start_addr = (void *) (i * PGSIZE);
-        
-        /* If the block is open, allocate it */
-        if (palloc_block_open(start_addr, page_cnt)) {
-            break;
-        }
-        /* If reached end of address space and nothing found, nothing to
-           allocate. */
-        else {
-            return NULL;
-        }
-        /* Otherwise keep looking. */
-        
-    }
+    start_addr = palloc_get_open_addr(flags & PAL_USER, page_cnt);
     
     /* Allocate the block. */
     start_addr = palloc_make_multiple_addr(start_addr, flags, page_cnt, load_type, data, f_ofs);
@@ -318,7 +302,7 @@ void palloc_free_multiple(void *pages, size_t page_cnt) {
         struct page_entry *page_e = list_entry(e, struct page_entry, elem);
         
         /* If an unallocated page is in the block, can't free. */
-        if (palloc_block_open(vaddr, 1)) { // TODO: modiify to compare vaddr with page_e->vaddr...more efficient
+        if (page_e->vaddr != vaddr) {
         
             // TODO: Kill the process if user
             if (user_space) {
@@ -359,6 +343,158 @@ bool palloc_page_less(const struct list_elem *A,
     uint8_t *vaddrB = list_entry(B, struct page_entry, elem)->vaddr;
  
     return vaddrA < vaddrB;
+}
+
+bool palloc_block_open_list(void* vaddr, struct list *alloc_list, struct list_elem *e, size_t block_size) {
+    struct page_entry *curr_alloc_page;
+    struct page_entry *next_alloc_page;
+    struct list_elem *prev_elem;
+    struct list_elem *next_e;
+    void *end_addr;
+    
+    /* If at the list end, block open if it is valid. */
+    if (e == list_end(alloc_list)) {
+        return palloc_block_valid(vaddr, block_size);
+    }
+    
+    /* Get the address of page after end of proposed block. */
+    end_addr = vaddr + (block_size*PGSIZE);
+    
+    next_alloc_page = list_entry(e, struct page_entry, elem);
+    
+    /* If next allocated block is after end address, and block is valid, it is open. */ 
+    return (bool) (end_addr <= next_alloc_page->vaddr && palloc_block_valid(vaddr, block_size));
+
+}
+
+// TODO: might want to change it to get the one after
+struct list_elem *palloc_alloc_elem_after_addr(void *vaddr, struct list *alloc_list, struct list_elem *curr_elem) {
+
+    struct list_elem *e = curr_elem;
+    struct page_entry *curr_page = list_entry(curr_elem, struct page_entry, elem);
+    
+    /* Search through list for the specified address. */
+    for (e = curr_elem; e != list_end(alloc_list); e = list_next(e)) {
+        
+        curr_page = list_entry(e, struct page_entry, elem);
+        
+        /* Once allocated page past the given address found, go back one to get
+         * to the page one before the address. */
+        if ( ((void *) curr_page->vaddr) >= vaddr) {
+            return e;
+        }
+    }
+    
+    return list_next(e);
+}
+
+void* palloc_get_open_addr(bool user_space, size_t block_size) {
+
+    bool block_found = false;
+    struct list *proc_list;
+    struct list *paging_list = init_page_dir_sup;
+    struct list_elem *proc_elem;
+    struct list_elem *paging_elem;
+    struct page_entry *proc_page;
+    struct page_entry *paging_page;
+    struct page_entry *next_proc_page;
+    struct page_entry *next_paging_page;
+    struct thread *t = thread_current();
+    uint32_t alloc_size = block_size * PGSIZE;
+    void *curr_addr;
+    void *start_addr;
+    bool proc_page_open = false;
+    bool paging_page_open = false;
+    int last_page_index;
+    uint32_t i;
+    
+    /* Look in the process list for the starting page first. */
+    proc_list = &(t->page_entries);
+
+    /* If requesting kernel space, get to kernel space first. */
+    if (!user_space && !list_empty(proc_list) && !list_empty(paging_list)) {
+    
+        if (!list_empty(proc_list)) {
+            proc_elem = palloc_alloc_elem_after_addr(PHYS_BASE, proc_list, list_begin(proc_list));
+            /* Check if there is an open block at start of kernel space. */
+            proc_page_open = palloc_block_open_list(PHYS_BASE, proc_list, proc_elem, block_size);
+        }
+        else {
+            proc_page_open = palloc_block_valid(PHYS_BASE, block_size);
+        }
+        
+        if (!list_empty(paging_list)) {
+            paging_elem = palloc_alloc_elem_after_addr(PHYS_BASE, proc_list, list_begin(paging_list));
+            /* Check if there is an open block at start of kernel space. */
+            paging_page_open = palloc_block_open_list(PHYS_BASE, paging_list, paging_elem, block_size);
+        }
+        else {
+            paging_page_open = palloc_block_valid(PHYS_BASE, block_size);
+        }
+        
+        /* If open in both lists, valid address. */
+        if (proc_page_open && paging_page_open) {
+            return (void *) PHYS_BASE;
+        }
+        else {
+            proc_page_open = false;
+            paging_page_open = false;
+            start_addr = PHYS_BASE;
+            last_page_index = NUM_PAGES;
+        }
+        
+    }
+    else if (user_space) {
+    
+        if (!list_empty(proc_list)) {
+            proc_elem = palloc_alloc_elem_after_addr((void *) PGSIZE, proc_list, list_begin(proc_list));
+            /* Check if there is an open block at start of user space. */
+            proc_page_open = palloc_block_open_list((void *) PGSIZE, proc_list, proc_elem, block_size);
+        }
+        else {
+            proc_page_open = palloc_block_valid(PHYS_BASE, block_size);
+        }
+        
+        /* If open in both lists, valid address. */
+        if (proc_page_open) {
+            return (void *) PGSIZE;
+        }
+        else {
+            proc_page_open = false;
+            paging_page_open = false;
+            start_addr = (void *) PGSIZE;
+            last_page_index = ((uint32_t) PHYS_BASE)/PGSIZE;
+        }
+    }
+    
+    /* Search address space for an open block. */
+    for (i = (((uint32_t) start_addr)/PGSIZE) + 1; i < last_page_index; i++) {
+        
+        curr_addr = (void *) (i * PGSIZE);
+        proc_elem = palloc_alloc_elem_after_addr(curr_addr, proc_list, proc_elem);
+        proc_page_open = palloc_block_open_list(curr_addr, proc_list, proc_elem, block_size);
+        
+        /* If in kernel space need, to check that the block is open in both
+           lists. */
+        if (!user_space) {
+            paging_elem = palloc_alloc_elem_after_addr(curr_addr, paging_list, paging_elem);
+            paging_page_open = palloc_block_open_list(curr_addr, paging_list, paging_elem, block_size);
+            
+            /* If free in both lists, then must be free. */
+            if (paging_page_open && proc_page_open) {
+                return curr_addr;
+            }
+        }
+        else {
+            /* If in user space, and free in process list, must be free. */
+            if (proc_page_open) {
+                return curr_addr;
+            }
+        }
+    }
+    
+    /* If no open block could be found, return NULL. */
+    return NULL;
 }
 
 /*! Returns true if the block of size block_size starting at start_addr is

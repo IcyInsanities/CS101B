@@ -49,5 +49,9 @@ void *_palloc_get_multiple(enum palloc_flags, size_t page_cnt, enum page_load, v
 void *_palloc_get_page(enum palloc_flags flags, enum page_load, void *, void *);
 struct page_entry *palloc_addr_to_page_entry(void *);
 bool palloc_page_less(const struct list_elem *, const struct list_elem *, void*);
+void* palloc_get_open_addr(bool, size_t);
+struct list_elem *palloc_alloc_elem_after_addr(void *, struct list *, struct list_elem *);
+bool palloc_block_open_list(void *, struct list *, struct list_elem *, size_t);
+
 
 #endif /* threads/palloc.h */
