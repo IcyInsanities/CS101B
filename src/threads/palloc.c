@@ -372,7 +372,8 @@ struct list_elem *palloc_alloc_elem_after_addr(void *vaddr, struct list *alloc_l
 
     struct list_elem *e = curr_elem;
     struct page_entry *curr_page = list_entry(curr_elem, struct page_entry, elem);
-    
+    ASSERT(!list_empty(alloc_list));
+    ASSERT(curr_elem != list_end(alloc_list));
     /* Search through list for the specified address. */
     for (e = curr_elem; e != list_end(alloc_list); e = list_next(e)) {
         
@@ -380,7 +381,7 @@ struct list_elem *palloc_alloc_elem_after_addr(void *vaddr, struct list *alloc_l
         
         /* Once allocated page past the given address found, go back one to get
          * to the page one before the address. */
-        if ( ((void *) curr_page->vaddr) >= vaddr) {
+        if (((void *) curr_page->vaddr) >= vaddr) {
             return e;
         }
     }
@@ -412,7 +413,7 @@ void* palloc_get_open_addr(bool user_space, size_t block_size) {
     proc_list = &(t->page_entries);
 
     /* If requesting kernel space, get to kernel space first. */
-    if (!user_space && !list_empty(proc_list) && !list_empty(paging_list)) {
+    if (!user_space) {
     
         if (!list_empty(proc_list)) {
             proc_elem = palloc_alloc_elem_after_addr(PHYS_BASE, proc_list, list_begin(proc_list));
@@ -424,7 +425,7 @@ void* palloc_get_open_addr(bool user_space, size_t block_size) {
         }
         
         if (!list_empty(paging_list)) {
-            paging_elem = palloc_alloc_elem_after_addr(PHYS_BASE, proc_list, list_begin(paging_list));
+            paging_elem = palloc_alloc_elem_after_addr(PHYS_BASE, paging_list, list_begin(paging_list));
             /* Check if there is an open block at start of kernel space. */
             paging_page_open = palloc_block_open_list(PHYS_BASE, paging_list, paging_elem, block_size);
         }
@@ -444,7 +445,7 @@ void* palloc_get_open_addr(bool user_space, size_t block_size) {
         }
         
     }
-    else if (user_space) {
+    else {
     
         if (!list_empty(proc_list)) {
             proc_elem = palloc_alloc_elem_after_addr((void *) PGSIZE, proc_list, list_begin(proc_list));
@@ -471,23 +472,38 @@ void* palloc_get_open_addr(bool user_space, size_t block_size) {
     for (i = (((uint32_t) start_addr)/PGSIZE) + 1; i < last_page_index; i++) {
         
         curr_addr = (void *) (i * PGSIZE);
-        proc_elem = palloc_alloc_elem_after_addr(curr_addr, proc_list, proc_elem);
-        proc_page_open = palloc_block_open_list(curr_addr, proc_list, proc_elem, block_size);
-        
+        if (!list_empty(proc_list)) {
+            proc_elem = palloc_alloc_elem_after_addr(curr_addr, proc_list, proc_elem);
+            proc_page_open = palloc_block_open_list(curr_addr, proc_list, proc_elem, block_size);
+            
+        }
+        else {
+            /* TODO: Might want to make a call to check if valid. */
+            proc_page_open = true;
+        }
         /* If in kernel space need, to check that the block is open in both
            lists. */
         if (!user_space) {
-            paging_elem = palloc_alloc_elem_after_addr(curr_addr, paging_list, paging_elem);
-            paging_page_open = palloc_block_open_list(curr_addr, paging_list, paging_elem, block_size);
+        
+            if (!list_empty(paging_list)) {
+                paging_elem = palloc_alloc_elem_after_addr(curr_addr, paging_list, paging_elem);
+                paging_page_open = palloc_block_open_list(curr_addr, paging_list, paging_elem, block_size);
+            }
+            else {
+                /* TODO: Might want to make a call to check if valid. */
+                paging_page_open = true;
+            }   
             
             /* If free in both lists, then must be free. */
             if (paging_page_open && proc_page_open) {
+                ASSERT(curr_addr >= (void *) PHYS_BASE);
                 return curr_addr;
             }
         }
         else {
             /* If in user space, and free in process list, must be free. */
             if (proc_page_open) {
+                ASSERT(curr_addr >= (void *) PGSIZE);
                 return curr_addr;
             }
         }

@@ -93,10 +93,6 @@ void falloc_init(size_t user_frame_limit)
     open_frame_list_user = (struct list *) (num_frame_used * PGSIZE + sizeof(struct list));
     open_frame_list_kernel = (struct list *) (num_frame_used * PGSIZE + 2*sizeof(struct list));
     num_frame_used++;
-    /* Initialize lists */
-    list_init(open_frame_list_user);
-    list_init(open_frame_list_kernel);
-    list_init(init_page_dir_sup);
     /* Map and pin the first num_frame_used frames into init_page_dir */
     pt = NULL;
     pt_phys = NULL;
@@ -130,11 +126,35 @@ void falloc_init(size_t user_frame_limit)
         page_entry_list[page].vaddr = (uint8_t *) vaddr;
         page_entry_list[page].source = FRAME_PAGE;
         page_entry_list[page].data = &paddr;
+    }
+    
+    /* Convert address back into virtual address now that done writing to them */
+    frame_list_kernel = ptov((uintptr_t) frame_list_kernel);
+    frame_list_user = ptov((uintptr_t) frame_list_user);
+    init_page_dir = ptov((uintptr_t) pd);
+    init_page_dir_sup = ptov((uintptr_t) init_page_dir_sup);
+    open_frame_list_user = ptov((uintptr_t) open_frame_list_user);
+    open_frame_list_kernel = ptov((uintptr_t) open_frame_list_kernel);
+    page_entry_list = ptov((uintptr_t) page_entry_list);
+    
+    /* Switch into the page directory that we created before we can initialize
+       any lists, otherwise addresses will be physical and not virtal
+       Store the physical address of the page directory into CR3 aka PDBR (page
+       directory base register).  This activates our new page tables
+       immediately.  See [IA32-v2a] "MOV--Move to/from Control Registers" and
+       [IA32-v3a] 3.7.5 "Base Address of the Page Directory". */
+    asm volatile ("movl %0, %%cr3" : : "r" (vtop (init_page_dir)));
 
+    /* Initialize lists */
+    list_init(open_frame_list_user);
+    list_init(open_frame_list_kernel);
+    list_init(init_page_dir_sup);
+    
+    for (page = 0; page < num_frame_used; page++)
+    {
         /* Will already be sorted by physical address */
         list_push_back(init_page_dir_sup, &(page_entry_list[page].elem));
     }
-
     /* Build open frame table entries, don't care about entry value */
     if (num_frame_used > kernel_frames)
     {
@@ -148,14 +168,6 @@ void falloc_init(size_t user_frame_limit)
     {
         list_push_back(open_frame_list_user, &(frame_list_user[i].open_elem));
     }
-    
-    /* Convert address back into virtual address now that done writing to them */
-    frame_list_kernel = ptov((uintptr_t) frame_list_kernel);
-    frame_list_user = ptov((uintptr_t) frame_list_user);
-    init_page_dir = ptov((uintptr_t) pd);
-    init_page_dir_sup = ptov((uintptr_t) init_page_dir_sup);
-    open_frame_list_user = ptov((uintptr_t) open_frame_list_user);
-    open_frame_list_kernel = ptov((uintptr_t) open_frame_list_kernel);
 }
 
 struct frame *get_frame_addr(bool user)
