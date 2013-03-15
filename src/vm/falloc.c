@@ -29,6 +29,7 @@
 #include "threads/pte.h"
 #include "threads/synch.h"
 #include "threads/vaddr.h"
+#include "vm/swalloc.h"
 #include "filesys/filesys.h"
 #include "filesys/file.h"
 
@@ -236,7 +237,8 @@ void *falloc_get_frame(void *upage, bool user, struct page_entry *sup_entry)
         bytes_read = (uint32_t) file_read(sup_entry->data, upage, (off_t) PGSIZE);
         memset(upage + bytes_read, 0,  PGSIZE - bytes_read);
     case SWAP_PAGE:
-        memset(frame, 0, PGSIZE);
+        swap_read_page(sup_entry->data, upage);
+        swalloc_free_swap(sup_entry->data);
         break;
     case FRAME_PAGE:    /* Cannot have page already in frame */
         ASSERT(false);

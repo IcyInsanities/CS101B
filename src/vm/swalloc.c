@@ -86,7 +86,7 @@ void swalloc_free_swap(struct swap *swap_entry)
     {
         return;
     }
-    
+
     /* Add swap struct back to open list. */
     list_push_back(open_swap_list, &(swap_entry->open_elem));
     /* Remove from user's list */
@@ -107,7 +107,7 @@ void swap_write_page(struct swap* swap_entry, void *upage)
 }
 
 /*! Writes a swap file back to the given page */
-void swap_get_page(struct swap* swap_entry, void *upage)
+void swap_read_page(struct swap* swap_entry, void *upage)
 {
     ASSERT(swap_entry->in_use);
     uint32_t i;

@@ -8,12 +8,13 @@
 #include "threads/thread.h"
 
 /*! A memory pool. */
-struct pool
-{
-    struct lock lock;                   /*!< Mutual exclusion. */
-    struct bitmap *used_map;            /*!< Bitmap of free pages. */
-    uint8_t *base;                      /*!< Base of pool. */
-};
+// TODO: Don't need pool stuff
+//struct pool
+//{
+//    struct lock lock;                   /*!< Mutual exclusion. */
+//    struct bitmap *used_map;            /*!< Bitmap of free pages. */
+//    uint8_t *base;                      /*!< Base of pool. */
+//};
 
 // TODO: frame struct
 // pointer to page
