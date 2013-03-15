@@ -53,7 +53,7 @@ void frame_evict(bool user);
     frames are put into the user pool. */
 void falloc_init(size_t user_frame_limit)
 {
-    uint32_t *pd, *pt, *pt_phys;
+    uint32_t *pd, *pt;
     size_t page;
     uint32_t i;
     extern char _start, _end_kernel_text;
@@ -95,7 +95,6 @@ void falloc_init(size_t user_frame_limit)
     num_frame_used++;
     /* Map and pin the first num_frame_used frames into init_page_dir */
     pt = NULL;
-    pt_phys = NULL;
     for (page = 0; page < num_frame_used; page++)
     {
         uintptr_t paddr = page * PGSIZE;
@@ -106,19 +105,18 @@ void falloc_init(size_t user_frame_limit)
 
         if (pd[pde_idx] == 0)
         {
-            pt_phys = (uint32_t *) (num_frame_used * PGSIZE);
-            memset(pt_phys, 0, PGSIZE);
-            pt = ptov((uintptr_t) pt_phys);
+            pt = (uint32_t *) (num_frame_used * PGSIZE);
+            memset(pt, 0, PGSIZE);
             num_frame_used++;
             pd[pde_idx] = pde_create(pt);
             pd[pde_idx] = pde_create(pt) | PTE_P | PTE_PIN;
         }
         
-        pt_phys[pte_idx] = pte_create_kernel(vaddr, !in_kernel_text) | PTE_P | PTE_PIN;
+        pt[pte_idx] = pte_create_kernel(paddr, !in_kernel_text) | PTE_P | PTE_PIN;
 
         /* Initialize frame entries */
         frame_list_kernel[page].faddr = (void *) paddr;
-        frame_list_kernel[page].pte = &(pt_phys[pte_idx]);
+        frame_list_kernel[page].pte = &(pt[pte_idx]);
         frame_list_kernel[page].sup_entry = NULL;
         frame_list_kernel[page].owner = NULL;
 
