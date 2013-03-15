@@ -18,7 +18,6 @@
 #include "threads/interrupt.h"
 #include "threads/io.h"
 #include "threads/loader.h"
-#include "threads/fmalloc.h"
 #include "threads/malloc.h"
 #include "threads/palloc.h"
 #include "threads/pte.h"
@@ -109,7 +108,6 @@ int main(void) {
     palloc_init();
     paging_init();
     malloc_init();
-    fmalloc_init();
 
     /* Segmentation. */
 #ifdef USERPROG

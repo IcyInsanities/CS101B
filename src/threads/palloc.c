@@ -21,7 +21,6 @@
 #include <stdio.h>
 #include <string.h>
 #include <list.h>
-#include "threads/fmalloc.h"
 #include "threads/init.h"
 #include "threads/loader.h"
 #include "threads/synch.h"
@@ -84,7 +83,7 @@ void *palloc_make_multiple_addr(void * start_addr,
     for (i = 0; i < page_cnt; i++) {
 
         /* Create a supplemental entry for the page. */
-        struct page_entry *page_i = (struct page_entry *) fmalloc(sizeof(struct page_entry));
+        struct page_entry *page_i = get_page_entry();
 
         ASSERT (page_i != NULL);
 
@@ -323,7 +322,7 @@ void palloc_free_multiple(void *pages, size_t page_cnt) {
             list_remove(&(page_e->elem));
 
             /* Free the supplemental page entry. */
-            ffree((void *) page_e);
+            free_page_entry(page_e);
         }
         /* Go to the next page. */
         vaddr += PGSIZE;

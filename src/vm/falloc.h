@@ -36,6 +36,9 @@ struct frame *get_frame_addr(bool user);
 void *falloc_get_frame(void *upage, bool user, struct page_entry *sup_entry);
 void falloc_free_frame(void *frame);
 
+struct page_entry *get_page_entry(void);
+void free_page_entry(struct page_entry *);
+
 // TODO: Don't need pool stuff
 //static void init_pool(struct pool *, void *base, size_t page_cnt, const char *name);
 //static bool page_from_pool(const struct pool *, void *page);

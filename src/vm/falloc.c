@@ -45,8 +45,28 @@ static struct frame *frame_list_kernel;
 static uint32_t user_frames;
 static uint32_t kernel_frames;
 
+static struct list *open_page_entry;
+#define NUM_PAGE_ENTRY  6000
 
 void frame_evict(bool user);
+
+
+/*! This function gets a new page entry */
+struct page_entry *get_page_entry(void)
+{
+    if (list_empty(open_page_entry))
+    {
+        PANIC("get_page_entry: out of page entries to allocate");
+    }
+    /* Otherwise, get an open page entry. */
+    struct list_elem *elem = list_pop_front(open_page_entry);
+    return list_entry(elem, struct page_entry, elem);
+}
+/*! This function frees a page entry by putting it back into the open list */
+void free_page_entry(struct page_entry *entry)
+{
+    list_push_back(open_page_entry, &(entry->elem));
+}
 
 
 /*! Initializes the frame allocator.  At most USER_FRAME_LIMIT
@@ -76,14 +96,11 @@ void falloc_init(size_t user_frame_limit)
     frame_list_user   = (struct frame *) (1024 * 1024 + sizeof(struct frame) * (kernel_frames));
     uint32_t num_frame_used = 1024 * 1024 + sizeof(struct frame) * (user_frames + kernel_frames);
     num_frame_used = (uint32_t) pg_round_up((void *) num_frame_used) / PGSIZE;
-    /* Compute space for page_entry structs for these frames */
-    uint32_t num_frame_for_pagedir = (sizeof(struct page_entry) * num_frame_used / PGSIZE) + 1;
-    /* Repeat computation to ensure space for the new frames/pages to be allocated
-       and account for worst case of new pd table allocations */
-    num_frame_for_pagedir = (sizeof(struct page_entry)
-                    * (num_frame_used + num_frame_for_pagedir) * 2 / PGSIZE) + 1;
+    /* Compute space for page_entry structs */
+    uint32_t num_frame_for_page_ent = (sizeof(struct page_entry) * NUM_PAGE_ENTRY / PGSIZE) + 1;
     struct page_entry *page_entry_list = (struct page_entry *) (num_frame_used * PGSIZE);
-    num_frame_used += num_frame_for_pagedir;
+    /* Update total pages used */
+    num_frame_used += num_frame_for_page_ent;
 
     /* Put global variables into frame */
     pd = (uint32_t *) (num_frame_used * PGSIZE);
@@ -92,6 +109,7 @@ void falloc_init(size_t user_frame_limit)
     init_page_dir_sup = (struct list *) (num_frame_used * PGSIZE);
     open_frame_list_user = (struct list *) (num_frame_used * PGSIZE + sizeof(struct list));
     open_frame_list_kernel = (struct list *) (num_frame_used * PGSIZE + 2*sizeof(struct list));
+    open_page_entry = (struct list *) (num_frame_used * PGSIZE + 3*sizeof(struct list));
     num_frame_used++;
     /* Map and pin the first num_frame_used frames into init_page_dir */
     pt = NULL;
@@ -108,8 +126,8 @@ void falloc_init(size_t user_frame_limit)
             pt = (uint32_t *) (num_frame_used * PGSIZE);
             memset(pt, 0, PGSIZE);
             num_frame_used++;
-            pd[pde_idx] = pde_create(ptov(pt));
-            pd[pde_idx] = pde_create(ptov(pt)) | PTE_P | PTE_PIN;
+            pd[pde_idx] = pde_create(pt);
+            pd[pde_idx] = pde_create(pt) | PTE_P | PTE_PIN;
         }
         
         pt[pte_idx] = pte_create_kernel(paddr, !in_kernel_text) | PTE_P | PTE_PIN;
@@ -152,6 +170,11 @@ void falloc_init(size_t user_frame_limit)
     {
         /* Will already be sorted by physical address */
         list_push_back(init_page_dir_sup, &(page_entry_list[page].elem));
+    }
+    /* Add leftover page entries to open list */
+    for (page = num_frame_used; page < NUM_PAGE_ENTRY; page++)
+    {
+        list_push_back(open_page_entry, &(page_entry_list[page].elem));
     }
     /* Build open frame table entries, don't care about entry value */
     if (num_frame_used > kernel_frames)
