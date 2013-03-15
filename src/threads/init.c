@@ -171,12 +171,13 @@ static void paging_init(void) {
     // TODO!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
     // Or maybe not.
 
-    /* Store the physical address of the page directory into CR3
-       aka PDBR (page directory base register).  This activates our
-       new page tables immediately.  See [IA32-v2a] "MOV--Move
-       to/from Control Registers" and [IA32-v3a] 3.7.5 "Base Address
-       of the Page Directory". */
-    // DEBUG: asm volatile ("movl %0, %%cr3" : : "r" (vtop (init_page_dir)));
+    // TODO: MOVED TO FALLOC_INIT
+    ///* Store the physical address of the page directory into CR3
+    //   aka PDBR (page directory base register).  This activates our
+    //   new page tables immediately.  See [IA32-v2a] "MOV--Move
+    //   to/from Control Registers" and [IA32-v3a] 3.7.5 "Base Address
+    //   of the Page Directory". */
+    //asm volatile ("movl %0, %%cr3" : : "r" (vtop (init_page_dir)));
 }
 
 /*! Breaks the kernel command line into words and returns them as
