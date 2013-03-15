@@ -112,9 +112,9 @@ void *palloc_make_multiple_addr(void * start_addr,
         }
 
         if (flags & PAL_USER) {
-            pagedir_set_page(pagedir, vaddr, f->faddr, !(flags & PAL_READO));
+            pagedir_set_page(pagedir, vaddr, 0, !(flags & PAL_READO));
         } else {
-            pagedir_set_page_kernel(pagedir, vaddr, f->faddr, !(flags & PAL_READO));
+            pagedir_set_page_kernel(pagedir, vaddr, 0, !(flags & PAL_READO));
         }
         
         pte = lookup_page(pagedir, vaddr, true);

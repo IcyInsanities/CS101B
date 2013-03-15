@@ -108,8 +108,8 @@ void falloc_init(size_t user_frame_limit)
             pt = (uint32_t *) (num_frame_used * PGSIZE);
             memset(pt, 0, PGSIZE);
             num_frame_used++;
-            pd[pde_idx] = pde_create(pt);
-            pd[pde_idx] = pde_create(pt) | PTE_P | PTE_PIN;
+            pd[pde_idx] = pde_create(ptov(pt));
+            pd[pde_idx] = pde_create(ptov(pt)) | PTE_P | PTE_PIN;
         }
         
         pt[pte_idx] = pte_create_kernel(paddr, !in_kernel_text) | PTE_P | PTE_PIN;
@@ -274,9 +274,9 @@ void *falloc_get_frame(void *upage, bool user, struct page_entry *sup_entry)
 void falloc_free_frame(void *frame)
 {
     struct frame *frame_entry = addr_to_frame(frame);
-    uint32_t *pd = thread_current()->pagedir;      /* Get page directory */
+    uint32_t *pd = thread_current()->pagedir;       /* Get page directory */
     uint32_t pte = *(frame_entry->pte);
-    void *upage = pte_get_page(pte);                    /* Get virtual addr */
+    void *upage = frame_entry->sup_entry->vaddr;    /* Get virtual addr */
     struct list *open_frame_list;
     bool user_space;
     
