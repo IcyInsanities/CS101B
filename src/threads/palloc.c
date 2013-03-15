@@ -117,6 +117,7 @@ void *palloc_make_multiple_addr(void * start_addr,
         } else {
             *pte = pte_create_kernel(f->addr, !(flags & PAL_READO))
         }
+        pagedir_set_page(pagedir, vaddr, f->faddr, !(flags & PAL_READO));
 
         /* Pin the page if necessary. */
         if (flags & PAL_PIN) {
