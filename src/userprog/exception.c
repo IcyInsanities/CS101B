@@ -182,7 +182,7 @@ static void page_fault(struct intr_frame *f) {
         /* Bad alias, set page and try again */
         if (pte_is_present(ker_pte)) {
             void *paddr = pagedir_get_page(init_page_dir, fault_page);
-            uint32_t* pte = lookup_page(pagedir, fault_page, true)
+            uint32_t* pte = lookup_page(pagedir, fault_page, true);
             *pte = ker_pte;
             pagedir_set_page(pagedir, paddr, fault_page, pte_is_read_write(ker_pte));
             return;
