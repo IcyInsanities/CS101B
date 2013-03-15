@@ -160,10 +160,12 @@ void falloc_init(size_t user_frame_limit)
     }
     for (i = num_frame_used; i < kernel_frames; i++)
     {
+        frame_list_kernel[i].faddr = (void *) (i * PGSIZE);
         list_push_back(open_frame_list_kernel, &(frame_list_kernel[i].open_elem));
     }
     for (i = 0; i < user_frames; i++)
     {
+        frame_list_user[i].faddr = (void *) (i * PGSIZE);
         list_push_back(open_frame_list_user, &(frame_list_user[i].open_elem));
     }
 }
