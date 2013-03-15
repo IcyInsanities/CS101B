@@ -228,16 +228,22 @@ void *falloc_get_frame(void *upage, bool user, struct page_entry *sup_entry)
     frame_entry = get_frame_addr(user);
     frame = frame_entry->faddr;
 
+    /* NOTE: need to force read/write bit to always be valid. */
+    if (user) {
+        pagedir_set_page(pagedir, upage, frame, pte_is_read_write(*pte));
+    }
+    else {
+        pagedir_set_page_kernel(pagedir, upage, frame, pte_is_read_write(*pte));
+    }
+    if (pte_is_pinned(*pte)) {
+        pagedir_set_page_kernel(init_page_dir, upage, frame, pte_is_read_write(*pte));
+    }
+    *pte |= PTE_P;
+
     /* TODO: associate frame with page. */
     frame_entry->pte = pte;
     frame_entry->sup_entry = sup_entry;
     frame_entry->owner = t;
-
-    /* NOTE: need to force read/write bit to always be valid. */
-    pagedir_set_page(pagedir, upage, frame, pte_is_read_write(*pte));
-    if (pte_is_pinned(*pte)) {
-        pagedir_set_page(init_page_dir, upage, frame, pte_is_read_write(*pte));
-    }
     
     // TODO: need to load data
     switch (sup_entry->source)

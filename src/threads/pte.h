@@ -91,7 +91,7 @@ static inline uint32_t pde_create(uint32_t *pt) {
     PDE, which must "present", points to. */
 static inline uint32_t *pde_get_pt(uint32_t pde) {
     ASSERT(pde & PTE_P);
-    return ptov(pde & PTE_ADDR);
+    return pde & PTE_ADDR;
 }
 
 /*! Returns a PTE that points to PAGE.
@@ -115,7 +115,7 @@ static inline uint32_t pte_create_user(void *ppage, bool writable) {
 
 /*! Returns a pointer to the page that page table entry PTE points to. */
 static inline void *pte_get_page(uint32_t pte) {
-  return ptov(pte & PTE_ADDR);
+  return pte & PTE_ADDR;
 }
 
 /*! Returns whether page is pinned or not. */

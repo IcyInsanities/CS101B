@@ -56,7 +56,6 @@ void *palloc_make_multiple_addr(void * start_addr,
     uint32_t *pte;
     void *vaddr;
     void *curr_f_ofs = f_ofs;
-    struct frame *f;
 
     /* Page data should not be in a frame. */
     if (load_type == FRAME_PAGE) {
@@ -112,13 +111,14 @@ void *palloc_make_multiple_addr(void * start_addr,
             page_i->f_ofs = NULL;
         }
 
-        pte = lookup_page(pagedir, vaddr, true);
         if (flags & PAL_USER) {
-            *pte = pte_create_user(0, !(flags & PAL_READO));
+            pagedir_set_page(pagedir, vaddr, 0, !(flags & PAL_READO));
         } else {
-            *pte = pte_create_kernel(0, !(flags & PAL_READO));
+            printf("HI, from palloc.");
+            pagedir_set_page_kernel(pagedir, vaddr, 0, !(flags & PAL_READO));
         }
-        pagedir_set_page(pagedir, vaddr, 0, !(flags & PAL_READO));
+        
+        pte = lookup_page(pagedir, vaddr, true);
 
         /* Pin the page if necessary. */
         if (flags & PAL_PIN) {

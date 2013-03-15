@@ -127,10 +127,10 @@ void * fmalloc(size_t size) {
         
         /* Put page into frame and install */
         struct frame *f = get_frame_addr(false);
-        uint32_t *pte = lookup_page(init_page_dir, page, true);
-        *pte = pte_create_kernel(f->faddr, true) | PTE_PIN;
-        pagedir_set_page(init_page_dir, page, f->faddr, true);
-        *pte |= PTE_P;
+        printf("HI, from fmalloc");
+        pagedir_set_page_kernel(init_page_dir, page, f->faddr, true);
+        uint32_t *pte = lookup_page(init_page_dir, page, false);
+        *pte |= PTE_P | PTE_PIN;
         /* Set frame entries */
         f->pte = pte;
         f->sup_entry = NULL;
