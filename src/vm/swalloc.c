@@ -69,7 +69,7 @@ struct swap *swalloc_get_swap()
     /* Remove swap from list of open swaps. */
     swap_entry = list_entry(elem, struct swap, open_elem);
     /* Mark as in use */
-    swap_entry->in_use = sup_entry;
+    swap_entry->in_use = true;
     /* Add to process list. */
     list_push_back(&(thread_current()->swaps), &(swap_entry->process_elem));
 
