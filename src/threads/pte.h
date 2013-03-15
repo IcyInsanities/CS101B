@@ -82,7 +82,8 @@ static inline uintptr_t pd_no(const void *va) {
 /*! Returns a PDE that points to page table PT. */
 static inline uint32_t pde_create(uint32_t *pt) {
     ASSERT(pg_ofs(pt) == 0);
-    return vtop(pt) | PTE_U | PTE_W;
+    return ((uint32_t) pt)| PTE_U | PTE_W;
+    //return vtop(pt) | PTE_U | PTE_W;
 }
 
 /*! Returns a pointer to the page table that page directory entry
@@ -98,7 +99,8 @@ static inline uint32_t *pde_get_pt(uint32_t pde) {
     The page will be usable only by ring 0 code (the kernel). */
 static inline uint32_t pte_create_kernel(void *page, bool writable) {
     ASSERT (pg_ofs (page) == 0);
-    return vtop(page) | (writable ? PTE_W : 0);
+    //return vtop(page) | (writable ? PTE_W : 0);
+    return ((uint32_t) page) | (writable ? PTE_W : 0);
 }
 
 /*! Returns a PTE that points to PAGE.

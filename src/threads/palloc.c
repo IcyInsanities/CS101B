@@ -370,8 +370,8 @@ bool palloc_block_open_list(void* vaddr, struct list *alloc_list, struct list_el
 // TODO: might want to change it to get the one after
 struct list_elem *palloc_alloc_elem_after_addr(void *vaddr, struct list *alloc_list, struct list_elem *curr_elem) {
 
-    struct list_elem *e = curr_elem;
-    struct page_entry *curr_page = list_entry(curr_elem, struct page_entry, elem);
+    struct list_elem *e;
+    struct page_entry *curr_page;
     ASSERT(!list_empty(alloc_list));
     ASSERT(curr_elem != list_end(alloc_list));
     /* Search through list for the specified address. */
@@ -386,7 +386,7 @@ struct list_elem *palloc_alloc_elem_after_addr(void *vaddr, struct list *alloc_l
         }
     }
     
-    return list_next(e);
+    return list_end(alloc_list);
 }
 
 void* palloc_get_open_addr(bool user_space, size_t block_size) {
