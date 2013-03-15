@@ -114,7 +114,7 @@ void *palloc_make_multiple_addr(void * start_addr,
         if (flags & PAL_USER) {
             pagedir_set_page(pagedir, vaddr, 0, !(flags & PAL_READO));
         } else {
-            printf("HI, from palloc.");
+            printf("HI, from palloc."); // DEBUG:
             pagedir_set_page_kernel(pagedir, vaddr, 0, !(flags & PAL_READO));
         }
         
