@@ -119,7 +119,12 @@ void *palloc_make_multiple_addr(void * start_addr,
             printf("HI, from palloc.\n"); // DEBUG:
             printf("Pagedir at: %x\n", pagedir);
             printf("vaddr at: %x\n", vaddr);
-            pagedir_set_page_kernel(pagedir, vaddr, 0, !(flags & PAL_READO));
+            if(!pagedir_set_page_kernel(pagedir, vaddr, 0, !(flags & PAL_READO))) {
+                if (flags & PAL_ASSERT) {
+                    PANIC("palloc: out of pages");
+                }
+                return NULL;
+            }
             printf("PALLOC LIVED!\n"); // DEBUG:
         }
         
