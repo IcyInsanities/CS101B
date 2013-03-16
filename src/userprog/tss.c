@@ -73,12 +73,17 @@ void tss_init(void) {
     /* Our TSS is never used in a call gate or task gate, so only a few fields
        of it are ever referenced, and those are the only ones we initialize. */
     struct page_entry *pg_entry;
+    printf("TSS: 1\n");
     tss = palloc_get_page(PAL_ASSERT | PAL_ZERO | PAL_PIN | PAL_PAGING);
+    printf("TSS: 2\n");
     pg_entry = palloc_addr_to_page_entry(tss);
+    printf("TSS: 3\n");
     falloc_get_frame(tss, false, pg_entry);
+    printf("TSS: 4\n");
     tss->ss0 = SEL_KDSEG;
     tss->bitmap = 0xdfff;
     tss_update();
+    printf("TSS: DONE\n");
 }
 
 /*! Returns the kernel TSS. */

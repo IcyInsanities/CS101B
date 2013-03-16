@@ -83,7 +83,7 @@ static inline uintptr_t pd_no(const void *va) {
 static inline uint32_t pde_create(uint32_t *pt) {
     ASSERT(pg_ofs(pt) == 0);
     //ASSERT ((uint32_t) pt >> PTSHIFT < init_ram_pages);
-    return ((uint32_t) pt)| PTE_U | PTE_W;
+    return ((uint32_t) pt)| PTE_U | PTE_P | PTE_W | PTE_PIN;
     //return vtop(pt) | PTE_U | PTE_W;
 }
 
@@ -91,7 +91,7 @@ static inline uint32_t pde_create(uint32_t *pt) {
     PDE, which must "present", points to. */
 static inline uint32_t *pde_get_pt(uint32_t pde) {
     ASSERT(pde & PTE_P);
-    return ptov(pde & PTE_ADDR);
+    return ptov(pde & PTE_ADDR);    // TODO: CORRECTNESS UNKNOWN
 }
 
 /*! Returns a PTE that points to PAGE.

@@ -248,27 +248,30 @@ void *falloc_get_frame(void *upage, bool user, struct page_entry *sup_entry)
     uint32_t *pte;
     struct frame *frame_entry;
     uint32_t bytes_read;
-    
+    printf("HELLOS");
     /* Get the frame entry. */
     frame_entry = get_frame_addr(user);
     frame = frame_entry->faddr;
 
     /* NOTE: need to force read/write bit to always be valid. */
-    if (pte_is_pinned(*pte)) {
-        pagedir_set_page_kernel(init_page_dir, upage, frame, pte_is_read_write(*pte));
-        pte = lookup_page(init_page_dir, upage, false);  /* Get table entry */
-    } else {
-        if (user) {
-            pagedir_set_page(pagedir, upage, frame, pte_is_read_write(*pte));
-        }
-        else {
-            pagedir_set_page_kernel(pagedir, upage, frame, pte_is_read_write(*pte));
-        }
-        
-        pte = lookup_page(pagedir, upage, false);  /* Get table entry */
+    pte = lookup_page(init_page_dir, upage, false);
+    if (pte != NULL) {
+        ASSERT(pte_is_pinned(*pte));
+        ASSERT(!user);
+        pagedir = init_page_dir;
     }
+    printf("DEAD");
+    ASSERT(pagedir != NULL);
+    ASSERT(!(*pte & PTE_P));
+    if (user) {
+        pagedir_set_page(pagedir, upage, frame, pte_is_read_write(*pte));
+    }
+    else {
+        pagedir_set_page_kernel(pagedir, upage, frame, pte_is_read_write(*pte));
+    }
+    pte = lookup_page(pagedir, upage, false);
     *pte |= PTE_P;
-
+    printf("LIVES");
     /* TODO: associate frame with page. */
     frame_entry->pte = pte;
     frame_entry->sup_entry = sup_entry;

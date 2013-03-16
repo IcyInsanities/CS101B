@@ -120,7 +120,9 @@ bool pagedir_set_page_kernel(uint32_t *pd, void *upage, void *kpage, bool writab
     pte = lookup_page(pd, upage, true);
 
     if (pte != NULL) {
+        printf("Kernel: check present at %x\n", upage); // DEBUG:
         ASSERT((*pte & PTE_P) == 0);
+        printf("Kernel: no presents!\n"); // DEBUG:
         *pte = pte_create_kernel(kpage, writable);
         return true;
     }

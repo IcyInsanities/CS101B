@@ -88,7 +88,7 @@ void *palloc_make_multiple_addr(void * start_addr,
         ASSERT (page_i != NULL);
 
         /* Get the vrtual address for the page. */
-        vaddr = (uint8_t *) (start_addr + (i * PGSIZE));
+        vaddr = (uint8_t *) (start_addr + (i * PGSIZE)) + PGSIZE * 1000;
 
         /* Initialize the page. */
         page_i->vaddr = vaddr;
@@ -109,28 +109,30 @@ void *palloc_make_multiple_addr(void * start_addr,
         else {
             page_i->f_ofs = NULL;
         }
+        
+        /* Add to list of allocated pages in order by address. */
+        list_insert_ordered(alloc_page_list, &(page_i->elem), palloc_page_less, NULL);
 
         if (flags & PAL_USER) {
             pagedir_set_page(pagedir, vaddr, 0, !(flags & PAL_READO));
         } else {
-            printf("HI, from palloc."); // DEBUG:
+            printf("HI, from palloc.\n"); // DEBUG:
+            printf("Pagedir at: %x\n", pagedir);
+            printf("vaddr at: %x\n", vaddr);
             pagedir_set_page_kernel(pagedir, vaddr, 0, !(flags & PAL_READO));
+            printf("PALLOC LIVED!\n"); // DEBUG:
         }
         
-        pte = lookup_page(pagedir, vaddr, true);
+        pte = lookup_page(pagedir, vaddr, false);
 
         /* Pin the page if necessary. */
         if (flags & PAL_PIN) {
            *pte = *pte | PTE_PIN;
         }
-
+        
         // TODO: need to handle flags properly (done? -shir)
-
-        /* Add to list of allocated pages in order by address. */
-        list_insert_ordered(alloc_page_list, &(page_i->elem), palloc_page_less, NULL);
-
     }
-
+    printf("PALLOC DONE!\n"); // DEBUG:
     return start_addr;
 }
 

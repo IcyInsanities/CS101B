@@ -105,15 +105,18 @@ int main(void) {
            init_ram_pages * PGSIZE / 1024);
 
     /* Initialize memory system. */
-    falloc_init(user_page_limit);
+    falloc_init(user_page_limit);;
     palloc_init();
     paging_init();
     malloc_init();
 
     /* Segmentation. */
 #ifdef USERPROG
+    printf("I ");
     tss_init();
+    printf("HATE ");
     gdt_init();
+    printf("YOU ");
 #endif
     /* Initialize interrupt handlers. */
     intr_init();
