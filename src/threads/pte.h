@@ -91,7 +91,7 @@ static inline uint32_t pde_create(uint32_t *pt) {
     PDE, which must "present", points to. */
 static inline uint32_t *pde_get_pt(uint32_t pde) {
     ASSERT(pde & PTE_P);
-    return pde & PTE_ADDR;
+    return ptov(pde & PTE_ADDR);
 }
 
 /*! Returns a PTE that points to PAGE.

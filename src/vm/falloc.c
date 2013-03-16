@@ -152,6 +152,7 @@ void falloc_init(size_t user_frame_limit)
     open_frame_list_user = ptov((uintptr_t) open_frame_list_user);
     open_frame_list_kernel = ptov((uintptr_t) open_frame_list_kernel);
     page_entry_list = ptov((uintptr_t) page_entry_list);
+    open_page_entry = ptov((uintptr_t) open_page_entry);
     
     /* Switch into the page directory that we created before we can initialize
        any lists, otherwise addresses will be physical and not virtal
@@ -165,6 +166,7 @@ void falloc_init(size_t user_frame_limit)
     list_init(open_frame_list_user);
     list_init(open_frame_list_kernel);
     list_init(init_page_dir_sup);
+    list_init(open_page_entry);
     
     for (page = 0; page < num_frame_used; page++)
     {
@@ -243,7 +245,7 @@ void *falloc_get_frame(void *upage, bool user, struct page_entry *sup_entry)
     void *frame;
     struct thread *t = thread_current();
     uint32_t *pagedir = t->pagedir;                     /* Get page directory */
-    uint32_t *pte = lookup_page(pagedir, upage, true);  /* Get table entry */
+    uint32_t *pte;
     struct frame *frame_entry;
     uint32_t bytes_read;
     
@@ -252,14 +254,18 @@ void *falloc_get_frame(void *upage, bool user, struct page_entry *sup_entry)
     frame = frame_entry->faddr;
 
     /* NOTE: need to force read/write bit to always be valid. */
-    if (user) {
-        pagedir_set_page(pagedir, upage, frame, pte_is_read_write(*pte));
-    }
-    else {
-        pagedir_set_page_kernel(pagedir, upage, frame, pte_is_read_write(*pte));
-    }
     if (pte_is_pinned(*pte)) {
         pagedir_set_page_kernel(init_page_dir, upage, frame, pte_is_read_write(*pte));
+        pte = lookup_page(init_page_dir, upage, false);  /* Get table entry */
+    } else {
+        if (user) {
+            pagedir_set_page(pagedir, upage, frame, pte_is_read_write(*pte));
+        }
+        else {
+            pagedir_set_page_kernel(pagedir, upage, frame, pte_is_read_write(*pte));
+        }
+        
+        pte = lookup_page(pagedir, upage, false);  /* Get table entry */
     }
     *pte |= PTE_P;
 
@@ -272,7 +278,7 @@ void *falloc_get_frame(void *upage, bool user, struct page_entry *sup_entry)
     switch (sup_entry->source)
     {
     case ZERO_PAGE:
-        memset(frame, 0, PGSIZE);
+        memset(upage, 0, PGSIZE);
         break;
     case FILE_PAGE:
         bytes_read = (uint32_t) file_read(sup_entry->data, upage, (off_t) PGSIZE);

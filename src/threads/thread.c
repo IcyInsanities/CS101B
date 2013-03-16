@@ -12,6 +12,7 @@
 #include "threads/switch.h"
 #include "threads/synch.h"
 #include "threads/vaddr.h"
+#include "threads/init.h"
 #include "vm/falloc.h"
 #include "../devices/timer.h"
 #ifdef USERPROG
@@ -120,6 +121,7 @@ thread_init (void)
   init_thread (initial_thread, "main", PRI_DEFAULT, NULL); // initial has no parent
   initial_thread->status = THREAD_RUNNING;
   initial_thread->tid = allocate_tid ();
+  initial_thread->pagedir = init_page_dir;
 }
 
 /* Starts preemptive thread scheduling by enabling interrupts.
