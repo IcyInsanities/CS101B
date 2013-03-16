@@ -226,8 +226,10 @@ thread_create (const char *name, int priority, thread_func *function, void *aux)
   init_thread (t, name, priority, thread_current());
   tid = t->tid = allocate_tid ();
 
+#ifdef USERPROG
   /* Add thread to list of children. */
   list_push_back(&(thread_current()->children), &(t->childelem));
+#endif
 
   /* Stack frame for kernel_thread(). */
   kf = alloc_frame (t, sizeof *kf);
@@ -384,7 +386,6 @@ void
 thread_exit (void)
 {
   struct thread *t = thread_current();
-  struct list_elem *e;
 
   ASSERT (!intr_context ());
 
@@ -395,6 +396,7 @@ thread_exit (void)
   list_remove (&(t->allelem));
 
 #ifdef USERPROG /* Code for user programs. */
+  struct list_elem *e;
 
   /* Close the executable file once it is done running. */
   file_close(t->executable);
@@ -714,7 +716,11 @@ is_thread (struct thread *t)
 /* Does basic initialization of T as a blocked thread named
    NAME. */
 static void
+#ifdef USERPROG
 init_thread (struct thread *t, const char *name, int priority, struct thread *t_par)
+#else
+init_thread (struct thread *t, const char *name, int priority, struct thread *t_par UNUSED)
+#endif
 {
   enum intr_level old_level;
 
