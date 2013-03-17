@@ -55,9 +55,10 @@ void fballoc_load_fblock(struct inode* inode, off_t start)
     // Read in data
     inode_read_at(inode, (void*) &fblock_arr[idx], BLOCK_SECTOR_SIZE, start);
     // Update inode
-    
-    // TODO!!!!!!!
-    
+    file_sector* sec = byte_to_sector_ptr(inode, start);
+    file_sec_make_present(sec);
+    file_sec_set_block_num(sec, idx);
+    inode_get_block(inode, idx);
     // Done with block setup
     lock_release(&(fblock_entry_arr[idx].in_use));
     // Queue next block
@@ -70,16 +71,16 @@ void fballoc_free_fblock(uint32_t idx)
 {
     ASSERT(idx < NUM_FBLOCKS);
     lock_acquire(&(fblock_entry_arr[idx].in_use));
+    // Update inode
+    file_sector* sec = byte_to_sector_ptr(fblock_entry_arr[idx].inode, fblock_entry_arr[idx].start);
+    file_sec_clear_present(sec);
+    inode_release_block(fblock_entry_arr[idx].inode, idx);
     // Write block back
     fballoc_write_back(idx);
     fblock_set_not_used(&fblock_entry_arr[idx].status);
     fblock_set_not_accessed(&fblock_entry_arr[idx].status);
     fblock_entry_arr[idx].inode = NULL;
     fblock_entry_arr[idx].start = 0;
-    // Update inode
-    
-    // TODO!!!!!!!
-    
     // Done with block
     lock_release(&(fblock_entry_arr[idx].in_use));
 }
