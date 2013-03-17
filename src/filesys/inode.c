@@ -55,7 +55,6 @@ struct inode {
     POS. */
 file_sector* byte_to_sector_ptr(const struct inode *inode, off_t pos) {
     ASSERT(inode != NULL);
-    off_t pos_start = pos & (BLOCK_SECTOR_SIZE - 1);
     // TODO: read inode structures correctly
     
     off_t fs_idx = pos / BLOCK_SECTOR_SIZE;
@@ -64,7 +63,7 @@ file_sector* byte_to_sector_ptr(const struct inode *inode, off_t pos) {
     
     // If direct, then just get file sector
     if (fs_idx < NUM_DIRECT_FILE_SECTOR) {
-        return (inode->file_sectors)[fs_idx];
+        return &((inode->file_sectors)[fs_idx]);
     }
     else if (fs_idx < NUM_DIRECT_FILE_SECTOR + NUM_INDIRECT_FILE_SECTOR) {
         // TODO: INDIRECT CASE
@@ -74,7 +73,7 @@ file_sector* byte_to_sector_ptr(const struct inode *inode, off_t pos) {
     else {
         // TODO: DOUBLE INDIRECT CASE
     }
-    return inode->file_sectors[0];
+    return &(inode->file_sectors[0]);
 }
 
 block_sector_t byte_to_sector(const struct inode *inode, off_t pos) {
@@ -215,11 +214,11 @@ void inode_remove(struct inode *inode) {
 off_t inode_read_at(struct inode *inode, void *buffer_, off_t size, off_t offset) {
     uint8_t *buffer = buffer_;
     off_t bytes_read = 0;
-    uint8_t *bounce = NULL;
 
     while (size > 0) {
         /* Disk sector to read, starting byte offset within sector. */
-        block_sector_t sector_idx = byte_to_sector (inode, offset);
+        uint32_t *sector = byte_to_sector_ptr(inode, offset);
+        //block_sector_t sector_idx = file_sec_get_addr(*sector); // TODO: uneeded?
         int sector_ofs = offset % BLOCK_SECTOR_SIZE;
 
         /* Bytes left in inode, bytes left in sector, lesser of the two. */
@@ -227,25 +226,24 @@ off_t inode_read_at(struct inode *inode, void *buffer_, off_t size, off_t offset
         int sector_left = BLOCK_SECTOR_SIZE - sector_ofs;
         int min_left = inode_left < sector_left ? inode_left : sector_left;
         
-        void *cache_block;
-        
         /* Number of bytes to actually copy out of this sector. */
         int chunk_size = size < min_left ? size : min_left;
         if (chunk_size <= 0)
             break;
             
-        /* Get the pointer to the cache block containing file sector to read. */
-        cache_block = inode_get_cache_block(inode, sector_idx);
+        /* Get the pointer to the cache block containing file sector to write. */
+        uint32_t block_idx = inode_get_cache_block_idx(inode, offset, sector);
+        void *cache_block = fballoc_idx_to_addr(block_idx);
         
         /* Read the chunk from the cache block. */
         memcpy(buffer + bytes_read, cache_block + sector_ofs, chunk_size);
+        fblock_mark_read(block_idx);
       
         /* Advance. */
         size -= chunk_size;
         offset += chunk_size;
         bytes_read += chunk_size;
     }
-    free(bounce);
 
     return bytes_read;
 }
@@ -258,22 +256,20 @@ off_t inode_read_at(struct inode *inode, void *buffer_, off_t size, off_t offset
 off_t inode_write_at(struct inode *inode, const void *buffer_, off_t size, off_t offset) {
     const uint8_t *buffer = buffer_;
     off_t bytes_written = 0;
-    uint8_t *bounce = NULL;
 
     if (inode->deny_write_cnt)
         return 0;
 
     while (size > 0) {
         /* Sector to write, starting byte offset within sector. */
-        block_sector_t sector_idx = byte_to_sector(inode, offset);
+        uint32_t *sector = byte_to_sector_ptr(inode, offset);
+        //block_sector_t sector_idx = file_sec_get_addr(*sector); // TODO: uneeded?
         int sector_ofs = offset % BLOCK_SECTOR_SIZE;
 
         /* Bytes left in inode, bytes left in sector, lesser of the two. */
         off_t inode_left = inode_length(inode) - offset;
         int sector_left = BLOCK_SECTOR_SIZE - sector_ofs;
         int min_left = inode_left < sector_left ? inode_left : sector_left;
-
-        void *cache_block;
         
         /* Number of bytes to actually write into this sector. */
         int chunk_size = size < min_left ? size : min_left;
@@ -281,17 +277,18 @@ off_t inode_write_at(struct inode *inode, const void *buffer_, off_t size, off_t
             break;
 
         /* Get the pointer to the cache block containing file sector to write. */
-        cache_block = inode_get_cache_block(inode, sector_idx);
+        uint32_t block_idx = inode_get_cache_block_idx(inode, offset, sector);
+        void *cache_block = fballoc_idx_to_addr(block_idx);
         
         // TODO: implement file extension.
         memcpy(cache_block + sector_ofs, buffer + bytes_written, chunk_size);
-
+        fblock_mark_write(block_idx);
+        
         /* Advance. */
         size -= chunk_size;
         offset += chunk_size;
         bytes_written += chunk_size;
     }
-    free(bounce);
 
     return bytes_written;
 }
@@ -339,29 +336,14 @@ bool inode_is_block_owned(struct inode *inode, size_t block_num) {
     return bitmap_test((struct bitmap *) inode->blocks_owned, block_num);
 }
 
-void *inode_get_cache_block(struct inode *inode, size_t sector_num) {
-// TODO: NEED A FUNCTION TO GET POINTER TO BLOCK IN CACHE
-
-    file_sector *fs;
-    void * buffer_cache;
-    uint32_t block_idx;
-    
-    // TODO: Get the file sector from list
-    
+uint32_t inode_get_cache_block_idx(struct inode *inode, off_t offset, file_sector *sector) {
     // If it is not present, need to pull it from disk into the cache.
-    if (!file_sec_is_present(*fs)) {
-        // TODO: call blocking function to pull file sector into cache.
+    if (!file_sec_is_present(*sector)) {
+        fballoc_load_fblock(inode, offset, sector);
     }
     
-    // Get the block index into the cache
-    block_idx = file_sec_get_block_idx(*fs);
-    
-    // Mark new block in cache as used.
-    inode_get_block(inode, block_idx); // TODO: should the function which pulls
-                                       // it into cache do this?
-    
-    // Return the pointer to the block in the cache
-    return (void *) buffer_cache + (block_idx * BLOCK_SECTOR_SIZE);
+    // Get the block index into the cache 
+    return file_sec_get_block_idx(*sector);
 }
 
 

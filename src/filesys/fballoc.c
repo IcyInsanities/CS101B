@@ -1,4 +1,5 @@
 #include "fballoc.h"
+#include "file_sector.h"
 #include "inode.h"
 #include "off_t.h"
 #include <stddef.h>
@@ -8,12 +9,8 @@
 #include "threads/synch.h"
 #include "threads/vaddr.h"
 
-
-//#define PAGE_SECTORS    PGSIZE / BLOCK_SECTOR_SIZE
-
 static struct fblock *fblock_arr;
 static struct fblock_entry *fblock_entry_arr;
-
 
 // Initializes the fblock allocator.
 void fballoc_init(void)
@@ -40,7 +37,7 @@ void fballoc_init(void)
 }
 
 // Loads the given file location into the file block cache
-void fballoc_load_fblock(struct inode* inode, off_t start)
+void fballoc_load_fblock(struct inode* inode, off_t start, file_sector *sector)
 {
     // Ensure that start is actually the start of a sector
     ASSERT(!(start & (BLOCK_SECTOR_SIZE-1)));
@@ -55,9 +52,8 @@ void fballoc_load_fblock(struct inode* inode, off_t start)
     // Read in data
     inode_read_at(inode, (void*) &fblock_arr[idx], BLOCK_SECTOR_SIZE, start);
     // Update inode
-    file_sector* sec = byte_to_sector_ptr(inode, start);
-    file_sec_make_present(sec);
-    file_sec_set_block_num(sec, idx);
+    file_sec_make_present(sector);
+    file_sec_set_block_num(sector, idx);
     inode_get_block(inode, idx);
     // Done with block setup
     lock_release(&(fblock_entry_arr[idx].in_use));
@@ -70,19 +66,22 @@ void fballoc_load_fblock(struct inode* inode, off_t start)
 void fballoc_free_fblock(uint32_t idx)
 {
     ASSERT(idx < NUM_FBLOCKS);
-    lock_acquire(&(fblock_entry_arr[idx].in_use));
-    // Update inode
-    file_sector* sec = byte_to_sector_ptr(fblock_entry_arr[idx].inode, fblock_entry_arr[idx].start);
-    file_sec_clear_present(sec);
-    inode_release_block(fblock_entry_arr[idx].inode, idx);
-    // Write block back
-    fballoc_write_back(idx);
-    fblock_set_not_used(&fblock_entry_arr[idx].status);
-    fblock_set_not_accessed(&fblock_entry_arr[idx].status);
-    fblock_entry_arr[idx].inode = NULL;
-    fblock_entry_arr[idx].start = 0;
-    // Done with block
-    lock_release(&(fblock_entry_arr[idx].in_use));
+    if (fblock_is_used(fblock_entry_arr[idx].status))
+    {
+        lock_acquire(&(fblock_entry_arr[idx].in_use));
+        // Update inode
+        file_sector* sec = byte_to_sector_ptr(fblock_entry_arr[idx].inode, fblock_entry_arr[idx].start);
+        file_sec_clear_present(sec);
+        inode_release_block(fblock_entry_arr[idx].inode, idx);
+        // Write block back
+        fballoc_write_back(idx);
+        fblock_set_not_used(&fblock_entry_arr[idx].status);
+        fblock_set_not_accessed(&fblock_entry_arr[idx].status);
+        fblock_entry_arr[idx].inode = NULL;
+        fblock_entry_arr[idx].start = 0;
+        // Done with block
+        lock_release(&(fblock_entry_arr[idx].in_use));
+    }
 }
 
 // Writes a file block back into the file
@@ -201,4 +200,22 @@ uint32_t fballoc_evict_save(uint32_t save_idx)
 uint32_t fballoc_evict(void)
 {
     return fballoc_evict_save(-1);
+}
+
+// Get address of block
+void * fballoc_idx_to_addr(uint32_t idx)
+{
+    ASSERT(idx < NUM_FBLOCKS);
+    return (void*) &fblock_arr[idx];
+}
+// Denote block as written or read from
+void fblock_mark_read(uint32_t idx)
+{
+    ASSERT(idx < NUM_FBLOCKS);
+    fblock_entry_arr[idx].status |= FBLOCK_A;
+}
+void fblock_mark_write(uint32_t idx)
+{
+    ASSERT(idx < NUM_FBLOCKS);
+    fblock_entry_arr[idx].status |= FBLOCK_A | FBLOCK_D;
 }

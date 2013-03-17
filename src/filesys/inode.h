@@ -31,6 +31,6 @@ block_sector_t byte_to_sector(const struct inode *, off_t);
 void inode_get_block(struct inode *, size_t);
 void inode_release_block(struct inode *, size_t);
 bool inode_is_block_owned(struct inode *, size_t);
-void *inode_get_cache_block(struct inode *, size_t);
+uint32_t inode_get_cache_block_idx(struct inode *, off_t, file_sector *);
 
 #endif /* filesys/inode.h */
