@@ -180,6 +180,8 @@ struct inode * inode_open(block_sector_t sector) {
     inode->removed = false;
     block_read(fs_device, inode->sector, &inode->data);
     bitmap_create_in_buf(NUM_FBLOCKS, (void *) inode->blocks_owned, 16);
+    lock_init(&(inode->extending));
+    lock_init(&(inode->loading_to_cache));
 
     printf("INODE: open done\n");
 
