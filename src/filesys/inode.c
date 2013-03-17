@@ -1,14 +1,15 @@
-#include "filesys/inode.h"
+#include "inode.h"
+#include "fballoc.h"
+#include "file_sector.h"
+#include "filesys.h"
+#include "free-map.h"
 #include <list.h>
 #include <debug.h>
 #include <round.h>
 #include <string.h>
-#include "filesys/filesys.h"
-#include "filesys/free-map.h"
-#include "threads/malloc.h"
 #include "devices/block.h"
-#include "filesys/fballoc.h"
-#include "filesys/file_sector.h"
+#include "lib/kernel/bitmap.h"
+#include "threads/malloc.h"
 
 /*! Identifies an inode. */
 #define INODE_MAGIC 0x494e4f44
@@ -54,7 +55,7 @@ struct inode {
     POS. */
 file_sector* byte_to_sector_ptr(const struct inode *inode, off_t pos) {
     ASSERT(inode != NULL);
-    off_t pos_start = pos & (BLOCK_SECTOR_SIZE - 1)
+    off_t pos_start = pos & (BLOCK_SECTOR_SIZE - 1);
     // TODO: read inode structures correctly
     return inode->file_sectors[0];
 }
@@ -63,7 +64,7 @@ block_sector_t byte_to_sector(const struct inode *inode, off_t pos) {
     if (pos < inode->data.length)
     {
         file_sector *sec = byte_to_sector_ptr(inode, pos);
-        return file_sec_get_addr(*sec) + pos / BLOCK_SECTOR_SIZE
+        return file_sec_get_addr(*sec) + pos / BLOCK_SECTOR_SIZE;
     } else {
         return -1;
     }
@@ -358,12 +359,12 @@ void *inode_get_cache_block(struct inode *inode, size_t sector_num) {
     // TODO: Get the file sector from list
     
     // If it is not present, need to pull it from disk into the cache.
-    if (!file_sec_is_present(fs)) {
+    if (!file_sec_is_present(*fs)) {
         // TODO: call blocking function to pull file sector into cache.
     }
     
     // Get the block index into the cache
-    block_idx = file_sec_get_block_idx(fs);
+    block_idx = file_sec_get_block_idx(*fs);
     
     // Mark new block in cache as used.
     inode_get_block(inode, block_idx); // TODO: should the function which pulls

@@ -1,6 +1,10 @@
 #ifndef FILESYS_FILE_SECTOR_H
 #define FILESYS_FILE_SECTOR_H
 
+#include "devices/block.h"
+#include <stdbool.h>
+#include <stdint.h>
+
 typedef uint32_t file_sector;
 
 #define FILE_SEC_ADDR_BITS  25
@@ -13,8 +17,8 @@ typedef uint32_t file_sector;
 #define FILE_SEC_BLOCK_NUM  0x7e000000  // Block cache index.
 #define FILE_SEC_PRESENT    0x80000000  // 1=present, 0=not present.
 
-static inline void *file_sec_get_addr(file_sector sector) {
-    return (void *) (sector & FILE_SEC_ADDR);
+static inline block_sector_t file_sec_get_addr(file_sector sector) {
+    return (block_sector_t) (sector & FILE_SEC_ADDR);
 }
 
 static inline uint32_t file_sec_get_block_idx(file_sector sector) {
@@ -33,7 +37,7 @@ static inline void file_sec_make_present(file_sector *sector) {
     file_sec_set_present(sector, true);
 }
 
-static inline void file_sec_clear_present(file_sector *sector, bool present) {
+static inline void file_sec_clear_present(file_sector *sector) {
     file_sec_set_present(sector, false);
 }
 

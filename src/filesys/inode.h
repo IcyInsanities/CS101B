@@ -1,9 +1,13 @@
 #ifndef FILESYS_INODE_H
 #define FILESYS_INODE_H
 
+#include "file_sector.h"
+#include "off_t.h"
 #include <stdbool.h>
-#include "filesys/off_t.h"
 #include "devices/block.h"
+
+#define NUM_DIRECT_FILE_SECTOR      12
+#define NUM_INDIRECT_FILE_SECTOR    128
 
 struct bitmap;
 
@@ -20,9 +24,13 @@ void inode_deny_write(struct inode *);
 void inode_allow_write(struct inode *);
 off_t inode_length(const struct inode *);
 
+file_sector* byte_to_sector_ptr(const struct inode *, off_t);
+block_sector_t byte_to_sector(const struct inode *, off_t);
+
 /* Block cache for file system. */
 void inode_get_block(struct inode *, size_t);
 void inode_release_block(struct inode *, size_t);
 bool inode_is_block_owned(struct inode *, size_t);
+void *inode_get_cache_block(struct inode *, size_t);
 
 #endif /* filesys/inode.h */
