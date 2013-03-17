@@ -20,4 +20,9 @@ void inode_deny_write(struct inode *);
 void inode_allow_write(struct inode *);
 off_t inode_length(const struct inode *);
 
+/* Block cache for file system. */
+void inode_get_block(struct inode *, size_t);
+void inode_release_block(struct inode *, size_t);
+bool inode_is_block_owned(struct inode *, size_t);
+
 #endif /* filesys/inode.h */

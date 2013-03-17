@@ -10,7 +10,6 @@
 
 
 //#define PAGE_SECTORS    PGSIZE / BLOCK_SECTOR_SIZE
-#define NUM_FBLOCKS      64 // Note: must be power of 2, may be partially hardcoded
 
 static struct fblock *fblock_arr;
 static struct fblock_entry *fblock_entry_arr;

@@ -6,6 +6,9 @@
 #include "filesys/filesys.h"
 #include "filesys/free-map.h"
 #include "threads/malloc.h"
+#include "devices/block.h"
+#include "filesys/fballoc.h"
+#include "filesys/file_sector.h"
 
 /*! Identifies an inode. */
 #define INODE_MAGIC 0x494e4f44
@@ -33,6 +36,16 @@ struct inode {
     bool removed;                       /*!< True if deleted, false otherwise. */
     int deny_write_cnt;                 /*!< 0: writes ok, >0: deny writes. */
     struct inode_disk data;             /*!< Inode content. */
+        
+    #ifdef FILESYS
+    // TODO: note the bellow is a bitmap
+    // NEED TO INITIALIZE and DESTROY
+    uint8_t blocks_owned[16];           /*!< Blocks in cache owned. */
+    struct lock extending;              /*!< Lock for extending files. */
+    struct lock loading_to_cache;       /*!< Lock for loading into block cache. */
+    file_sector *file_sectors;          /*!< Array of file sectors. */
+    
+    #endif
 };
 
 /*! Returns the block device sector that contains byte offset POS
@@ -95,6 +108,7 @@ bool inode_create(block_sector_t sector, off_t length) {
 /*! Reads an inode from SECTOR
     and returns a `struct inode' that contains it.
     Returns a null pointer if memory allocation fails. */
+// TODO: UPDATE TO PULL FIRST BLCOK OF FILE INTO CACHE
 struct inode * inode_open(block_sector_t sector) {
     struct list_elem *e;
     struct inode *inode;
@@ -190,6 +204,8 @@ off_t inode_read_at(struct inode *inode, void *buffer_, off_t size, off_t offset
         if (chunk_size <= 0)
             break;
 
+        // TODO: UPDATE THIS TO GET A POINTER TO A BLOCK, THEN READ FROM IT
+        
         if (sector_ofs == 0 && chunk_size == BLOCK_SECTOR_SIZE) {
             /* Read full sector directly into caller's buffer. */
             block_read (fs_device, sector_idx, buffer + bytes_read);
@@ -244,6 +260,7 @@ off_t inode_write_at(struct inode *inode, const void *buffer_, off_t size, off_t
         if (chunk_size <= 0)
             break;
 
+        // TODO: UPDATE THIS TO GET A POINTER TO A BLOCK, THEN WRITE TO IT
         if (sector_ofs == 0 && chunk_size == BLOCK_SECTOR_SIZE) {
             /* Write full sector directly to disk. */
             block_write(fs_device, sector_idx, buffer + bytes_written);
@@ -300,3 +317,54 @@ off_t inode_length(const struct inode *inode) {
     return inode->data.length;
 }
 
+
+// TODO:
+    
+    // Write a "is_accessible() function based on locks?
+    // Write a function to take ownership of blocks_owned
+    // Write a function to check if any blocks are owned
+    // Write a function to check if a specific block is owned?
+    // Write a function to give up ownership of blocks
+    
+// MIGHT WANT TO CHANGE THESE NAMES
+void inode_get_block(struct inode *inode, size_t block_num) {
+    bitmap_mark((struct bitmap *) inode->blocks_owned, block_num);
+}
+
+void inode_release_block(struct inode *inode, size_t block_num) {
+    bitmap_reset((struct bitmap *) inode->blocks_owned, block_num);
+}
+
+bool inode_is_block_owned(struct inode *inode, size_t block_num) {
+    return bitmap_test((struct bitmap *) inode->blocks_owned, block_num);
+}
+
+void *inode_get_cache_block(struct inode *inode, size_t sector_num) {
+// TODO: NEED A FUNCTION TO GET POINTER TO BLOCK IN CACHE
+
+    file_sector *fs;
+    void * buffer_cache;
+    uint32_t block_idx;
+    
+    // TODO: Get the file sector from list
+    
+    // If it is not present, need to pull it from disk into the cache.
+    if (!file_sec_is_present(fs)) {
+        // TODO: call blocking function to pull file sector into cache.
+    }
+    
+    // Get the block index into the cache
+    block_idx = file_sec_get_block_idx(fs);
+    
+    // Mark new block in cache as used.
+    inode_get_block(inode, block_idx); // TODO: should the function which pulls
+                                       // it into cache do this?
+    
+    // Return the pointer to the block in the cache
+    return (void *) buffer_cache + (block_idx * BLOCK_SECTOR_SIZE);
+}
+
+
+// TODO: file extension (in write function)
+// Write all new blocks directly to disk (bypass cache), then load
+// the correct block into cache from disk
