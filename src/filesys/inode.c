@@ -17,9 +17,8 @@
 /*! On-disk inode.
     Must be exactly BLOCK_SECTOR_SIZE bytes long. */
 struct inode_disk {
-    block_sector_t start;               /*!< First data sector. */
     off_t length;                       /*!< File size in bytes. */
-    file_sector file_sectors[NUM_DIRECT_FILE_SECTOR + 2];  /*!< List of file sectors. */
+    file_sector sector_list[NUM_DIRECT_FILE_SECTOR + 2];  /*!< List of file sectors. */
     unsigned magic;                     /*!< Magic number. */
     uint32_t unused[111];               /*!< Not used. */
 };
@@ -65,7 +64,7 @@ file_sector* byte_to_sector_ptr(struct inode *inode, off_t pos) {
     
     // If direct, then just get file sector
     if (fs_idx < NUM_DIRECT_FILE_SECTOR) {
-        return &((inode->data.file_sectors)[fs_idx]);
+        return &((inode->data.sector_list)[fs_idx]);
     }
     else if (fs_idx < NUM_DIRECT_FILE_SECTOR + NUM_INDIRECT_FILE_SECTOR) {
         // TODO: INDIRECT CASE
@@ -75,7 +74,7 @@ file_sector* byte_to_sector_ptr(struct inode *inode, off_t pos) {
     else {
         // TODO: DOUBLE INDIRECT CASE
     }
-    return &((inode->data.file_sectors)[0]);
+    return &((inode->data.sector_list)[0]);
 }
 
 block_sector_t byte_to_sector(struct inode *inode, off_t pos) {
@@ -107,6 +106,8 @@ bool inode_create(block_sector_t sector, off_t length) {
     struct inode_disk *disk_inode = NULL;
     bool success = false;
 
+    printf("INODE: create called\n");
+    
     ASSERT(length >= 0);
 
     /* If this assertion fails, the inode structure is not exactly
@@ -119,32 +120,29 @@ bool inode_create(block_sector_t sector, off_t length) {
         disk_inode->length = length;
         disk_inode->magic = INODE_MAGIC;
         
-        if (free_map_allocate(1, &disk_inode->start)) {
-            
-            if (sectors > 0) {
-                static char zeros[BLOCK_SECTOR_SIZE];
-                size_t i;
-                size_t j;
-                file_sector *file_sectors = disk_inode->file_sectors;
-                // TODO, need to get sector to write to instead
-                for (i = 0; i < sectors; i++) {
-                    if (free_map_allocate(1, &(file_sectors[i]))) {
-                        block_write(fs_device, file_sectors[i], zeros);
+        if (sectors > 0) {
+            static char zeros[BLOCK_SECTOR_SIZE];
+            size_t i;
+            size_t j;
+            file_sector *sector_list = disk_inode->sector_list;
+            // TODO: need to handle large files correctly
+            for (i = 0; i < sectors; i++) {
+                if (free_map_allocate(1, &(sector_list[i]))) {
+                    block_write(fs_device, sector_list[i], zeros);
+                }
+                else {
+                    // Clean up if previous failed
+                    for (j = 0; j < i; j++) {
+                        free_map_release(sector_list[j], 1);
                     }
-                    else {
-                        // TODO: NEED TO CLEAN UP PREV IF FAIL
-                        // LOOP backward in file_sectors list in disk_inode
-                        for (j = 0; j < i; j++) {
-                            free_map_release(file_sectors[j], 1);
-                        }
-                        return false;
-                    }
+                    free(disk_inode);
+                    return false;
                 }
             }
-            /* After the entire file is written to disk, write meta data. */
-            block_write(fs_device, sector, disk_inode);
-            success = true; 
         }
+        /* After the entire file is written to disk, write meta data. */
+        block_write(fs_device, sector, disk_inode);
+        success = true; 
         free(disk_inode);
     }
     return success;
@@ -158,6 +156,8 @@ struct inode * inode_open(block_sector_t sector) {
     struct list_elem *e;
     struct inode *inode;
 
+    printf("INODE: start\n");
+    
     /* Check whether this inode is already open. */
     for (e = list_begin(&open_inodes); e != list_end(&open_inodes);
          e = list_next(e)) {
@@ -181,6 +181,9 @@ struct inode * inode_open(block_sector_t sector) {
     inode->removed = false;
     block_read(fs_device, inode->sector, &inode->data);
     bitmap_create_in_buf(NUM_FBLOCKS, (void *) inode->blocks_owned, 16);
+
+    printf("INODE: done\n");
+
     return inode;
 }
 
@@ -212,8 +215,8 @@ void inode_close(struct inode *inode) {
         /* Deallocate blocks if removed. */
         if (inode->removed) {
             free_map_release(inode->sector, 1);
-            free_map_release(inode->data.start,
-                             bytes_to_sectors(inode->data.length)); 
+            // TODO: NEED TO ITERATE THROUGH LIST CORRECTLY
+            free_map_release(inode->data.sector_list[0], 1);
         }
 
         free(inode); 
