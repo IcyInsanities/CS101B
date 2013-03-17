@@ -36,16 +36,16 @@ struct inode {
     bool removed;                       /*!< True if deleted, false otherwise. */
     int deny_write_cnt;                 /*!< 0: writes ok, >0: deny writes. */
     struct inode_disk data;             /*!< Inode content. */
-        
+
     #ifdef FILESYS
-    // TODO: note the bellow is a bitmap
+    // TODO: note the below is a bitmap
     // NEED TO INITIALIZE and DESTROY
     uint8_t blocks_owned[16];           /*!< Blocks in cache owned. */
     struct lock extending;              /*!< Lock for extending files. */
     struct lock loading_to_cache;       /*!< Lock for loading into block cache. */
     //file_sector *file_sectors;          /*!< Array of file sectors. */
     // ^14 words?
-    
+
     #endif
 };
 
@@ -56,18 +56,18 @@ struct inode {
 file_sector* byte_to_sector_ptr(struct inode *inode, off_t pos) {
     ASSERT(inode != NULL);
     // TODO: read inode structures correctly
-    
+
     off_t fs_idx = pos / BLOCK_SECTOR_SIZE;
     off_t dbl_indir_branch;
     file_sector *fs_arr;
-    
+
     // If direct, then just get file sector
     if (fs_idx < NUM_DIRECT_FILE_SECTOR) {
         return &((inode->data.sector_list)[fs_idx]);
     }
     else if (fs_idx < NUM_DIRECT_FILE_SECTOR + NUM_INDIRECT_FILE_SECTOR) {
         // TODO: INDIRECT CASE
-        // Load arr[NUM_INDIRECT]?  Then 
+        // Load arr[NUM_INDIRECT]?  Then
         // return fs_arry[fs_idx - NUM_DIRECT];
     }
     else {
@@ -105,8 +105,6 @@ bool inode_create(block_sector_t sector, off_t length) {
     struct inode_disk *disk_inode = NULL;
     bool success = false;
 
-    printf("INODE: create called\n");
-    
     ASSERT(length >= 0);
 
     /* If this assertion fails, the inode structure is not exactly
@@ -118,7 +116,7 @@ bool inode_create(block_sector_t sector, off_t length) {
         size_t sectors = bytes_to_sectors(length);
         disk_inode->length = length;
         disk_inode->magic = INODE_MAGIC;
-        
+
         if (sectors > 0) {
             static char zeros[BLOCK_SECTOR_SIZE];
             size_t i;
@@ -141,7 +139,7 @@ bool inode_create(block_sector_t sector, off_t length) {
         }
         /* After the entire file is written to disk, write meta data. */
         block_write(fs_device, sector, disk_inode);
-        success = true; 
+        success = true;
         free(disk_inode);
     }
     return success;
@@ -155,15 +153,13 @@ struct inode * inode_open(block_sector_t sector) {
     struct list_elem *e;
     struct inode *inode;
 
-    printf("INODE: open start\n");
-    
     /* Check whether this inode is already open. */
     for (e = list_begin(&open_inodes); e != list_end(&open_inodes);
          e = list_next(e)) {
         inode = list_entry(e, struct inode, elem);
         if (inode->sector == sector) {
             inode_reopen(inode);
-            return inode; 
+            return inode;
         }
     }
 
@@ -182,8 +178,6 @@ struct inode * inode_open(block_sector_t sector) {
     bitmap_create_in_buf(NUM_FBLOCKS, (void *) inode->blocks_owned, 16);
     lock_init(&(inode->extending));
     lock_init(&(inode->loading_to_cache));
-
-    printf("INODE: open done\n");
 
     return inode;
 }
@@ -212,7 +206,7 @@ void inode_close(struct inode *inode) {
     if (--inode->open_cnt == 0) {
         /* Remove from inode list and release lock. */
         list_remove(&inode->elem);
- 
+
         /* Deallocate blocks if removed. */
         if (inode->removed) {
             free_map_release(inode->sector, 1);
@@ -222,7 +216,7 @@ void inode_close(struct inode *inode) {
                 free_map_release(inode->data.sector_list[i], 1);
             }
         }
-        free(inode); 
+        free(inode);
     }
 }
 
@@ -250,20 +244,20 @@ off_t inode_read_at(struct inode *inode, void *buffer_, off_t size, off_t offset
         off_t inode_left = inode_length(inode) - offset;
         int sector_left = BLOCK_SECTOR_SIZE - sector_ofs;
         int min_left = inode_left < sector_left ? inode_left : sector_left;
-        
+
         /* Number of bytes to actually copy out of this sector. */
         int chunk_size = size < min_left ? size : min_left;
         if (chunk_size <= 0)
             break;
-            
+
         /* Get the pointer to the cache block containing file sector to write. */
         uint32_t block_idx = inode_get_cache_block_idx(inode, offset, sector);
         void *cache_block = fballoc_idx_to_addr(block_idx);
-        
+
         /* Read the chunk from the cache block. */
         memcpy(buffer + bytes_read, cache_block + sector_ofs, chunk_size);
         fblock_mark_read(block_idx);
-      
+
         /* Advance. */
         size -= chunk_size;
         offset += chunk_size;
@@ -295,7 +289,7 @@ off_t inode_write_at(struct inode *inode, const void *buffer_, off_t size, off_t
         off_t inode_left = inode_length(inode) - offset;
         int sector_left = BLOCK_SECTOR_SIZE - sector_ofs;
         int min_left = inode_left < sector_left ? inode_left : sector_left;
-        
+
         /* Number of bytes to actually write into this sector. */
         int chunk_size = size < min_left ? size : min_left;
         if (chunk_size <= 0)
@@ -304,11 +298,11 @@ off_t inode_write_at(struct inode *inode, const void *buffer_, off_t size, off_t
         /* Get the pointer to the cache block containing file sector to write. */
         uint32_t block_idx = inode_get_cache_block_idx(inode, offset, sector);
         void *cache_block = fballoc_idx_to_addr(block_idx);
-        
+
         // TODO: implement file extension.
         memcpy(cache_block + sector_ofs, buffer + bytes_written, chunk_size);
         fblock_mark_write(block_idx);
-        
+
         /* Advance. */
         size -= chunk_size;
         offset += chunk_size;
@@ -341,13 +335,13 @@ off_t inode_length(const struct inode *inode) {
 
 
 // TODO:
-    
+
     // Write a "is_accessible() function based on locks?
     // Write a function to take ownership of blocks_owned
     // Write a function to check if any blocks are owned
     // Write a function to check if a specific block is owned?
     // Write a function to give up ownership of blocks
-    
+
 // MIGHT WANT TO CHANGE THESE NAMES
 void inode_get_block(struct inode *inode, size_t block_num) {
     bitmap_mark((struct bitmap *) inode->blocks_owned, block_num);
@@ -366,8 +360,8 @@ uint32_t inode_get_cache_block_idx(struct inode *inode, off_t offset, file_secto
     if (!file_sec_is_present(*sector)) {
         fballoc_load_fblock(inode, offset, sector);
     }
-    
-    // Get the block index into the cache 
+
+    // Get the block index into the cache
     return file_sec_get_block_idx(*sector);
 }
 

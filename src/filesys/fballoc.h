@@ -21,6 +21,7 @@ struct fblock_entry
     uint32_t status;                // Bits used to denote fblock status
     struct inode* inode;            // File inode fblock belongs to
     off_t start;                    // Start offset for fblock in file
+    block_sector_t sector;          // Sector for fblock on disk
     struct lock in_use;             // Lock a fblock while modifying data
 };
 

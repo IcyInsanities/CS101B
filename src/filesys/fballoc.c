@@ -12,6 +12,9 @@
 static struct fblock *fblock_arr;
 static struct fblock_entry *fblock_entry_arr;
 
+// Block device that contains the file system
+extern struct block *fs_device;
+
 // Initializes the fblock allocator.
 void fballoc_init(void)
 {
@@ -49,8 +52,9 @@ void fballoc_load_fblock(struct inode* inode, off_t start, file_sector *sector)
     fblock_set_accessed(&fblock_entry_arr[idx].status);
     fblock_entry_arr[idx].inode = inode;
     fblock_entry_arr[idx].start = start;
+    fblock_entry_arr[idx].sector = file_sec_get_addr(*sector);
     // Read in data
-    inode_read_at(inode, (void*) &fblock_arr[idx], BLOCK_SECTOR_SIZE, start);
+    block_read(fs_device, fblock_entry_arr[idx].sector, (void*) &fblock_arr[idx]);
     // Update inode
     file_sec_make_present(sector);
     file_sec_set_block_num(sector, idx);
@@ -79,6 +83,7 @@ void fballoc_free_fblock(uint32_t idx)
         fblock_set_not_accessed(&fblock_entry_arr[idx].status);
         fblock_entry_arr[idx].inode = NULL;
         fblock_entry_arr[idx].start = 0;
+        fblock_entry_arr[idx].sector = 0;
         // Done with block
         lock_release(&(fblock_entry_arr[idx].in_use));
     }
@@ -92,9 +97,8 @@ void fballoc_write_back(uint32_t idx)
     if (fblock_is_dirty(fblock_entry_arr[idx].status))
     {
         lock_acquire(&(fblock_entry_arr[idx].in_use));
-        struct inode *inode = fblock_entry_arr[idx].inode;
-        off_t start = fblock_entry_arr[idx].start;
-        inode_write_at(inode, (void*) &fblock_arr[idx], BLOCK_SECTOR_SIZE, start);
+        block_sector_t sector = fblock_entry_arr[idx].sector;
+        block_read(fs_device, sector, (void*) &fblock_arr[idx]);
         // Mark file block as not dirty
         fblock_set_not_dirty(&fblock_entry_arr[idx].status);
         // Done with block
