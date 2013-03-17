@@ -52,12 +52,21 @@ struct inode {
     within INODE.
     Returns -1 if INODE does not contain data for a byte at offset
     POS. */
-static block_sector_t byte_to_sector(const struct inode *inode, off_t pos) {
+file_sector* byte_to_sector_ptr(const struct inode *inode, off_t pos) {
+    ASSERT(inode != NULL);
+    off_t pos_start = pos & (BLOCK_SECTOR_SIZE - 1)
+    // TODO: read inode structures correctly
+    return inode->file_sectors[0];
+}
+block_sector_t byte_to_sector(const struct inode *inode, off_t pos) {
     ASSERT(inode != NULL);
     if (pos < inode->data.length)
-        return inode->data.start + pos / BLOCK_SECTOR_SIZE;
-    else
+    {
+        file_sector *sec = byte_to_sector_ptr(inode, pos);
+        return file_sec_get_addr(*sec) + pos / BLOCK_SECTOR_SIZE
+    } else {
         return -1;
+    }
 }
 
 /*! List of open inodes, so that opening a single inode twice

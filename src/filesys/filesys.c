@@ -36,6 +36,12 @@ void filesys_init(bool format) {
 
 /*! Shuts down the file system module, writing any unwritten data to disk. */
 void filesys_done(void) {
+    uint32_t i;
+    // TODO: Prevent new blocks from being loaded?
+    // TODO: Clear read_ahead queue
+    for (i = 0; i < NUM_FBLOCKS; ++i) {
+        fballoc_free_fblock(i);
+    }
     free_map_close();
 }
 
