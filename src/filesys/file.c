@@ -166,3 +166,22 @@ fid_t allocate_fid (void) {
     static fid_t next_fid = 3;
     return next_fid++;
 }
+
+// TODO:
+    
+    // Write a "is_accessible() function based on locks?
+    // Write a function to take ownership of blocks_owned
+    // Write a function to check if any blocks are owned
+    // Write a function to check if a specific block is owned?
+    // Write a function to give up ownership of blocks
+void file_get_block(struct file *f, size_t block_num) {
+    bitmap_mark((struct bitmap *) f->blocks_owned, block_num);
+}
+
+void file_release_block(struct file *f, size_t block_num) {
+    bitmap_reset((struct bitmap *) f->blocks_owned, block_num);
+}
+
+bool file_is_block_owned(struct file *f, size_t block_num) {
+    return bitmap_test((struct bitmap *) f->blocks_owned, block_num);
+}
