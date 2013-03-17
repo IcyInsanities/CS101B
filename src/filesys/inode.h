@@ -6,7 +6,8 @@
 #include <stdbool.h>
 #include "devices/block.h"
 
-#define NUM_DIRECT_FILE_SECTOR      12
+#define NUM_DIRECT_FILE_SECTOR      124 // Leave space for 2 indirect and 2 other
+                                        // data elements in struct inode_disk
 #define NUM_INDIRECT_FILE_SECTOR    128
 
 struct bitmap;

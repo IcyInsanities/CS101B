@@ -14,13 +14,12 @@
 /*! Identifies an inode. */
 #define INODE_MAGIC 0x494e4f44
 
-/*! On-disk inode.
-    Must be exactly BLOCK_SECTOR_SIZE bytes long. */
+/*! On-disk inode. Must be exactly BLOCK_SECTOR_SIZE bytes long, done by
+    modifying NUM_DIRECT_FILE_SECTOR*/
 struct inode_disk {
     off_t length;                       /*!< File size in bytes. */
     file_sector sector_list[NUM_DIRECT_FILE_SECTOR + 2];  /*!< List of file sectors. */
     unsigned magic;                     /*!< Magic number. */
-    uint32_t unused[111];               /*!< Not used. */
 };
 
 /*! Returns the number of sectors to allocate for an inode SIZE
@@ -215,10 +214,12 @@ void inode_close(struct inode *inode) {
         /* Deallocate blocks if removed. */
         if (inode->removed) {
             free_map_release(inode->sector, 1);
-            // TODO: NEED TO ITERATE THROUGH LIST CORRECTLY
-            free_map_release(inode->data.sector_list[0], 1);
+            size_t sectors = bytes_to_sectors(inode->data.length);
+            size_t i;
+            for (i = 0; i < sectors; i++) {
+                free_map_release(inode->data.sector_list[i], 1);
+            }
         }
-
         free(inode); 
     }
 }
