@@ -57,14 +57,32 @@ file_sector* byte_to_sector_ptr(const struct inode *inode, off_t pos) {
     ASSERT(inode != NULL);
     off_t pos_start = pos & (BLOCK_SECTOR_SIZE - 1);
     // TODO: read inode structures correctly
+    
+    off_t fs_idx = pos / BLOCK_SECTOR_SIZE;
+    off_t dbl_indir_branch;
+    file_sector *fs_arr;
+    
+    // If direct, then just get file sector
+    if (fs_idx < NUM_DIRECT_FILE_SECTOR) {
+        return (inode->file_sectors)[fs_idx];
+    }
+    else if (fs_idx < NUM_DIRECT_FILE_SECTOR + NUM_INDIRECT_FILE_SECTOR) {
+        // TODO: INDIRECT CASE
+        // Load arr[NUM_INDIRECT]?  Then 
+        // return fs_arry[fs_idx - NUM_DIRECT];
+    }
+    else {
+        // TODO: DOUBLE INDIRECT CASE
+    }
     return inode->file_sectors[0];
 }
+
 block_sector_t byte_to_sector(const struct inode *inode, off_t pos) {
     ASSERT(inode != NULL);
     if (pos < inode->data.length)
     {
         file_sector *sec = byte_to_sector_ptr(inode, pos);
-        return file_sec_get_addr(*sec) + pos / BLOCK_SECTOR_SIZE;
+        return file_sec_get_addr(*sec);
     } else {
         return -1;
     }
@@ -208,29 +226,19 @@ off_t inode_read_at(struct inode *inode, void *buffer_, off_t size, off_t offset
         off_t inode_left = inode_length(inode) - offset;
         int sector_left = BLOCK_SECTOR_SIZE - sector_ofs;
         int min_left = inode_left < sector_left ? inode_left : sector_left;
-
+        
+        void *cache_block;
+        
         /* Number of bytes to actually copy out of this sector. */
         int chunk_size = size < min_left ? size : min_left;
         if (chunk_size <= 0)
             break;
-
-        // TODO: UPDATE THIS TO GET A POINTER TO A BLOCK, THEN READ FROM IT
+            
+        /* Get the pointer to the cache block containing file sector to read. */
+        cache_block = inode_get_cache_block(inode, sector_idx);
         
-        if (sector_ofs == 0 && chunk_size == BLOCK_SECTOR_SIZE) {
-            /* Read full sector directly into caller's buffer. */
-            block_read (fs_device, sector_idx, buffer + bytes_read);
-        }
-        else {
-            /* Read sector into bounce buffer, then partially copy
-               into caller's buffer. */
-            if (bounce == NULL) {
-                bounce = malloc(BLOCK_SECTOR_SIZE);
-                if (bounce == NULL)
-                    break;
-            }
-            block_read(fs_device, sector_idx, bounce);
-            memcpy(buffer + bytes_read, bounce + sector_ofs, chunk_size);
-        }
+        /* Read the chunk from the cache block. */
+        memcpy(buffer + bytes_read, cache_block + sector_ofs, chunk_size);
       
         /* Advance. */
         size -= chunk_size;
@@ -265,36 +273,18 @@ off_t inode_write_at(struct inode *inode, const void *buffer_, off_t size, off_t
         int sector_left = BLOCK_SECTOR_SIZE - sector_ofs;
         int min_left = inode_left < sector_left ? inode_left : sector_left;
 
+        void *cache_block;
+        
         /* Number of bytes to actually write into this sector. */
         int chunk_size = size < min_left ? size : min_left;
         if (chunk_size <= 0)
             break;
 
-        // TODO: UPDATE THIS TO GET A POINTER TO A BLOCK, THEN WRITE TO IT
-        if (sector_ofs == 0 && chunk_size == BLOCK_SECTOR_SIZE) {
-            /* Write full sector directly to disk. */
-            block_write(fs_device, sector_idx, buffer + bytes_written);
-        }
-        else {
-            /* We need a bounce buffer. */
-            if (bounce == NULL) {
-                bounce = malloc(BLOCK_SECTOR_SIZE);
-                if (bounce == NULL)
-                    break;
-            }
-
-            /* If the sector contains data before or after the chunk
-               we're writing, then we need to read in the sector
-               first.  Otherwise we start with a sector of all zeros. */
-
-            if (sector_ofs > 0 || chunk_size < sector_left) 
-                block_read(fs_device, sector_idx, bounce);
-            else
-                memset (bounce, 0, BLOCK_SECTOR_SIZE);
-
-            memcpy(bounce + sector_ofs, buffer + bytes_written, chunk_size);
-            block_write(fs_device, sector_idx, bounce);
-        }
+        /* Get the pointer to the cache block containing file sector to write. */
+        cache_block = inode_get_cache_block(inode, sector_idx);
+        
+        // TODO: implement file extension.
+        memcpy(cache_block + sector_ofs, buffer + bytes_written, chunk_size);
 
         /* Advance. */
         size -= chunk_size;
