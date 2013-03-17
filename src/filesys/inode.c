@@ -155,7 +155,7 @@ struct inode * inode_open(block_sector_t sector) {
     struct list_elem *e;
     struct inode *inode;
 
-    printf("INODE: start\n");
+    printf("INODE: open start\n");
     
     /* Check whether this inode is already open. */
     for (e = list_begin(&open_inodes); e != list_end(&open_inodes);
@@ -181,7 +181,7 @@ struct inode * inode_open(block_sector_t sector) {
     block_read(fs_device, inode->sector, &inode->data);
     bitmap_create_in_buf(NUM_FBLOCKS, (void *) inode->blocks_owned, 16);
 
-    printf("INODE: done\n");
+    printf("INODE: open done\n");
 
     return inode;
 }
