@@ -162,6 +162,7 @@ struct inode * inode_open(block_sector_t sector) {
     inode->deny_write_cnt = 0;
     inode->removed = false;
     block_read(fs_device, inode->sector, &inode->data);
+    bitmap_create_if_buf(NUM_FBLOCK, (void *) inode->blocks_owned);
     return inode;
 }
 
