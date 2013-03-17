@@ -134,6 +134,8 @@ int main(void) {
     filesys_init(format_filesys);
 #endif
 
+    fballoc_init();
+
     printf("Boot complete.\n");
 
     /* Run actions specified on kernel command line. */

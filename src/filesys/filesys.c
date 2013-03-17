@@ -8,7 +8,6 @@
 #include "filesys/directory.h"
 #include "threads/synch.h"
 
-// TODO: make sure this gets initialized
 struct lock filesys_lock;
 
 /*! Partition that contains the file system. */
