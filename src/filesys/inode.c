@@ -15,11 +15,16 @@
 #define INODE_MAGIC 0x494e4f44
 
 /*! On-disk inode. Must be exactly BLOCK_SECTOR_SIZE bytes long, done by
-    modifying NUM_DIRECT_FILE_SECTOR*/
+    modifying NUM_DIRECT_FILE_SECTOR */
 struct inode_disk {
     off_t length;                       /*!< File size in bytes. */
     file_sector sector_list[NUM_DIRECT_FILE_SECTOR + 2];  /*!< List of file sectors. */
     unsigned magic;                     /*!< Magic number. */
+};
+/*! On-disk inode with only file sectors. Must be exactly BLOCK_SECTOR_SIZE
+    bytes long, done by modifying NUM_INDIRECT_FILE_SECTOR */
+struct inode_disk_fs {
+    file_sector sector_list[NUM_INDIRECT_FILE_SECTOR];  /*!< List of file sectors. */
 };
 
 /*! Returns the number of sectors to allocate for an inode SIZE
@@ -36,6 +41,7 @@ struct inode {
     bool removed;                       /*!< True if deleted, false otherwise. */
     int deny_write_cnt;                 /*!< 0: writes ok, >0: deny writes. */
     struct inode_disk data;             /*!< Inode content. */
+    struct inode_disk_fs data2;         /*!< Inode content for indirection. */
 
     #ifdef FILESYS
     // TODO: note the below is a bitmap
@@ -58,20 +64,17 @@ file_sector* byte_to_sector_ptr(struct inode *inode, off_t pos) {
     // TODO: read inode structures correctly
 
     off_t fs_idx = pos / BLOCK_SECTOR_SIZE;
-    off_t dbl_indir_branch;
-    file_sector *fs_arr;
 
     // If direct, then just get file sector
     if (fs_idx < NUM_DIRECT_FILE_SECTOR) {
         return &((inode->data.sector_list)[fs_idx]);
     }
     else if (fs_idx < NUM_DIRECT_FILE_SECTOR + NUM_INDIRECT_FILE_SECTOR) {
-        // TODO: INDIRECT CASE
-        // Load arr[NUM_INDIRECT]?  Then
-        // return fs_arry[fs_idx - NUM_DIRECT];
+        return &((inode->data2.sector_list)[fs_idx - NUM_DIRECT_FILE_SECTOR]);
     }
     else {
         // TODO: DOUBLE INDIRECT CASE
+        PANIC("byte_to_sector_ptr: Sorry, double indirection is not implemented");
     }
     return &((inode->data.sector_list)[0]);
 }
@@ -103,44 +106,85 @@ void inode_init(void) {
     Returns false if memory or disk allocation fails. */
 bool inode_create(block_sector_t sector, off_t length) {
     struct inode_disk *disk_inode = NULL;
+    struct inode_disk_fs *disk_inode_fs = NULL;
     bool success = false;
+    file_sector *sector_list = NULL;
 
     ASSERT(length >= 0);
 
     /* If this assertion fails, the inode structure is not exactly
        one sector in size, and you should fix that. */
     ASSERT(sizeof *disk_inode == BLOCK_SECTOR_SIZE);
+    ASSERT(sizeof *disk_inode_fs == BLOCK_SECTOR_SIZE);
 
     disk_inode = calloc(1, sizeof *disk_inode);
-    if (disk_inode != NULL) {
+    disk_inode_fs = calloc(1, sizeof *disk_inode_fs);
+    if (disk_inode != NULL && disk_inode_fs != NULL) {
         size_t sectors = bytes_to_sectors(length);
         disk_inode->length = length;
         disk_inode->magic = INODE_MAGIC;
 
+        /* Allocate sector for indirection layer */
+        if (!free_map_allocate(1, &(disk_inode->sector_list[NUM_DIRECT_FILE_SECTOR]))) {
+            free(disk_inode);
+            free(disk_inode_fs);
+            return false;
+        }
+        
         if (sectors > 0) {
             static char zeros[BLOCK_SECTOR_SIZE];
-            size_t i;
-            size_t j;
-            file_sector *sector_list = disk_inode->sector_list;
-            // TODO: need to handle large files correctly
+            size_t i, j, sec = 0;
             for (i = 0; i < sectors; i++) {
-                if (free_map_allocate(1, &(sector_list[i]))) {
-                    block_write(fs_device, sector_list[i], zeros);
+                /* Select correct file_sector list */
+                if (sectors < NUM_DIRECT_FILE_SECTOR) {
+                    sector_list = disk_inode->sector_list;
+                    sec = i;
+                }
+                else if (sectors < NUM_DIRECT_FILE_SECTOR + NUM_INDIRECT_FILE_SECTOR) {
+                    sector_list = disk_inode_fs->sector_list;
+                    sec = i - NUM_DIRECT_FILE_SECTOR;
+                }
+                else { // TODO: need to handle large files correctly
+                    PANIC("inode_create: Sorry, double indirection is not implemented");
+                }
+                /* Allocate blocks */
+                if (free_map_allocate(1, &(sector_list[sec]))) {
+                    block_write(fs_device, sector_list[sec], zeros);
                 }
                 else {
-                    // Clean up if previous failed
+                    /* Clean up if previous failed */
                     for (j = 0; j < i; j++) {
-                        free_map_release(sector_list[j], 1);
+                        /* Select correct file_sector list */
+                        if (sectors < NUM_DIRECT_FILE_SECTOR) {
+                            sector_list = disk_inode->sector_list;
+                            sec = j;
+                        }
+                        else if (sectors < NUM_DIRECT_FILE_SECTOR + NUM_INDIRECT_FILE_SECTOR) {
+                            sector_list = disk_inode_fs->sector_list;
+                            sec = j - NUM_DIRECT_FILE_SECTOR;
+                        }
+                        else { // TODO: need to handle large files correctly
+                            PANIC("inode_create: Sorry, double indirection is not implemented");
+                        }
+                        free_map_release(sector_list[sec], 1);
                     }
+                    free_map_release(disk_inode->sector_list[NUM_DIRECT_FILE_SECTOR], 1);
                     free(disk_inode);
+                    free(disk_inode_fs);
                     return false;
                 }
             }
         }
         /* After the entire file is written to disk, write meta data. */
         block_write(fs_device, sector, disk_inode);
+        block_write(fs_device, disk_inode->sector_list[NUM_DIRECT_FILE_SECTOR], disk_inode_fs);
         success = true;
+    }
+    if (disk_inode != NULL) {
         free(disk_inode);
+    }
+    if (disk_inode_fs != NULL) {
+        free(disk_inode_fs);
     }
 
     return success;
@@ -176,6 +220,7 @@ struct inode * inode_open(block_sector_t sector) {
     inode->deny_write_cnt = 0;
     inode->removed = false;
     block_read(fs_device, inode->sector, &inode->data);
+    block_read(fs_device, inode->data.sector_list[NUM_DIRECT_FILE_SECTOR], &inode->data2);
     bitmap_create_in_buf(NUM_FBLOCKS, (void *) inode->blocks_owned, 16);
     lock_init(&(inode->extending));
     lock_init(&(inode->loading_to_cache));
@@ -214,7 +259,8 @@ void inode_close(struct inode *inode) {
             }
         }
         /* Write back inode to disk */
-        // TODO - already done???
+        //block_write(fs_device, inode->data.sector_list[NUM_DIRECT_FILE_SECTOR+1], &inode->data2);
+        //block_write(fs_device, inode->sector, &inode->data);
 
         /* Remove from inode list and release lock. */
         list_remove(&inode->elem);
@@ -222,10 +268,12 @@ void inode_close(struct inode *inode) {
         /* Deallocate blocks if removed. */
         if (inode->removed) {
             free_map_release(inode->sector, 1);
+            free_map_release(inode->data.sector_list[NUM_DIRECT_FILE_SECTOR], 1);
             size_t sectors = bytes_to_sectors(inode->data.length);
             size_t i;
             for (i = 0; i < sectors; i++) {
-                free_map_release(inode->data.sector_list[i], 1);
+                file_sector *sec = byte_to_sector_ptr(inode, i * BLOCK_SECTOR_SIZE);
+                free_map_release(file_sec_get_addr(*sec), 1);
             }
         }
         free(inode);

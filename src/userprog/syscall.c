@@ -8,6 +8,7 @@
 #include "threads/synch.h"
 #include "threads/vaddr.h"
 #include "threads/malloc.h"
+#include "filesys/fballoc.h"
 #include "filesys/filesys.h"
 #include "filesys/file.h"
 #include "process.h"
@@ -86,9 +87,18 @@ static void syscall_handler(struct intr_frame *f)
 void kill_current_thread(int status) {
     struct thread *t = thread_current();
     // Release filesys lock if owned
+    // TODO: CHECK CORRECTLY FOR ALL FILE SYSTEM LOCKS
+    // Currently this just checks for acquired fballoc locks
     if (filesys_access_held())
     {
         release_filesys_access();
+        uint32_t i;
+        for (i = 0; i < NUM_FBLOCKS; ++i)
+        {
+            if (fblock_lock_owner(i)) {
+                fblock_lock_release(i);
+            }
+        }
     }
 
     // Print out exit message.

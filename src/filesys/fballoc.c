@@ -42,8 +42,6 @@ void fballoc_init(void)
 // Loads the given file location into the file block cache
 void fballoc_load_fblock(struct inode* inode, off_t start, file_sector *sector)
 {
-    // Ensure that start is actually the start of a sector
-    ASSERT(!(start & (BLOCK_SECTOR_SIZE-1)));
     // Get an open block
     uint32_t idx = fballoc_evict();
     lock_acquire(&(fblock_entry_arr[idx].in_use));
@@ -51,7 +49,7 @@ void fballoc_load_fblock(struct inode* inode, off_t start, file_sector *sector)
     fblock_set_used(&fblock_entry_arr[idx].status);
     fblock_set_accessed(&fblock_entry_arr[idx].status);
     fblock_entry_arr[idx].inode = inode;
-    fblock_entry_arr[idx].start = start;
+    fblock_entry_arr[idx].start = start & ~(BLOCK_SECTOR_SIZE-1);
     fblock_entry_arr[idx].sector = file_sec_get_addr(*sector);
     // Read in data
     block_read(fs_device, fblock_entry_arr[idx].sector, (void*) &fblock_arr[idx]);
@@ -242,4 +240,9 @@ void fblock_lock_release(uint32_t idx)
 {
     ASSERT(idx < NUM_FBLOCKS);
     lock_release(&(fblock_entry_arr[idx].in_use));
+}
+bool fblock_lock_owner(uint32_t idx)
+{
+    ASSERT(idx < NUM_FBLOCKS);
+    return lock_held_by_current_thread(&(fblock_entry_arr[idx].in_use));
 }
