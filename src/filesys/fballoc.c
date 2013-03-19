@@ -93,17 +93,24 @@ void fballoc_free_fblock(uint32_t idx)
 void fballoc_write_back(uint32_t idx)
 {
     ASSERT(idx < NUM_FBLOCKS);
+    // Need to check if thread already locked block and avoid using lock
+    bool got_lock = lock_held_by_current_thread(&(fblock_entry_arr[idx].in_use));
     // Write data back if dirty
     if (fblock_is_dirty(fblock_entry_arr[idx].status))
     {
-        // NOTE: NEED TO CHECK LOCK TO PREVENT RECUSION
-        //lock_acquire(&(fblock_entry_arr[idx].in_use));
+        if (!got_lock)
+        {
+            lock_acquire(&(fblock_entry_arr[idx].in_use));
+        }
         block_sector_t sector = fblock_entry_arr[idx].sector;
         block_write(fs_device, sector, (void*) &fblock_arr[idx]);
         // Mark file block as not dirty
         fblock_set_not_dirty(&fblock_entry_arr[idx].status);
         // Done with block
-        //lock_release(&(fblock_entry_arr[idx].in_use));
+        if (!got_lock)
+        {
+            lock_release(&(fblock_entry_arr[idx].in_use));
+        }
     }
 }
 
@@ -223,4 +230,16 @@ void fblock_mark_write(uint32_t idx)
 {
     ASSERT(idx < NUM_FBLOCKS);
     fblock_entry_arr[idx].status |= FBLOCK_A | FBLOCK_D;
+}
+
+// Acquire and release lock on a file block
+void fblock_lock_acquire(uint32_t idx)
+{
+    ASSERT(idx < NUM_FBLOCKS);
+    lock_acquire(&(fblock_entry_arr[idx].in_use));
+}
+void fblock_lock_release(uint32_t idx)
+{
+    ASSERT(idx < NUM_FBLOCKS);
+    lock_release(&(fblock_entry_arr[idx].in_use));
 }

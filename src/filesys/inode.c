@@ -214,7 +214,7 @@ void inode_close(struct inode *inode) {
             }
         }
         /* Write back inode to disk */
-        // TODO!!!
+        // TODO - already done???
 
         /* Remove from inode list and release lock. */
         list_remove(&inode->elem);
@@ -246,6 +246,8 @@ off_t inode_read_at(struct inode *inode, void *buffer_, off_t size, off_t offset
     uint8_t *buffer = buffer_;
     off_t bytes_read = 0;
 
+    // TODO: need to check length
+    
     while (size > 0) {
         /* Disk sector to read, starting byte offset within sector. */
         uint32_t *sector = byte_to_sector_ptr(inode, offset);
@@ -267,8 +269,10 @@ off_t inode_read_at(struct inode *inode, void *buffer_, off_t size, off_t offset
         void *cache_block = fballoc_idx_to_addr(block_idx);
 
         /* Read the chunk from the cache block. */
+        fblock_lock_acquire(block_idx);
         memcpy(buffer + bytes_read, cache_block + sector_ofs, chunk_size);
         fblock_mark_read(block_idx);
+        fblock_lock_release(block_idx);
 
         /* Advance. */
         size -= chunk_size;
@@ -288,6 +292,8 @@ off_t inode_write_at(struct inode *inode, const void *buffer_, off_t size, off_t
     const uint8_t *buffer = buffer_;
     off_t bytes_written = 0;
 
+    // TODO: implement file extension.
+    
     if (inode->deny_write_cnt)
         return 0;
     while (size > 0) {
@@ -310,10 +316,11 @@ off_t inode_write_at(struct inode *inode, const void *buffer_, off_t size, off_t
         uint32_t block_idx = inode_get_cache_block_idx(inode, offset, sector);
         void *cache_block = fballoc_idx_to_addr(block_idx);
 
-        // TODO: implement file extension.
-        //printf("Off: %d, sector: %x, block: %d, chunk: %d\n", offset, *sector, block_idx, chunk_size);
+        /* Write chunk to the cache block */
+        fblock_lock_acquire(block_idx);
         memcpy(cache_block + sector_ofs, buffer + bytes_written, chunk_size);
         fblock_mark_write(block_idx);
+        fblock_lock_release(block_idx);
 
         /* Advance. */
         size -= chunk_size;

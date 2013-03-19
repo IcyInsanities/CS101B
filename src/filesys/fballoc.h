@@ -44,6 +44,8 @@ uint32_t fballoc_evict_save(uint32_t);
 void * fballoc_idx_to_addr(uint32_t);
 void fblock_mark_read(uint32_t);
 void fblock_mark_write(uint32_t);
+void fblock_lock_acquire(uint32_t);
+void fblock_lock_release(uint32_t);
 
 // Functions to set the status bits
 static inline void fblock_set_used(uint32_t* status)
