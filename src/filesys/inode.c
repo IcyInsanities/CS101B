@@ -135,6 +135,7 @@ bool inode_create(block_sector_t sector, off_t length) {
             static char zeros[BLOCK_SECTOR_SIZE];
             size_t i, j, sec = 0;
             for (i = 0; i < sectors; i++) {
+
                 /* Select correct file_sector list */
                 if (sectors < NUM_DIRECT_FILE_SECTOR) {
                     sector_list = disk_inode->sector_list;
@@ -339,8 +340,64 @@ off_t inode_read_at(struct inode *inode, void *buffer_, off_t size, off_t offset
 off_t inode_write_at(struct inode *inode, const void *buffer_, off_t size, off_t offset) {
     const uint8_t *buffer = buffer_;
     off_t bytes_written = 0;
-
-    // TODO: implement file extension.
+    int i;
+    file_sector *sector_list = (inode->data).sector_list;
+    off_t curr_file_len;
+    off_t ext_file_len;
+    off_t num_sec_to_alloc;
+    file_sector *curr_sector; 
+    
+    // If new file is extended, need to update length
+    if (offset + size > (inode->data).length) {
+        printf("Current file length in bytes: %d\n", (inode->data).length);
+        printf("Extended file length in bytes: %d\n", offset + size);
+        
+        (inode->data).length = offset + size;
+    
+        /* Get how many file sectors long the file currently is. */
+        //curr_file_len = (((inode->data).length - 1)/BLOCK_SECTOR_SIZE) + 1;
+        curr_file_len = bytes_to_sectors((inode->data).length);
+        
+        /* Get how many file sectors long file must be to complete write. */
+        //ext_file_len = ((offset + size - 1)/BLOCK_SECTOR_SIZE) + 1;
+        ext_file_len = bytes_to_sectors(offset + size);
+        
+        /* Determine how many more file sectors must be allocated. */
+        num_sec_to_alloc = ext_file_len - curr_file_len;
+    
+        /* If more sectors must be allocated, do so. */
+        if (num_sec_to_alloc > 0) {
+        
+            printf("Extending file...\n");
+            printf("Need to allocate: %d more blocks.\n", num_sec_to_alloc);
+            /* Loop, allocating sector on disk, then writing 0's to it. */
+            for (i = 0; i < num_sec_to_alloc; i++) {
+                static char zeros[BLOCK_SECTOR_SIZE];
+                // TODO: where sector_list is used, need to write a fucntion to
+                // access the i'th entry (abstract indirect & direct entries away)
+                
+                curr_sector = byte_to_sector_ptr(inode, BLOCK_SECTOR_SIZE*(i + curr_file_len + 1));
+                /* Allocate sector on disk. */
+                //free_map_allocate(1, &(sector_list[i]));
+                free_map_allocate(1, curr_sector);
+                
+                // TODO: Need to update file sector directory? (must write back?)
+                
+                /* Zero the sector. */
+                block_write(fs_device, *curr_sector, zeros);
+                
+            }
+            /* NOTE: do not need to put last block into cache, it will get loaded by
+             * the write below. */
+        }
+        
+        // TODO: need to write inode with file sector list back to disk
+        /* After file is extended, write meta data. */
+        block_write(fs_device, inode->sector, &inode->data);
+        
+    }
+    
+    printf("Updated file length in bytes: %d\n", (inode->data).length);
     
     if (inode->deny_write_cnt)
         return 0;
