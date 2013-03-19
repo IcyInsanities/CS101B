@@ -259,8 +259,8 @@ void inode_close(struct inode *inode) {
             }
         }
         /* Write back inode to disk */
-        //block_write(fs_device, inode->data.sector_list[NUM_DIRECT_FILE_SECTOR+1], &inode->data2);
-        //block_write(fs_device, inode->sector, &inode->data);
+        block_write(fs_device, inode->data.sector_list[NUM_DIRECT_FILE_SECTOR], &inode->data2);
+        block_write(fs_device, inode->sector, &inode->data);
 
         /* Remove from inode list and release lock. */
         list_remove(&inode->elem);
@@ -299,7 +299,6 @@ off_t inode_read_at(struct inode *inode, void *buffer_, off_t size, off_t offset
     while (size > 0) {
         /* Disk sector to read, starting byte offset within sector. */
         uint32_t *sector = byte_to_sector_ptr(inode, offset);
-        //block_sector_t sector_idx = file_sec_get_addr(*sector); // TODO: uneeded?
         int sector_ofs = offset % BLOCK_SECTOR_SIZE;
 
         /* Bytes left in inode, bytes left in sector, lesser of the two. */
@@ -347,7 +346,6 @@ off_t inode_write_at(struct inode *inode, const void *buffer_, off_t size, off_t
     while (size > 0) {
         /* Sector to write, starting byte offset within sector. */
         uint32_t *sector = byte_to_sector_ptr(inode, offset);
-        //block_sector_t sector_idx = file_sec_get_addr(*sector); // TODO: uneeded?
         int sector_ofs = offset % BLOCK_SECTOR_SIZE;
 
         /* Bytes left in inode, bytes left in sector, lesser of the two. */
@@ -375,7 +373,7 @@ off_t inode_write_at(struct inode *inode, const void *buffer_, off_t size, off_t
         offset += chunk_size;
         bytes_written += chunk_size;
     }
-    //printf("Done write of %d\n", bytes_written);
+    
     return bytes_written;
 }
 
