@@ -386,23 +386,12 @@ void
 thread_exit (void)
 {
   struct thread *t = thread_current();
-
-  ASSERT (!intr_context ());
-
-  /* Remove thread from all threads list, set our status to dying,
-     and schedule another process.  That process will destroy us
-     when it calls thread_schedule_tail(). */
-  intr_disable ();
-  list_remove (&(t->allelem));
-
-#ifdef USERPROG /* Code for user programs. */
   struct list_elem *e;
+  
+  ASSERT (!intr_context ());
 
   /* Close the executable file once it is done running. */
   file_close(t->executable);
-
-  /* Clean up process memory before destroying thread. */
-  process_exit ();
 
   /* Close all open files on exit. */
   while (!list_empty(&(t->files_opened)))
@@ -412,6 +401,17 @@ thread_exit (void)
     file_close (f_id->f);
     free((void*)f_id);
   }
+
+  /* Remove thread from all threads list, set our status to dying,
+     and schedule another process.  That process will destroy us
+     when it calls thread_schedule_tail(). */
+  intr_disable ();
+  list_remove (&(t->allelem));
+
+#ifdef USERPROG /* Code for user programs. */
+
+  /* Clean up process memory before destroying thread. */
+  process_exit ();
 
   /* If the thread has a parent, set it to ZOMBIE so wait can clean it up. */
   if (t->parent != NULL)
