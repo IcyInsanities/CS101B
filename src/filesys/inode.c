@@ -350,8 +350,6 @@ off_t inode_write_at(struct inode *inode, const void *buffer_, off_t size, off_t
     if (offset + size > (inode->data).length) {
         printf("Current file length in bytes: %d\n", (inode->data).length);
         printf("Extended file length in bytes: %d\n", offset + size);
-        
-        (inode->data).length = offset + size;
     
         /* Get how many file sectors long the file currently is. */
         //curr_file_len = (((inode->data).length - 1)/BLOCK_SECTOR_SIZE) + 1;
@@ -363,12 +361,14 @@ off_t inode_write_at(struct inode *inode, const void *buffer_, off_t size, off_t
         
         /* Determine how many more file sectors must be allocated. */
         num_sec_to_alloc = ext_file_len - curr_file_len;
+        
+        (inode->data).length = offset + size;
     
+        printf("Need to allocate: %d more blocks.\n", num_sec_to_alloc);
         /* If more sectors must be allocated, do so. */
         if (num_sec_to_alloc > 0) {
         
             printf("Extending file...\n");
-            printf("Need to allocate: %d more blocks.\n", num_sec_to_alloc);
             /* Loop, allocating sector on disk, then writing 0's to it. */
             for (i = 0; i < num_sec_to_alloc; i++) {
                 static char zeros[BLOCK_SECTOR_SIZE];
