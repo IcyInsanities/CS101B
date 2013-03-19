@@ -62,7 +62,7 @@ void fballoc_load_fblock(struct inode* inode, off_t start, file_sector *sector)
     // Done with block setup
     lock_release(&(fblock_entry_arr[idx].in_use));
     // Queue next block
-    
+
     // TODO!!!!!!!
 }
 
@@ -96,13 +96,14 @@ void fballoc_write_back(uint32_t idx)
     // Write data back if dirty
     if (fblock_is_dirty(fblock_entry_arr[idx].status))
     {
-        lock_acquire(&(fblock_entry_arr[idx].in_use));
+        // NOTE: NEED TO CHECK LOCK TO PREVENT RECUSION
+        //lock_acquire(&(fblock_entry_arr[idx].in_use));
         block_sector_t sector = fblock_entry_arr[idx].sector;
-        block_read(fs_device, sector, (void*) &fblock_arr[idx]);
+        block_write(fs_device, sector, (void*) &fblock_arr[idx]);
         // Mark file block as not dirty
         fblock_set_not_dirty(&fblock_entry_arr[idx].status);
         // Done with block
-        lock_release(&(fblock_entry_arr[idx].in_use));
+        //lock_release(&(fblock_entry_arr[idx].in_use));
     }
 }
 
@@ -130,12 +131,12 @@ uint32_t fballoc_evict_save(uint32_t save_idx)
     static uint32_t start_idx = 0; // Points to last evicted block
     uint32_t status;
     uint32_t idx, evict_idx;
-    
+
     ASSERT((save_idx == (uint32_t) -1) | (save_idx < NUM_FBLOCKS));
     uint32_t first_na_nd_idx = -1;
     uint32_t first_na_d_idx  = -1;
     uint32_t first_a_nd_idx  = -1;
-    
+
     // Find first of the 3 categories and save idx
     idx = (start_idx + 1) & (NUM_FBLOCKS-1);
     for( ; idx != start_idx; idx = (idx + 1) & (NUM_FBLOCKS-1))

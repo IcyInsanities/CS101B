@@ -75,15 +75,15 @@ static inline void fblock_set_not_accessed(uint32_t* status)
 // Functions to check the status bits
 static inline bool fblock_is_used(uint32_t status)
 {
-    return (bool) status & FBLOCK_U;
+    return (bool) (status & FBLOCK_U);
 }
 static inline bool fblock_is_dirty(uint32_t status)
 {
-    return (bool) status & FBLOCK_D;
+    return (bool) (status & FBLOCK_D);
 }
 static inline bool fblock_is_accessed(uint32_t status)
 {
-    return (bool) status & FBLOCK_A;
+    return (bool) (status & FBLOCK_A);
 }
 
 #endif // vm/fballoc.h

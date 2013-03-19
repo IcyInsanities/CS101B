@@ -142,6 +142,7 @@ bool inode_create(block_sector_t sector, off_t length) {
         success = true;
         free(disk_inode);
     }
+
     return success;
 }
 
@@ -204,6 +205,17 @@ void inode_close(struct inode *inode) {
 
     /* Release resources if this was the last opener. */
     if (--inode->open_cnt == 0) {
+        // TODO: need to lock file from being touched by others
+        /* Write back blocks to disk and free them */
+        uint32_t i;
+        for (i = 0; i < NUM_FBLOCKS; ++i) {
+            if (inode_is_block_owned(inode, i)) {
+                fballoc_free_fblock(i);
+            }
+        }
+        /* Write back inode to disk */
+        // TODO!!!
+
         /* Remove from inode list and release lock. */
         list_remove(&inode->elem);
 
@@ -278,7 +290,6 @@ off_t inode_write_at(struct inode *inode, const void *buffer_, off_t size, off_t
 
     if (inode->deny_write_cnt)
         return 0;
-
     while (size > 0) {
         /* Sector to write, starting byte offset within sector. */
         uint32_t *sector = byte_to_sector_ptr(inode, offset);
@@ -300,6 +311,7 @@ off_t inode_write_at(struct inode *inode, const void *buffer_, off_t size, off_t
         void *cache_block = fballoc_idx_to_addr(block_idx);
 
         // TODO: implement file extension.
+        //printf("Off: %d, sector: %x, block: %d, chunk: %d\n", offset, *sector, block_idx, chunk_size);
         memcpy(cache_block + sector_ofs, buffer + bytes_written, chunk_size);
         fblock_mark_write(block_idx);
 
@@ -308,7 +320,7 @@ off_t inode_write_at(struct inode *inode, const void *buffer_, off_t size, off_t
         offset += chunk_size;
         bytes_written += chunk_size;
     }
-
+    //printf("Done write of %d\n", bytes_written);
     return bytes_written;
 }
 
