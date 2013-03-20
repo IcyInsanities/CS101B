@@ -161,63 +161,6 @@ bool filesys_change_cwd(const char *name) {
     return false;
 }
 
-//filesys_parse_path_split(char* path, dir * directory_containing_name, char *name_of_file_or_dir)
-    // Make a copy of the path string
-    // length = strlen(string) + 1
-    // use strlcpy(buffer, string_2_cpy,lengh)
-    // bool slash_at_end;
-
-    // if (last_char == '/') {
-    //      slash_at_end = true;
-    //  }
-    //  else {
-    //      slash_at_end = false;
-    //  }
-
-    // thread_dir
-    // if (first char is '/') {
-    //      curr_dir = root;
-    //      containing_dir = root; // this might be a problem...might have to do a special case in the loop for this
-    // } else {
-    //      curr_dir = thread_dir
-    //      containing_dir = one_back(thread_dir)
-    // }
-    //
-    // Initialize tokenizer and get first obj_name
-    // if ('.') {
-    //      do nothing
-    //  } else {
-    //      if (dir_lookup_dir(token)) {
-    //          if (curr_dir != root) {
-    //              containing_dir = curr_dir;
-    //          }
-    //          curr_dir = looked_up_dir;
-    //
-    //      } else {
-    //          name_of_file_or_dir = token;                // FIX: This is only true if we have actually reached the end of the path!!!!
-    //          directory_containing_name = containing_dir;
-    //      }
-    //  }
-    //
-
-    // Loop
-        // Get a token (dir or file name)
-        // if ('.') {
-        //      do nothing
-        //      if (dir_lookup_dir(token)) {
-        //          if (curr_dir != root) {
-        //              containing_dir = curr_dir;
-        //          }
-        //          curr_dir = looked_up_dir;
-        //
-        //      } else {
-        //          name_of_file_or_dir = token;        // FIX: This is only true if we have actually reached the end of the path!!!!
-        //          directory_containing_name = containing_dir;
-        //      }
-        //  }
-
-    // return slash_at_end;
-
 /*! Parses PATH, returning whether there is a '/' at then end.  DIR is set
     to the parent directory of the directory or file name that NAME is set to.
     If parsing of the path fails, DIR and NAME are set to NULL. */
@@ -249,7 +192,6 @@ bool filesys_parse_path_split(const char *path, struct dir **dir, char *name) {
 
     /* Check if the path ends with a '/' */
     slash_at_end = (bool) (path[strlen(path)-1] == '/');
-
 
     /* Get the first name in the path. */
     curr_name = strtok_r(path_tokens, "/", &save_ptr);

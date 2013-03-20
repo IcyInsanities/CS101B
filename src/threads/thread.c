@@ -390,6 +390,9 @@ thread_exit (void)
   
   ASSERT (!intr_context ());
 
+  /* Close current working directory */
+  dir_close(t->curr_dir);
+  
   /* Close the executable file once it is done running. */
   file_close(t->executable);
 

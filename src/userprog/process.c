@@ -135,8 +135,7 @@ static void start_process(void *file_name_) {
     *(&if_.esp) = esp;
 
     /* Create initial directory as current working directory */
-    // TODO!!!!!
-    t->curr_dir = dir_open_root();
+    t->curr_dir = dir_reopen((t->parent)->curr_dir);
     
     /* Clean up page now that arguments are parsed */
     palloc_free_page(file_name);
