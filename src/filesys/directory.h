@@ -1,6 +1,7 @@
 #ifndef FILESYS_DIRECTORY_H
 #define FILESYS_DIRECTORY_H
 
+#include "file.h"
 #include <stdbool.h>
 #include <stddef.h>
 #include "devices/block.h"
@@ -26,6 +27,7 @@ bool dir_lookup(const struct dir *, const char *name, struct inode **);
 bool dir_add(struct dir *, const char *name, block_sector_t);
 bool dir_remove(struct dir *, const char *name);
 bool dir_readdir(struct dir *, char name[NAME_MAX + 1]);
+bool dir_is_dir(struct file *);
 
 #endif /* filesys/directory.h */
 

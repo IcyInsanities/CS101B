@@ -40,6 +40,7 @@ struct inode {
     block_sector_t sector;              /*!< Sector number of disk location. */
     int open_cnt;                       /*!< Number of openers. */
     bool removed;                       /*!< True if deleted, false otherwise. */
+    bool is_dir;                        /*!< True if directory, false otherwise. */
     int deny_write_cnt;                 /*!< 0: writes ok, >0: deny writes. */
     struct inode_disk data;             /*!< Inode content. */
     struct inode_disk_fs data2;         /*!< Inode content for indirection. */
@@ -239,6 +240,11 @@ struct inode * inode_reopen(struct inode *inode) {
 /*! Returns INODE's inode number. */
 block_sector_t inode_get_inumber(const struct inode *inode) {
     return inode->sector;
+}
+
+/*! Returns if INODE is a directory. */
+bool inode_is_dir(const struct inode *inode) {
+    return inode->is_dir;
 }
 
 /*! Closes INODE and writes it to disk.

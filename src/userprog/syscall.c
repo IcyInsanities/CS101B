@@ -8,6 +8,7 @@
 #include "threads/synch.h"
 #include "threads/vaddr.h"
 #include "threads/malloc.h"
+#include "filesys/directory.h"
 #include "filesys/fballoc.h"
 #include "filesys/filesys.h"
 #include "filesys/file.h"
@@ -435,7 +436,6 @@ void syscall_close(struct intr_frame *f UNUSED, void * arg1, void * arg2 UNUSED,
 {
     int fd = (int) arg1;
     struct file_id *f_id;
-    struct file_id *closed_file_id;
     struct thread *t = thread_current();
 
     // Get the file pointer
@@ -467,33 +467,71 @@ void syscall_munmap(struct intr_frame *f UNUSED, void * arg1 UNUSED, void * arg2
     // TODO
 }
 
-// TODO - Project 4
+// Changes current directory to given, returns bool based on success
 void syscall_chdir(struct intr_frame *f UNUSED, void * arg1 UNUSED, void * arg2 UNUSED, void * arg3 UNUSED)
 {
     // TODO
 }
 
-// TODO - Project 4
+// Creates new directory, returns bool based on success
 void syscall_mkdir(struct intr_frame *f UNUSED, void * arg1 UNUSED, void * arg2 UNUSED, void * arg3 UNUSED)
 {
-    // TODO
+    char *name = (char*) arg1;
+    acquire_filesys_access();   // Acquire lock for file system access
+    //f->eax = dir_readdir((struct dir*) file, name)  // Create directory
+    release_filesys_access();   // Done with file system access
 }
 
 
-// TODO - Project 4
-void syscall_readdir(struct intr_frame *f UNUSED, void * arg1 UNUSED, void * arg2 UNUSED, void * arg3 UNUSED)
+// Gets the name of the next directory element, returns bool based on success
+void syscall_readdir(struct intr_frame *f, void * arg1, void * arg2, void * arg3 UNUSED)
 {
-    // TODO
+    int fd = (int) arg1;
+    char *name = (char*) arg2;  // Assumed to be large enough already
+    // Get the file pointer
+    struct file *file = file_fid_to_f(fd, &(thread_current()->files_opened));
+    // If there is an invalid file descriptor, kill the thread
+    if ((file == NULL) || (!dir_is_dir(file)))
+    {
+        kill_current_thread(-1);
+    }
+    // Read directory
+    acquire_filesys_access();   // Acquire lock for file system access
+    f->eax = dir_readdir((struct dir*) file, name);
+    release_filesys_access();   // Done with file system access
 }
 
-// TODO - Project 4
-void syscall_isdir(struct intr_frame *f UNUSED, void * arg1 UNUSED, void * arg2 UNUSED, void * arg3 UNUSED)
+// Returns a bool based on if given file is a directory or not
+void syscall_isdir(struct intr_frame *f, void * arg1, void * arg2 UNUSED, void * arg3 UNUSED)
 {
-    // TODO
+    int fd = (int) arg1;
+    // Get the file pointer
+    struct file *file = file_fid_to_f(fd, &(thread_current()->files_opened));
+    // If there is an invalid file descriptor, kill the thread
+    if (file == NULL)
+    {
+        kill_current_thread(-1);
+    }
+    // Return sector of inode
+    acquire_filesys_access();   // Acquire lock for file system access
+    f->eax = dir_is_dir(file);
+    release_filesys_access();   // Done with file system access
 }
 
-// TODO - Project 4
-void syscall_inumber(struct intr_frame *f UNUSED, void * arg1 UNUSED, void * arg2 UNUSED, void * arg3 UNUSED)
+// Return a unique number identifying the inode. Done by returning the sector of
+// the backing inode store.
+void syscall_inumber(struct intr_frame *f, void * arg1, void * arg2 UNUSED, void * arg3 UNUSED)
 {
-    // TODO
+    int fd = (int) arg1;
+    // Get the file pointer
+    struct file *file = file_fid_to_f(fd, &(thread_current()->files_opened));
+    // If there is an invalid file descriptor, kill the thread
+    if (file == NULL)
+    {
+        kill_current_thread(-1);
+    }
+    // Return sector of inode
+    acquire_filesys_access();   // Acquire lock for file system access
+    f->eax = file_get_inode_sector(file);
+    release_filesys_access();   // Done with file system access
 }
