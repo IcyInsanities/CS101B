@@ -57,8 +57,9 @@ bool filesys_create(const char *name, off_t initial_size) {
     block_sector_t inode_sector = 0;
     struct dir *dir = NULL;
     char name_file[NAME_MAX + 1];
+    
     // TODO: seems to get out of filesys_parse_path_split with correct return values... need to check dir is NULL for some reason?
-    bool success = (!filesys_parse_path_split(name, dir, name_file) && // Can't / terminate
+    bool success = (!filesys_parse_path_split(name, &dir, name_file) && // Can't / terminate
                     dir != NULL && name_file != NULL &&
                     free_map_allocate(1, &inode_sector) &&
                     inode_create(inode_sector, initial_size) &&
@@ -66,7 +67,7 @@ bool filesys_create(const char *name, off_t initial_size) {
     if (!success && inode_sector != 0) 
         free_map_release(inode_sector, 1);
     dir_close(dir);
-
+    
     return success;
 }
 /*! Create variant that creates a directory, default size space for 5 entries.
@@ -75,7 +76,7 @@ bool filesys_create_dir(const char *name) {
     block_sector_t inode_sector = 0;
     struct dir *dir = NULL;
     char name_file[NAME_MAX + 1];
-    filesys_parse_path_split(name, dir, name_file); // Don't care if / terminate
+    filesys_parse_path_split(name, &dir, name_file); // Don't care if / terminate
     bool success = (dir != NULL && name_file != NULL &&
                     free_map_allocate(1, &inode_sector) &&
                     dir_create(inode_sector, 5, dir) &&
@@ -95,7 +96,7 @@ struct file * filesys_open(const char *name) {
     struct inode *inode = NULL;
     char name_file[NAME_MAX + 1];
     
-    bool slash_term = filesys_parse_path_split(name, dir, name_file);
+    bool slash_term = filesys_parse_path_split(name, &dir, name_file);
     if (dir != NULL) {
         if (slash_term) {
             dir_lookup_dir(dir, name_file, &inode);
@@ -117,7 +118,7 @@ bool filesys_remove(const char *name) {
     bool success = false;
     
     /* Ensure that not / terminated file name */
-    if (!filesys_parse_path_split(name, dir, name_file)) {
+    if (!filesys_parse_path_split(name, &dir, name_file)) {
         success = dir != NULL && dir_remove(dir, name_file);
     }
     dir_close(dir);
@@ -221,7 +222,7 @@ bool filesys_change_cwd(const char *name) {
 /*! Parses PATH, returning whether there is a '/' at then end.  DIR is set
     to the parent directory of the directory or file name that NAME is set to.
     If parsing of the path fails, DIR and NAME are set to NULL. */
-bool filesys_parse_path_split(const char *path, struct dir *dir, char *name) {
+bool filesys_parse_path_split(const char *path, struct dir **dir, char *name) {
 
     void *path_tokens;
     size_t path_len = strlen(path) + 1; // Need to get the NULL char
@@ -234,42 +235,33 @@ bool filesys_parse_path_split(const char *path, struct dir *dir, char *name) {
     bool in_root;
     bool slash_at_end;
     
-    printf("HI!!!\n");
-    printf(path);
-    printf("\n");
-    printf("^PATH\n");
     path_tokens = malloc(path_len);
     ASSERT(path_tokens != NULL);
     /* The starting parent directory is the current directory. */
     //dir = t->curr_dir;
     // DEBUG: use root for now:
-    dir = dir_open_root();
+    *dir = dir_open_root();
     
     /* Copy the path so it can be tokenized. */
     strlcpy(path_tokens, path, path_len);
     
-    printf(path_tokens);
-    printf("\n");
-    
     /* Check if the path ends with a '/' */
     slash_at_end = (bool) (path[strlen(path)-1] == '/');
-    printf("checked for slash\n");
     /* Preserve the current directory. */
-    thread_dir = dir_open(dir_get_inode(dir)); // TODO: Might have to NOT do this if path string is empty?
+    thread_dir = dir_reopen(*dir); // TODO: Might have to NOT do this if path string is empty?
     
     /* If there is a '/' at the start, must go to root. */
     if (path[0] == '/') {
-        dir_close(dir);
-        dir = dir_open_root();
+        dir_close(*dir);
+        *dir = dir_open_root();
     }
     
     /* Get the first name in the path. */
     curr_name = strtok_r(path_tokens, "/", &save_ptr);
     
-    printf("got first name in path!\n");
     /* If there is no name, nothing to extract from path. */
     if (curr_name == NULL) {
-        dir = NULL;
+        *dir = NULL;
         name = NULL;
         t->curr_dir = thread_dir;
         free(path_tokens);
@@ -282,17 +274,17 @@ bool filesys_parse_path_split(const char *path, struct dir *dir, char *name) {
     {
         if (!streq(curr_name, ".")) {
             /* If the directory name was found, continue through path. */
-            if (dir_lookup_dir(dir, curr_name, &curr_inode)) {
+            if (dir_lookup_dir(*dir, curr_name, &curr_inode)) {
                 // TODO: do we need to close the old inode as well, or does closing the directory do that?
                 /* Close the "old" directory. */
-                dir_close(dir);
+                dir_close(*dir);
 
                 /* Get the next directory. */
-                dir = dir_open(curr_inode);
+                *dir = dir_open(curr_inode);
             }
             /* If it wasn't found, cannot parse path. */
             else {
-                dir = NULL;
+                *dir = NULL;
                 name = NULL;
                 t->curr_dir = thread_dir;
                 free(path_tokens);
@@ -307,7 +299,7 @@ bool filesys_parse_path_split(const char *path, struct dir *dir, char *name) {
     /* If the name is not a true name, cannot parse. */
     if (streq(curr_name, "..") || streq(curr_name, ".")) {
         name = NULL;
-        dir = NULL;
+        *dir = NULL;
         t->curr_dir = thread_dir;
         free(path_tokens);
         return slash_at_end;
