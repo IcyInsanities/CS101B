@@ -151,7 +151,7 @@ void syscall_wait(struct intr_frame *f, void * arg1, void * arg2 UNUSED, void * 
 
 // Creates a new file with the passed name, and returns if it was successful or
 // not.
-void syscall_create(struct intr_frame *f UNUSED, void * arg1, void * arg2, void * arg3 UNUSED)
+void syscall_create(struct intr_frame *f, void * arg1, void * arg2, void * arg3 UNUSED)
 {
     // Reconstruct arguments.
     char * file = (char*) arg1;

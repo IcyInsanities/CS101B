@@ -210,7 +210,7 @@ bool filesys_parse_path_split(const char *path, struct dir **dir, char *name) {
     if (curr_name == NULL) {
         dir_close(*dir);
         *dir = NULL;
-        name = NULL;
+        name[0] = "\0";
         free(path_tokens);
         return slash_at_end;
     }
@@ -231,7 +231,7 @@ bool filesys_parse_path_split(const char *path, struct dir **dir, char *name) {
             else {
                 dir_close(*dir);
                 *dir = NULL;
-                name = NULL;
+                name[0] = "\0";
                 free(path_tokens);
                 return NULL;
             }
@@ -243,7 +243,7 @@ bool filesys_parse_path_split(const char *path, struct dir **dir, char *name) {
 
     /* If the name is not a true name, cannot parse. */
     if (streq(curr_name, "..") || streq(curr_name, ".")) {
-        name = NULL;
+        name[0] = "\0";
         dir_close(*dir);
         *dir = NULL;
         free(path_tokens);
@@ -251,7 +251,13 @@ bool filesys_parse_path_split(const char *path, struct dir **dir, char *name) {
     }
 
     /* Return the name, parent directory, and whether path ended with '/'. */
-    strlcpy(name, curr_name, strlen(curr_name) + 1);
+    if (strlen(curr_name) > NAME_MAX) {
+        name[0] = "\0";
+        dir_close(*dir);
+        *dir = NULL;
+    } else {
+        strlcpy(name, curr_name, strlen(curr_name) + 1);
+    }
     free(path_tokens);
     return slash_at_end;
 }
