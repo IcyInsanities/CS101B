@@ -248,7 +248,7 @@ bool filesys_parse_path_split(const char *path, struct dir **dir, char *name) {
 filesys_parse_path_split_done_fail:
     dir_close(*dir);
     *dir = NULL;
-    name[0] = "\0";
+    name[0] = '\0';
     free(path_tokens);
     return slash_at_end;
 }
@@ -315,67 +315,56 @@ struct dir *filesys_parse_path(const char *path) {
 
     void *path_tokens;
     size_t path_len = strlen(path) + 1; // Need to get the NULL char
-    struct thread *t = thread_current();
-    struct dir *curr_dir = t->curr_dir;
-    //char dir_name[NAME_MAX + 1];
     char *dir_name;
     char *save_ptr;
     struct inode *curr_inode;
-    struct dir *thread_dir;
+    struct dir *dir = dir_reopen(thread_current()->curr_dir);
+
+    /* Switch to root path if given absolute address */
+    if (path[0] == '/') {
+        dir_close(dir);
+        dir = dir_open_root();
+    }
 
     path_tokens = malloc(path_len);
-    ASSERT(path_tokens != NULL);
-
-    strlcpy(path_tokens, path, path_len);
-
-    /* Open another copy of the current directory to preserve it. */
-    //thread_dir = dir_open(curr_dir->inode); // TODO: Might have to NOT do this if path string is empty?
-    thread_dir = dir_open(dir_get_inode(curr_dir)); // TODO: Might have to NOT do this if path string is empty?
-
-    if (path[0] == '/') {
-        dir_close(curr_dir);
-        curr_dir = dir_open_root();
+    if (path_tokens == NULL) {
+        dir_close(dir);
+        return NULL;
     }
+    strlcpy(path_tokens, path, path_len);
 
     dir_name = strtok_r(path_tokens, "/", &save_ptr);
     if (!streq(dir_name, ".")) { // NEED TO ADD NULL AT END OF CONSTANT STRING?
 
-        if (dir_lookup_dir(curr_dir, dir_name, &curr_inode)) {
-            // TODO: do we need to close the old inode as well, or does closing the directory do that?
-            // Close the "old" directory
-            dir_close(curr_dir);
+        if (dir_lookup_dir(dir, dir_name, &curr_inode)) {
+            dir_close(dir);
             // Get the next directory
-            curr_dir = dir_open(curr_inode);
+            dir = dir_open(curr_inode);
         }
         else {
-            t->curr_dir = thread_dir;
+            dir_close(dir);
             free(path_tokens);
             return NULL;
         }
-
     }
 
     for (dir_name = strtok_r(NULL, "/", &save_ptr); dir_name != NULL;
          dir_name = strtok_r(NULL, "/", &save_ptr))
     {
         if (!streq(dir_name, ".")) {
-            if (dir_lookup_dir(curr_dir, dir_name, &curr_inode)) {
-            // TODO: do we need to close the old inode as well, or does closing the directory do that?
-            // Close the "old" directory
-            dir_close(curr_dir);
-            // Get the next directory
-            curr_dir = dir_open(curr_inode);
+            if (dir_lookup_dir(dir, dir_name, &curr_inode)) {
+                dir_close(dir);
+                // Get the next directory
+                dir = dir_open(curr_inode);
             }
             else {
-                t->curr_dir = thread_dir;
+                dir_close(dir);
                 free(path_tokens);
                 return NULL;
             }
         }
     }
 
-    t->curr_dir = thread_dir;
     free(path_tokens);
-    return curr_dir;
-
+    return dir;
 }
