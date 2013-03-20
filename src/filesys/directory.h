@@ -24,6 +24,8 @@ struct inode *dir_get_inode(struct dir *);
 
 /* Reading and writing. */
 bool dir_lookup(const struct dir *, const char *name, struct inode **);
+bool dir_lookup_dir(const struct dir *, const char *name, struct inode **);
+bool dir_lookup_any(const struct dir *, const char *name, struct inode **);
 bool dir_add(struct dir *, const char *name, block_sector_t);
 bool dir_add_dir(struct dir *, const char *name, block_sector_t);
 bool dir_remove(struct dir *, const char *name);

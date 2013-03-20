@@ -95,11 +95,60 @@ static bool lookup(const struct dir *dir, const char *name,
     }
     return false;
 }
+/*! Variant of lookup that specifies if file or dir in search */
+static bool lookup_typed(const struct dir *dir, const char *name,
+                   struct dir_entry *ep, off_t *ofsp, bool is_dir) {
+    struct dir_entry e;
+    size_t ofs;
+
+    ASSERT(dir != NULL);
+    ASSERT(name != NULL);
+
+    for (ofs = 0; inode_read_at(dir->inode, &e, sizeof(e), ofs) == sizeof(e);
+         ofs += sizeof(e)) {
+        if (e.in_use && !strcmp(name, e.name) && e.is_dir == is_dir) {
+            if (ep != NULL)
+                *ep = e;
+            if (ofsp != NULL)
+                *ofsp = ofs;
+            return true;
+        }
+    }
+    return false;
+}
 
 /*! Searches DIR for a file with the given NAME and returns true if one exists,
     false otherwise.  On success, sets *INODE to an inode for the file,
     otherwise to a null pointer.  The caller must close *INODE. */
 bool dir_lookup(const struct dir *dir, const char *name, struct inode **inode) {
+    struct dir_entry e;
+
+    ASSERT(dir != NULL);
+    ASSERT(name != NULL);
+
+    if (lookup_typed(dir, name, &e, NULL, false))
+        *inode = inode_open(e.inode_sector);
+    else
+        *inode = NULL;
+
+    return *inode != NULL;
+}
+/*! Lookup version that searches for a directory of the given name */
+bool dir_lookup_dir(const struct dir *dir, const char *name, struct inode **inode) {
+    struct dir_entry e;
+
+    ASSERT(dir != NULL);
+    ASSERT(name != NULL);
+
+    if (lookup_typed(dir, name, &e, NULL, true))
+        *inode = inode_open(e.inode_sector);
+    else
+        *inode = NULL;
+
+    return *inode != NULL;
+}
+/*! Lookup version that finds either a file or a directory */
+bool dir_lookup_any(const struct dir *dir, const char *name, struct inode **inode) {
     struct dir_entry e;
 
     ASSERT(dir != NULL);
@@ -144,9 +193,8 @@ bool dir_add_obj(struct dir *dir, const char *name, block_sector_t inode_sector,
     if (*name == '\0' || strlen(name) > NAME_MAX)
         return false;
 
-    // TODO: update this to check for names of the same type (file or directory);
     /* Check that NAME is not in use. */
-    if (lookup(dir, name, NULL, NULL))
+    if (lookup_typed(dir, name, NULL, NULL, is_dir))
         goto done;
 
     /* Set OFS to offset of free slot.
@@ -186,7 +234,7 @@ bool dir_remove(struct dir *dir, const char *name) {
     ASSERT(name != NULL);
 
     /* Find directory entry. */
-    if (!lookup(dir, name, &e, &ofs))
+    if (!lookup_typed(dir, name, &e, &ofs, false))
         goto done;
 
     /* Open inode. */
