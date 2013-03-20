@@ -193,6 +193,7 @@ bool filesys_parse_path_split(const char *path, struct dir **dir, char *name) {
         dir_close(*dir);
         *dir = dir_open_root();
     }
+    //TODO printf("start dir: %d\n", inode_get_inumber(dir_get_inode(*dir)));
 
 
     /* Copy the path so it can be tokenized. */
@@ -244,9 +245,11 @@ bool filesys_parse_path_split(const char *path, struct dir **dir, char *name) {
     }
     strlcpy(name, curr_name, strlen(curr_name) + 1);
     free(path_tokens);
-
+    
+    //TODO printf("dir: %d, name: %s, path: %s\n", inode_get_inumber(dir_get_inode(*dir)), name, path);
+    
     return slash_at_end;
-
+    
 filesys_parse_path_split_done_fail:
     dir_close(*dir);
     *dir = NULL;
@@ -361,6 +364,8 @@ struct dir *filesys_parse_path(const char *path) {
         }
     }
 
+    //TODO printf("dir: %d, path: %s\n", inode_get_inumber(dir_get_inode(dir)), path);
+    
     free(path_tokens);
     return dir;
 }
