@@ -182,7 +182,6 @@ bool filesys_parse_path_split(const char *path, struct dir **dir, char *name) {
     char *new_name;
     char *save_ptr;
     struct inode *curr_inode;
-    struct dir *thread_dir;
     bool slash_at_end;
 
     path_tokens = malloc(path_len);
@@ -208,11 +207,7 @@ bool filesys_parse_path_split(const char *path, struct dir **dir, char *name) {
 
     /* If there is no name, nothing to extract from path. */
     if (curr_name == NULL) {
-        dir_close(*dir);
-        *dir = NULL;
-        name[0] = "\0";
-        free(path_tokens);
-        return slash_at_end;
+        goto filesys_parse_path_split_done_fail;
     }
 
     /* Loop until we hit the end of the path. */
@@ -229,11 +224,7 @@ bool filesys_parse_path_split(const char *path, struct dir **dir, char *name) {
             }
             /* If it wasn't found, cannot parse path. */
             else {
-                dir_close(*dir);
-                *dir = NULL;
-                name[0] = "\0";
-                free(path_tokens);
-                return NULL;
+                goto filesys_parse_path_split_done_fail;
             }
         }
 
@@ -243,21 +234,21 @@ bool filesys_parse_path_split(const char *path, struct dir **dir, char *name) {
 
     /* If the name is not a true name, cannot parse. */
     if (streq(curr_name, "..") || streq(curr_name, ".")) {
-        name[0] = "\0";
-        dir_close(*dir);
-        *dir = NULL;
-        free(path_tokens);
-        return slash_at_end;
+        goto filesys_parse_path_split_done_fail;
     }
 
     /* Return the name, parent directory, and whether path ended with '/'. */
     if (strlen(curr_name) > NAME_MAX) {
-        name[0] = "\0";
-        dir_close(*dir);
-        *dir = NULL;
-    } else {
-        strlcpy(name, curr_name, strlen(curr_name) + 1);
+        goto filesys_parse_path_split_done_fail;
     }
+    strlcpy(name, curr_name, strlen(curr_name) + 1);
+    free(path_tokens);
+    return slash_at_end;
+    
+filesys_parse_path_split_done_fail:
+    dir_close(*dir);
+    *dir = NULL;
+    name[0] = "\0";
     free(path_tokens);
     return slash_at_end;
 }
