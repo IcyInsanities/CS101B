@@ -71,7 +71,7 @@ struct dir * dir_open(struct inode *inode) {
     if (inode != NULL && dir != NULL) {
         dir->inode = inode;
         inode_set_dir(dir->inode);
-        dir->pos = 0;
+        dir->pos = sizeof(struct dir_entry) * 2;
         return dir;
     }
     else {
@@ -313,7 +313,7 @@ done:
 bool dir_empty(struct dir *dir) {
     char trash[NAME_MAX+1];
     off_t pos_orig = dir->pos;
-    dir->pos = 0;
+    dir->pos = sizeof(struct dir_entry) * 2;
     bool not_empty = dir_readdir(dir, trash);
     dir->pos = pos_orig;
     return !not_empty;
