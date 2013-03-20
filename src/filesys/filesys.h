@@ -24,8 +24,8 @@ void release_filesys_access(void);
 bool try_acquire_filesys_access(void);
 bool filesys_access_held(void);
 bool filesys_change_cwd(const char *name);
-bool filesys_parse_path_split(char *path, struct dir *dir, char *name);
-struct dir *filesys_parse_path(char *path);
+bool filesys_parse_path_split(const char *path, struct dir *dir, char *name);
+struct dir *filesys_parse_path(const char *path);
 
 #endif /* filesys/filesys.h */
 

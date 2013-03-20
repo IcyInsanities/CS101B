@@ -52,11 +52,13 @@ void filesys_done(void) {
     or if internal memory allocation fails. */
 bool filesys_create(const char *name, off_t initial_size) {
     block_sector_t inode_sector = 0;
-    struct dir *dir = dir_open_root();
-    bool success = (dir != NULL &&
+    struct dir *dir = NULL;
+    char name_file[NAME_MAX + 1];
+    bool success = (!filesys_parse_path_split(name, dir, name_file) && // Can't / terminate
+                    dir != NULL && name_file != NULL &&
                     free_map_allocate(1, &inode_sector) &&
                     inode_create(inode_sector, initial_size) &&
-                    dir_add(dir, name, inode_sector));
+                    dir_add(dir, name_file, inode_sector));
     if (!success && inode_sector != 0) 
         free_map_release(inode_sector, 1);
     dir_close(dir);
@@ -67,11 +69,13 @@ bool filesys_create(const char *name, off_t initial_size) {
     This is arbitrary, but will get extended as needed. */
 bool filesys_create_dir(const char *name) {
     block_sector_t inode_sector = 0;
-    struct dir *dir = dir_open_root();
-    bool success = (dir != NULL &&
+    struct dir *dir = NULL;
+    char name_file[NAME_MAX + 1];
+    filesys_parse_path_split(name, dir, name_file); // Don't care if / terminate
+    bool success = (dir != NULL && name_file != NULL &&
                     free_map_allocate(1, &inode_sector) &&
                     dir_create(inode_sector, 5, dir) &&
-                    dir_add_dir(dir, name, inode_sector));
+                    dir_add_dir(dir, name_file, inode_sector));
     if (!success && inode_sector != 0) 
         free_map_release(inode_sector, 1);
     dir_close(dir);
@@ -83,11 +87,18 @@ bool filesys_create_dir(const char *name) {
     successful or a null pointer otherwise.  Fails if no file named NAME exists,
     or if an internal memory allocation fails. */
 struct file * filesys_open(const char *name) {
-    struct dir *dir = dir_open_root();
+    struct dir *dir = NULL;
     struct inode *inode = NULL;
-
-    if (dir != NULL)
-        dir_lookup_any(dir, name, &inode);
+    char name_file[NAME_MAX + 1];
+    
+    bool slash_term = filesys_parse_path_split(name, dir, name_file);
+    if (dir != NULL) {
+        if (slash_term) {
+            dir_lookup_dir(dir, name_file, &inode);
+        } else {
+            dir_lookup_any(dir, name_file, &inode);
+        }
+    }
     dir_close(dir);
 
     return file_open(inode);
@@ -97,8 +108,14 @@ struct file * filesys_open(const char *name) {
     Fails if no file named NAME exists, or if an internal memory allocation
     fails. */
 bool filesys_remove(const char *name) {
-    struct dir *dir = dir_open_root();
-    bool success = dir != NULL && dir_remove(dir, name);
+    struct dir *dir = NULL;
+    char name_file[NAME_MAX + 1];
+    bool success = false;
+    
+    /* Ensure that not / terminated file name */
+    if (!filesys_parse_path_split(name, dir, name_file)) {
+        success = dir != NULL && dir_remove(dir, name_file);
+    }
     dir_close(dir);
 
     return success;
@@ -136,7 +153,7 @@ bool filesys_access_held(void) {
 
 /*! Changes the current working directory to the given directory */
 bool filesys_change_cwd(const char *name) {
-    // TODO: NEED TO IMPLEMENT THIS...
+    thread_current()->curr_dir = filesys_parse_path(name);
     return false;
 }
 
@@ -197,7 +214,7 @@ bool filesys_change_cwd(const char *name) {
         
     // return slash_at_end;
         
-bool filesys_parse_path_split(char *path, struct dir *dir, char *name) {
+bool filesys_parse_path_split(const char *path, struct dir *dir, char *name) {
 
     void *path_tokens;
     size_t path_len = strlen(path) + 1; // Need to get the NULL char
@@ -337,7 +354,7 @@ bool filesys_parse_path_split(char *path, struct dir *dir, char *name) {
         
     // return curr_dir;
     
-struct dir *filesys_parse_path(char *path) {
+struct dir *filesys_parse_path(const char *path) {
 
     void *path_tokens;
     size_t path_len = strlen(path) + 1; // Need to get the NULL char
