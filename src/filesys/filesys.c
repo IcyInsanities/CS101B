@@ -151,7 +151,7 @@ bool filesys_access_held(void) {
     //          curr_dir = looked_up_dir;
     //
     //      } else {
-    //          name_of_file_or_dir = token;
+    //          name_of_file_or_dir = token;                // FIX: This is only true if we have actually reached the end of the path!!!!
     //          directory_containing_name = containing_dir;
     //          return slash_at_end;
     //      }
@@ -169,9 +169,47 @@ bool filesys_access_held(void) {
         //          curr_dir = looked_up_dir;
         //
         //      } else {
-        //          name_of_file_or_dir = token;
+        //          name_of_file_or_dir = token;        // FIX: This is only true if we have actually reached the end of the path!!!!
         //          directory_containing_name = containing_dir;
         //          return slash_at_end;
         //      }
         //  }
         
+//dir *filesys_parse_path(char* path)
+    // Make a copy of the path string
+    // length = strlen(string) + 1
+    // use strlcpy(buffer, string_2_cpy,lengh)
+    // bool slash_at_end;
+    
+    // thread_dir
+    // if (first char is '/') {
+    //      curr_dir = root;
+    // } else {
+    //      curr_dir = thread_dir
+    // }
+    // 
+    // Initialize tokenizer and get first obj_name
+    // if ('.') {
+    //      do nothing
+    //  } else {
+    //      if (dir_lookup_dir(token)) {
+    //          curr_dir = looked_up_dir;
+    //      } else {
+    //          return null;
+    //      }
+    //  }
+    //
+    
+    // Loop
+        // Get a token (dir or file name)
+        // if ('.') {
+        //      do nothing
+        //  } else {
+        //      if (dir_lookup_dir(token)) {
+        //          curr_dir = looked_up_dir;
+        //      } else {
+        //          return null;
+        //      }
+        //  }
+        
+    // return curr_dir;
