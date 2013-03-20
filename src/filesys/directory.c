@@ -38,6 +38,7 @@ bool dir_create(block_sector_t sector, size_t entry_cnt, struct dir *parent) {
         }
         /* Write parent directory to file */
         struct inode *inode = inode_open(sector);
+        inode_set_dir(inode);
         if (inode == NULL || inode_write_at(inode, &e, sizeof(e), 0) != sizeof(e)) {
             /* Failed to write parent to directory, fail and deallocate */
             if (inode != NULL) {
@@ -100,7 +101,7 @@ struct inode * dir_get_inode(struct dir *dir) {
     directory entry if OFSP is non-null.
     otherwise, returns false and ignores EP and OFSP. */
 static bool lookup(const struct dir *dir, const char *name,
-                   struct dir_entry *ep, off_t *ofsp) {
+                   struct dir_entry *ep, off_t *ofsp, bool *is_dir) {
     struct dir_entry e;
     size_t ofs;
 
@@ -114,6 +115,7 @@ static bool lookup(const struct dir *dir, const char *name,
                 *ep = e;
             if (ofsp != NULL)
                 *ofsp = ofs;
+            *is_dir = e.is_dir;
             return true;
         }
     }
@@ -164,10 +166,12 @@ bool dir_lookup_dir(const struct dir *dir, const char *name, struct inode **inod
     ASSERT(dir != NULL);
     ASSERT(name != NULL);
 
-    if (lookup_typed(dir, name, &e, NULL, true))
+    if (lookup_typed(dir, name, &e, NULL, true)) {
         *inode = inode_open(e.inode_sector);
-    else
+        inode_set_dir(*inode);
+    } else {
         *inode = NULL;
+    }
 
     return *inode != NULL;
 }
@@ -178,10 +182,15 @@ bool dir_lookup_any(const struct dir *dir, const char *name, struct inode **inod
     ASSERT(dir != NULL);
     ASSERT(name != NULL);
 
-    if (lookup(dir, name, &e, NULL))
+    bool is_dir;
+    if (lookup(dir, name, &e, NULL, &is_dir)) {
         *inode = inode_open(e.inode_sector);
-    else
+        if (is_dir) {
+            inode_set_dir(*inode);
+        }
+    } else {
         *inode = NULL;
+    }
 
     return *inode != NULL;
 }
