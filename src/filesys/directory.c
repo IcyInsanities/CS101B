@@ -261,32 +261,50 @@ bool dir_remove(struct dir *dir, const char *name) {
     struct dir_entry e;
     struct inode *inode = NULL;
     bool success = false;
+    bool is_dir;
     off_t ofs;
+    struct dir *dir_rm = NULL;
 
     ASSERT(dir != NULL);
     ASSERT(name != NULL);
 
     /* Find directory entry. */
-    if (!lookup_typed(dir, name, &e, &ofs, false))
+    if (!lookup(dir, name, &e, &ofs, &is_dir))
         goto done;
 
     /* Open inode. */
     inode = inode_open(e.inode_sector);
     if (inode == NULL)
         goto done;
+    if (is_dir) {
+        dir_rm = dir_open(inode);
+    }
 
     /* Erase directory entry. */
     e.in_use = false;
     if (inode_write_at(dir->inode, &e, sizeof(e), ofs) != sizeof(e))
         goto done;
 
-    /* Remove inode. */
+    /* Remove inode. For directories, check if empty first */
+    if (dir_rm == NULL && !dir_empty(dir_rm)) {
+        goto done;
+    }
     inode_remove(inode);
     success = true;
 
 done:
     inode_close(inode);
     return success;
+}
+
+/*! Returns true if a directory is empty and contains no files or subdirectories */
+bool dir_empty(struct dir *dir) {
+    char trash[NAME_MAX+1];
+    off_t pos_orig = dir->pos;
+    dir->pos = 0;
+    bool not_empty = dir_readdir(dir, trash);
+    dir->pos = pos_orig;
+    return !not_empty;
 }
 
 /*! Reads the next directory entry in DIR and stores the name in NAME.  Returns

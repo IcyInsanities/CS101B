@@ -431,7 +431,7 @@ void syscall_tell(struct intr_frame *f UNUSED, void * arg1, void * arg2 UNUSED, 
     }
 }
 
-// Closes the file corresponding to the passed fd.  Note the file mist be open.
+// Closes the file corresponding to the passed fd.  Note the file must be open.
 void syscall_close(struct intr_frame *f UNUSED, void * arg1, void * arg2 UNUSED, void * arg3 UNUSED)
 {
     int fd = (int) arg1;
