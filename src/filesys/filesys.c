@@ -187,14 +187,13 @@ bool filesys_parse_path_split(const char *path, struct dir **dir, char *name) {
     path_tokens = malloc(path_len);
     ASSERT(path_tokens != NULL);
     /* The starting parent directory is the current directory. */
-    //*dir = dir_reopen(thread_current()->curr_dir);
-    // DEBUG: use root for now:
-    *dir = dir_open_root();
+    *dir = dir_reopen(thread_current()->curr_dir);
     /* If there is a '/' at the start, must go to root. */
     if (path[0] == '/') {
         dir_close(*dir);
         *dir = dir_open_root();
     }
+
 
     /* Copy the path so it can be tokenized. */
     strlcpy(path_tokens, path, path_len);
@@ -212,8 +211,7 @@ bool filesys_parse_path_split(const char *path, struct dir **dir, char *name) {
 
     /* Loop until we hit the end of the path. */
     for (new_name = strtok_r(NULL, "/", &save_ptr); new_name != NULL;
-         new_name = strtok_r(NULL, "/", &save_ptr))
-    {
+         new_name = strtok_r(NULL, "/", &save_ptr)) {
 
         if (dir_lookup_dir(*dir, curr_name, &curr_inode)) {
             /* Close the "old" directory. */
@@ -246,8 +244,9 @@ bool filesys_parse_path_split(const char *path, struct dir **dir, char *name) {
     }
     strlcpy(name, curr_name, strlen(curr_name) + 1);
     free(path_tokens);
+
     return slash_at_end;
-    
+
 filesys_parse_path_split_done_fail:
     dir_close(*dir);
     *dir = NULL;
@@ -346,23 +345,20 @@ struct dir *filesys_parse_path(const char *path) {
         dir_close(dir);
         free(path_tokens);
         return NULL;
-        }
+    }
 
     for (dir_name = strtok_r(NULL, "/", &save_ptr); dir_name != NULL;
-         dir_name = strtok_r(NULL, "/", &save_ptr))
-    {
-        //if (!streq(dir_name, ".")) {
-            if (dir_lookup_dir(dir, dir_name, &curr_inode)) {
-                dir_close(dir);
-                // Get the next directory
-                dir = dir_open(curr_inode);
-            }
-            else {
-                dir_close(dir);
-                free(path_tokens);
-                return NULL;
-            }
-        //}
+         dir_name = strtok_r(NULL, "/", &save_ptr)) {
+        if (dir_lookup_dir(dir, dir_name, &curr_inode)) {
+            dir_close(dir);
+            // Get the next directory
+            dir = dir_open(curr_inode);
+        }
+        else {
+            dir_close(dir);
+            free(path_tokens);
+            return NULL;
+        }
     }
 
     free(path_tokens);
