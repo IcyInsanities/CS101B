@@ -13,6 +13,7 @@
 
 /*! Identifies an inode. */
 #define INODE_MAGIC 0x494e4f44
+static char zeros[BLOCK_SECTOR_SIZE];
 
 /*! On-disk inode. Must be exactly BLOCK_SECTOR_SIZE bytes long, done by
     modifying NUM_DIRECT_FILE_SECTOR */
@@ -130,9 +131,8 @@ bool inode_create(block_sector_t sector, off_t length) {
             free(disk_inode_fs);
             return false;
         }
-        
+
         if (sectors > 0) {
-            static char zeros[BLOCK_SECTOR_SIZE];
             size_t i, j, sec = 0;
             for (i = 0; i < sectors; i++) {
 
@@ -296,7 +296,7 @@ off_t inode_read_at(struct inode *inode, void *buffer_, off_t size, off_t offset
     off_t bytes_read = 0;
 
     // TODO: need to check length
-    
+
     while (size > 0) {
         /* Disk sector to read, starting byte offset within sector. */
         uint32_t *sector = byte_to_sector_ptr(inode, offset);
@@ -340,64 +340,38 @@ off_t inode_write_at(struct inode *inode, const void *buffer_, off_t size, off_t
     const uint8_t *buffer = buffer_;
     off_t bytes_written = 0;
     int i;
-    file_sector *sector_list = (inode->data).sector_list;
     off_t curr_file_len;
     off_t ext_file_len;
     off_t num_sec_to_alloc;
-    file_sector *curr_sector; 
-    
+    file_sector *curr_sector;
+
     // If new file is extended, need to update length
     if (offset + size > (inode->data).length) {
-        printf("Current file length in bytes: %d\n", (inode->data).length);
-        printf("Extended file length in bytes: %d\n", offset + size);
-    
+
         /* Get how many file sectors long the file currently is. */
-        //curr_file_len = (((inode->data).length - 1)/BLOCK_SECTOR_SIZE) + 1;
         curr_file_len = bytes_to_sectors((inode->data).length);
-        
+
         /* Get how many file sectors long file must be to complete write. */
-        //ext_file_len = ((offset + size - 1)/BLOCK_SECTOR_SIZE) + 1;
         ext_file_len = bytes_to_sectors(offset + size);
-        
+
         /* Determine how many more file sectors must be allocated. */
         num_sec_to_alloc = ext_file_len - curr_file_len;
-        
+
         (inode->data).length = offset + size;
-    
-        printf("Need to allocate: %d more blocks.\n", num_sec_to_alloc);
-        /* If more sectors must be allocated, do so. */
-        if (num_sec_to_alloc > 0) {
-        
-            printf("Extending file...\n");
-            /* Loop, allocating sector on disk, then writing 0's to it. */
-            for (i = 0; i < num_sec_to_alloc; i++) {
-                static char zeros[BLOCK_SECTOR_SIZE];
-                // TODO: where sector_list is used, need to write a fucntion to
-                // access the i'th entry (abstract indirect & direct entries away)
-                
-                curr_sector = byte_to_sector_ptr(inode, BLOCK_SECTOR_SIZE*(i + curr_file_len + 1));
-                /* Allocate sector on disk. */
-                //free_map_allocate(1, &(sector_list[i]));
-                free_map_allocate(1, curr_sector);
-                
-                // TODO: Need to update file sector directory? (must write back?)
-                
-                /* Zero the sector. */
-                block_write(fs_device, *curr_sector, zeros);
-                
-            }
-            /* NOTE: do not need to put last block into cache, it will get loaded by
-             * the write below. */
+
+        /* If more sectors must be allocated, allocate and then write 0's to it. */
+        for (i = 0; i < num_sec_to_alloc; i++) {
+            curr_sector = byte_to_sector_ptr(inode, BLOCK_SECTOR_SIZE*(i + curr_file_len + 1));
+            /* Allocate sector on disk. */
+            free_map_allocate(1, curr_sector);
+
+            /* Zero the sector. */
+            block_write(fs_device, *curr_sector, zeros);
         }
-        
-        // TODO: need to write inode with file sector list back to disk
-        /* After file is extended, write meta data. */
-        block_write(fs_device, inode->sector, &inode->data);
-        
+        /* NOTE: do not need to put last block into cache, it will get loaded by
+         * the write below. */
     }
-    
-    printf("Updated file length in bytes: %d\n", (inode->data).length);
-    
+
     if (inode->deny_write_cnt)
         return 0;
     while (size > 0) {
@@ -430,7 +404,7 @@ off_t inode_write_at(struct inode *inode, const void *buffer_, off_t size, off_t
         offset += chunk_size;
         bytes_written += chunk_size;
     }
-    
+
     return bytes_written;
 }
 
