@@ -157,8 +157,18 @@ bool filesys_access_held(void) {
 
 /*! Changes the current working directory to the given directory */
 bool filesys_change_cwd(const char *name) {
-    thread_current()->curr_dir = filesys_parse_path(name);
-    return false;
+    struct thread *t = thread_current();
+    /* Make a copy in case parsing path fails */
+    struct dir * temp_cpy = dir_reopen(t->curr_dir);
+    /* Check if parsing path failed and restore original cwd */
+    t->curr_dir = filesys_parse_path(name);
+    if (t->curr_dir == NULL) {
+        t->curr_dir = temp_cpy;
+        return false;
+    } else {
+        dir_close(temp_cpy);
+        return true;
+    }
 }
 
 /*! Parses PATH, returning whether there is a '/' at then end.  DIR is set
