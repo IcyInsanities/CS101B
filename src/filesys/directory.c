@@ -18,6 +18,7 @@ struct dir_entry {
     block_sector_t inode_sector;        /*!< Sector number of header. */
     char name[NAME_MAX + 1];            /*!< Null terminated file name. */
     bool in_use;                        /*!< In use or free? */
+    bool is_dir;                        /*!< Is this a subdirectory. */
 };
 
 /*! Creates a directory with space for ENTRY_CNT entries in the
@@ -116,6 +117,20 @@ bool dir_lookup(const struct dir *dir, const char *name, struct inode **inode) {
     Fails if NAME is invalid (i.e. too long) or a disk or memory
     error occurs. */
 bool dir_add(struct dir *dir, const char *name, block_sector_t inode_sector) {
+    dir_add_obj(dir, name, inode_sector, false);
+}
+
+/*! Adds a directory named NAME to DIR, which must not already contain a 
+    directory by that name.  The directory's inode is in sector INODE_SECTOR.
+    Returns true if successful, false on failure.
+    Fails if NAME is invalid (i.e. too long) or a disk or memory
+    error occurs. */
+bool dir_add_dir(struct dir *dir, const char *name, block_sector_t inode_sector) {
+    dir_add_obj(dir, name, inode_sector, true);
+}
+
+bool dir_add_obj(struct dir *dir, const char *name, block_sector_t inode_sector, bool is_dir) {
+
     struct dir_entry e;
     off_t ofs;
     bool success = false;
@@ -127,6 +142,7 @@ bool dir_add(struct dir *dir, const char *name, block_sector_t inode_sector) {
     if (*name == '\0' || strlen(name) > NAME_MAX)
         return false;
 
+    // TODO: update this to check for names of the same type (file or directory);
     /* Check that NAME is not in use. */
     if (lookup(dir, name, NULL, NULL))
         goto done;
@@ -143,15 +159,17 @@ bool dir_add(struct dir *dir, const char *name, block_sector_t inode_sector) {
         if (!e.in_use)
             break;
     }
-
+    
     /* Write slot. */
     e.in_use = true;
     strlcpy(e.name, name, sizeof e.name);
     e.inode_sector = inode_sector;
+    e.is_dir = is_dir;
     success = inode_write_at(dir->inode, &e, sizeof(e), ofs) == sizeof(e);
 
 done:
     return success;
+
 }
 
 /*! Removes any entry for NAME in DIR.  Returns true if successful, false on
@@ -203,7 +221,10 @@ bool dir_readdir(struct dir *dir, char name[NAME_MAX + 1]) {
     return false;
 }
 
-bool dir_is_dir(struct file *f) {\
+/*! Returns TRUE if the passed file ID is a directory, and FALSE if it is a
+    file. */
+bool dir_is_dir(struct file *f) {
     ASSERT(f != NULL);
     return inode_is_dir(f->inode);
+    
 }
