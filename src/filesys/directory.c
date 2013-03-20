@@ -227,7 +227,8 @@ bool dir_add_obj(struct dir *dir, const char *name, block_sector_t inode_sector,
         return false;
 
     /* Check that NAME is not in use. */
-    if (lookup_typed(dir, name, NULL, NULL, is_dir))
+    bool trash;
+    if (lookup(dir, name, NULL, NULL, &trash))
         goto done;
 
     /* Set OFS to offset of free slot.

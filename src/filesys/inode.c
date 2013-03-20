@@ -356,6 +356,10 @@ off_t inode_write_at(struct inode *inode, const void *buffer_, off_t size, off_t
     off_t num_sec_to_alloc;
     file_sector *curr_sector;
 
+    if (inode->deny_write_cnt) {
+        return 0;
+    }
+
     // If new file is extended, need to update length
     if (offset + size > (inode->data).length) {
 
@@ -383,8 +387,6 @@ off_t inode_write_at(struct inode *inode, const void *buffer_, off_t size, off_t
          * the write below. */
     }
 
-    if (inode->deny_write_cnt)
-        return 0;
     while (size > 0) {
         /* Sector to write, starting byte offset within sector. */
         uint32_t *sector = byte_to_sector_ptr(inode, offset);

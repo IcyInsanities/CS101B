@@ -365,7 +365,7 @@ void syscall_write(struct intr_frame *f, void * arg1, void * arg2, void * arg3)
         f->eax = (uint32_t) num_written;
     }
     // If there is an invalid file descriptor, return an error
-    else if (file_to_access == NULL)
+    else if (file_to_access == NULL || dir_is_dir(file_to_access))
     {
         f->eax = (uint32_t) -1;
     }
