@@ -78,6 +78,10 @@ int strcmp(const char *a_, const char *b_) {
     return *a < *b ? -1 : *a > *b;
 }
 
+bool streq(const char *a_, const char *b_) {
+    return (bool) (strcmp(a_, b_) == 0);
+}
+
 /*! Returns a pointer to the first occurrence of CH in the first
     SIZE bytes starting at BLOCK.  Returns a null pointer if CH
     does not occur in BLOCK. */
@@ -352,4 +356,3 @@ size_t strlcat(char *dst, const char *src, size_t size) {
     }
     return src_len + dst_len;
 }
-

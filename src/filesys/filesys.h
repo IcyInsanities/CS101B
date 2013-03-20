@@ -3,6 +3,7 @@
 
 #include <stdbool.h>
 #include "filesys/off_t.h"
+#include "filesys/directory.h"
 
 /*! Sectors of system file inodes. @{ */
 #define FREE_MAP_SECTOR 0       /*!< Free map file inode sector. */
@@ -23,6 +24,7 @@ void release_filesys_access(void);
 bool try_acquire_filesys_access(void);
 bool filesys_access_held(void);
 bool filesys_change_cwd(const char *name);
+struct dir *filesys_parse_path(char *path);
 
 #endif /* filesys/filesys.h */
 

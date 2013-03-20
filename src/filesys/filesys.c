@@ -175,7 +175,6 @@ bool filesys_change_cwd(const char *name) {
     //      } else {
     //          name_of_file_or_dir = token;                // FIX: This is only true if we have actually reached the end of the path!!!!
     //          directory_containing_name = containing_dir;
-    //          return slash_at_end;
     //      }
     //  }
     //
@@ -193,10 +192,112 @@ bool filesys_change_cwd(const char *name) {
         //      } else {
         //          name_of_file_or_dir = token;        // FIX: This is only true if we have actually reached the end of the path!!!!
         //          directory_containing_name = containing_dir;
-        //          return slash_at_end;
         //      }
         //  }
         
+    // return slash_at_end;
+        
+bool filesys_parse_path_split(char *path, struct dir *dir, char *name) {
+
+    void *path_tokens;
+    size_t path_len = strlen(path) + 1; // Need to get the NULL char
+    struct thread *t = thread_current();
+    char *curr_name;
+    char *new_name;
+    char *save_ptr;
+    struct inode *curr_inode;
+    struct dir *thread_dir;
+    bool in_root;
+    bool slash_at_end;
+    
+    /* The starting parent directory is the current directory. */
+    dir = t->curr_dir;
+    
+    /* Copy the path so it can be tokenized. */
+    strlcpy(path_tokens, path, path_len);
+    
+    /* Check if the path ends with a '/' */
+    slash_at_end = (bool) (path[strlen(path)-1] == '/');
+    
+    /* Preserve the current directory. */
+    thread_dir = dir_open(dir_get_inode(dir)); // TODO: Might have to NOT do this if path string is empty?
+    
+    /* If there is a '/' at the start, must go to root. */
+    if (path[0] == '/') {
+        dir_close(dir);
+        dir = dir_open_root();
+    }
+    
+    /* Get the first name in the path. */
+    curr_name = strtok_r(path_tokens, "/", &save_ptr);
+    
+    /* If there is no name, nothing to extract from path. */
+    if (curr_name == NULL) {
+        dir = NULL;
+        name = NULL;
+        t->curr_dir = thread_dir;
+        return slash_at_end;
+    }
+    
+    /* Loop until we hit the end of the path. */
+    for (new_name = strtok_r(NULL, "/", &save_ptr); new_name != NULL;
+         new_name = strtok_r(NULL, "/", &save_ptr))
+    {
+        if (!streq(curr_name, ".")) {
+            /* If the directory name was found, continue through path. */
+            if (dir_lookup_dir(dir, curr_name, &curr_inode)) {
+                // TODO: do we need to close the old inode as well, or does closing the directory do that?
+                /* Close the "old" directory. */
+                dir_close(dir);
+
+                /* Get the next directory. */
+                dir = dir_open(curr_inode);
+            }
+            /* If it wasn't found, cannot parse path. */
+            else {
+                dir = NULL;
+                name = NULL;
+                t->curr_dir = thread_dir;
+                return NULL;
+            }
+        }
+        
+        /* Update the name we are looking for. */
+        curr_name = new_name;
+    }
+    
+    /* If the name is not a true name, cannot parse. */
+    if (streq(curr_name, "..") || streq(curr_name, ".")) {
+        name = NULL;
+        dir = NULL;
+        t->curr_dir = thread_dir;
+        return slash_at_end;
+    }
+    
+    /* Return the name, parent directory, and whether path ended with '/'. */
+    strlcpy(name, curr_name, strlen(name) + 1);
+    t->curr_dir = thread_dir;
+    return slash_at_end;
+    
+}
+    
+    //if (strcmp(name, ".") != 0) { // NEED TO ADD NULL AT END OF CONSTANT STRING?
+        
+    //if (dir_lookup_dir(curr_dir, name, &curr_inode)) {
+    //    // TODO: do we need to close the old inode as well, or does closing the directory do that?
+    //    // Close the "old" directory
+    //    dir_close(curr_dir);
+    //    // Get the next directory
+    //    curr_dir = dir_open(curr_inode);
+    //}
+    //else {
+    //    t->curr_dir = thread_dir;
+    //    return NULL;
+    //}
+        
+    //}
+
+
 //dir *filesys_parse_path(char* path)
     // Make a copy of the path string
     // length = strlen(string) + 1
@@ -261,7 +362,7 @@ struct dir *filesys_parse_path(char *path) {
     }
     
     dir_name = strtok_r(path_tokens, "/", &save_ptr);
-    if (strcmp(dir_name, "/") != 0) {
+    if (!streq(dir_name, ".")) { // NEED TO ADD NULL AT END OF CONSTANT STRING?
         
         if (dir_lookup_dir(curr_dir, dir_name, &curr_inode)) {
             // TODO: do we need to close the old inode as well, or does closing the directory do that?
@@ -280,16 +381,18 @@ struct dir *filesys_parse_path(char *path) {
     for (dir_name = strtok_r(NULL, "/", &save_ptr); dir_name != NULL;
          dir_name = strtok_r(NULL, "/", &save_ptr))
     {
-        if (dir_lookup_dir(curr_dir, dir_name, &curr_inode)) {
-        // TODO: do we need to close the old inode as well, or does closing the directory do that?
-        // Close the "old" directory
-        dir_close(curr_dir);
-        // Get the next directory
-        curr_dir = dir_open(curr_inode);
-        }
-        else {
-            t->curr_dir = thread_dir;
-            return NULL;
+        if (!streq(dir_name, ".")) {
+            if (dir_lookup_dir(curr_dir, dir_name, &curr_inode)) {
+            // TODO: do we need to close the old inode as well, or does closing the directory do that?
+            // Close the "old" directory
+            dir_close(curr_dir);
+            // Get the next directory
+            curr_dir = dir_open(curr_inode);
+            }
+            else {
+                t->curr_dir = thread_dir;
+                return NULL;
+            }
         }
     }
     

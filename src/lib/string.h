@@ -2,6 +2,7 @@
 #define __LIB_STRING_H
 
 #include <stddef.h>
+#include <stdbool.h>
 
 /* Standard. */
 void *memcpy(void *, const void *, size_t);
@@ -9,6 +10,7 @@ void *memmove(void *, const void *, size_t);
 char *strncat(char *, const char *, size_t);
 int memcmp(const void *, const void *, size_t);
 int strcmp(const char *, const char *);
+bool streq(const char *, const char *);
 void *memchr(const void *, int, size_t);
 char *strchr(const char *, int);
 size_t strcspn(const char *, const char *);
