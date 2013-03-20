@@ -214,26 +214,29 @@ bool filesys_parse_path_split(const char *path, struct dir **dir, char *name) {
     for (new_name = strtok_r(NULL, "/", &save_ptr); new_name != NULL;
          new_name = strtok_r(NULL, "/", &save_ptr))
     {
-        if (!streq(curr_name, ".")) {
-            /* If the directory name was found, continue through path. */
-            if (dir_lookup_dir(*dir, curr_name, &curr_inode)) {
-                /* Close the "old" directory. */
-                dir_close(*dir);
-                /* Get the next directory. */
-                *dir = dir_open(curr_inode);
-            }
-            /* If it wasn't found, cannot parse path. */
-            else {
-                goto filesys_parse_path_split_done_fail;
-            }
+
+        if (dir_lookup_dir(*dir, curr_name, &curr_inode)) {
+            /* Close the "old" directory. */
+            dir_close(*dir);
+            /* Get the next directory. */
+            *dir = dir_open(curr_inode);
+        }
+        /* If it wasn't found, cannot parse path. */
+        else {
+            goto filesys_parse_path_split_done_fail;
         }
 
         /* Update the name we are looking for. */
         curr_name = new_name;
     }
 
-    /* If the name is not a true name, cannot parse. */
-    if (streq(curr_name, "..") || streq(curr_name, ".")) {
+    /* If asked to open the current directory, we have no parent dir to return. */
+    //if (streq(curr_name, ".")) {
+    //    strlcpy(name, curr_name, strlen(curr_name) + 1);
+    //    *dir = NULL;
+    //    return slash_at_end;
+    //}
+    if (streq(curr_name, "..")) {
         goto filesys_parse_path_split_done_fail;
     }
 
@@ -334,24 +337,21 @@ struct dir *filesys_parse_path(const char *path) {
     strlcpy(path_tokens, path, path_len);
 
     dir_name = strtok_r(path_tokens, "/", &save_ptr);
-    if (!streq(dir_name, ".")) { // NEED TO ADD NULL AT END OF CONSTANT STRING?
-
-        if (dir_lookup_dir(dir, dir_name, &curr_inode)) {
-            dir_close(dir);
-            // Get the next directory
-            dir = dir_open(curr_inode);
-        }
-        else {
-            dir_close(dir);
-            free(path_tokens);
-            return NULL;
-        }
+    if (dir_lookup_dir(dir, dir_name, &curr_inode)) {
+        dir_close(dir);
+        // Get the next directory
+        dir = dir_open(curr_inode);
     }
+    else {
+        dir_close(dir);
+        free(path_tokens);
+        return NULL;
+        }
 
     for (dir_name = strtok_r(NULL, "/", &save_ptr); dir_name != NULL;
          dir_name = strtok_r(NULL, "/", &save_ptr))
     {
-        if (!streq(dir_name, ".")) {
+        //if (!streq(dir_name, ".")) {
             if (dir_lookup_dir(dir, dir_name, &curr_inode)) {
                 dir_close(dir);
                 // Get the next directory
@@ -362,7 +362,7 @@ struct dir *filesys_parse_path(const char *path) {
                 free(path_tokens);
                 return NULL;
             }
-        }
+        //}
     }
 
     free(path_tokens);
