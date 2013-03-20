@@ -468,18 +468,21 @@ void syscall_munmap(struct intr_frame *f UNUSED, void * arg1 UNUSED, void * arg2
 }
 
 // Changes current directory to given, returns bool based on success
-void syscall_chdir(struct intr_frame *f UNUSED, void * arg1 UNUSED, void * arg2 UNUSED, void * arg3 UNUSED)
+void syscall_chdir(struct intr_frame *f, void * arg1, void * arg2 UNUSED, void * arg3 UNUSED)
 {
-    // TODO
+    char *name = (char*) arg1;
+    acquire_filesys_access();           // Acquire lock for file system access
+    f->eax = filesys_change_dir(name);  // Create directory
+    release_filesys_access();           // Done with file system access
 }
 
 // Creates new directory, returns bool based on success
-void syscall_mkdir(struct intr_frame *f UNUSED, void * arg1 UNUSED, void * arg2 UNUSED, void * arg3 UNUSED)
+void syscall_mkdir(struct intr_frame *f, void * arg1, void * arg2 UNUSED, void * arg3 UNUSED)
 {
     char *name = (char*) arg1;
-    acquire_filesys_access();   // Acquire lock for file system access
-    //f->eax = dir_readdir((struct dir*) file, name)  // Create directory
-    release_filesys_access();   // Done with file system access
+    acquire_filesys_access();           // Acquire lock for file system access
+    f->eax = filesys_create_dir(name);  // Create directory
+    release_filesys_access();           // Done with file system access
 }
 
 

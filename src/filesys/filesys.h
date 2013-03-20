@@ -15,12 +15,14 @@ struct block *fs_device;
 void filesys_init(bool format);
 void filesys_done(void);
 bool filesys_create(const char *name, off_t initial_size);
+bool filesys_create_dir(const char *name);
 struct file *filesys_open(const char *name);
 bool filesys_remove(const char *name);
 void acquire_filesys_access(void);
 void release_filesys_access(void);
 bool try_acquire_filesys_access(void);
 bool filesys_access_held(void);
+bool filesys_change_cwd(const char *name);
 
 #endif /* filesys/filesys.h */
 

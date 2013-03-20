@@ -62,16 +62,31 @@ bool filesys_create(const char *name, off_t initial_size) {
 
     return success;
 }
+/*! Create variant that creates a directory, default size space for 5 entries.
+    This is arbitrary, but will get extended as needed. */
+bool filesys_create_dir(const char *name) {
+    block_sector_t inode_sector = 0;
+    struct dir *dir = dir_open_root();
+    bool success = (dir != NULL &&
+                    free_map_allocate(1, &inode_sector) &&
+                    dir_create(inode_sector, 5, dir) &&
+                    dir_add_dir(dir, name, inode_sector));
+    if (!success && inode_sector != 0) 
+        free_map_release(inode_sector, 1);
+    dir_close(dir);
 
-/*! Opens the file with the given NAME.  Returns the new file if successful
-    or a null pointer otherwise.  Fails if no file named NAME exists,
+    return success;
+}
+
+/*! Opens the file or directory with the given NAME.  Returns the new file if
+    successful or a null pointer otherwise.  Fails if no file named NAME exists,
     or if an internal memory allocation fails. */
 struct file * filesys_open(const char *name) {
     struct dir *dir = dir_open_root();
     struct inode *inode = NULL;
 
     if (dir != NULL)
-        dir_lookup(dir, name, &inode);
+        dir_lookup_any(dir, name, &inode);
     dir_close(dir);
 
     return file_open(inode);
@@ -116,6 +131,12 @@ bool try_acquire_filesys_access(void) {
 /*! Retturns whether the current thread holds access to the file system. */
 bool filesys_access_held(void) {
     return lock_held_by_current_thread(&filesys_lock);
+}
+
+/*! Changes the current working directory to the given directory */
+bool filesys_change_cwd(const char *name) {
+    // TODO: NEED TO IMPLEMENT THIS...
+    return false;
 }
 
 //filesys_parse_path_split(char* path, dir * directory_containing_name, char *name_of_file_or_dir)
