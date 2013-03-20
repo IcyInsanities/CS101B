@@ -7,6 +7,8 @@
 #include "filesys/inode.h"
 #include "threads/malloc.h"
 
+bool dir_add_obj(struct dir *dir, const char *name, block_sector_t inode_sector, bool is_dir);
+
 /*! A directory. */
 struct dir {
     struct inode *inode;                /*!< Backing store. */
@@ -117,7 +119,7 @@ bool dir_lookup(const struct dir *dir, const char *name, struct inode **inode) {
     Fails if NAME is invalid (i.e. too long) or a disk or memory
     error occurs. */
 bool dir_add(struct dir *dir, const char *name, block_sector_t inode_sector) {
-    dir_add_obj(dir, name, inode_sector, false);
+    return dir_add_obj(dir, name, inode_sector, false);
 }
 
 /*! Adds a directory named NAME to DIR, which must not already contain a 
@@ -126,7 +128,7 @@ bool dir_add(struct dir *dir, const char *name, block_sector_t inode_sector) {
     Fails if NAME is invalid (i.e. too long) or a disk or memory
     error occurs. */
 bool dir_add_dir(struct dir *dir, const char *name, block_sector_t inode_sector) {
-    dir_add_obj(dir, name, inode_sector, true);
+    return dir_add_obj(dir, name, inode_sector, true);
 }
 
 bool dir_add_obj(struct dir *dir, const char *name, block_sector_t inode_sector, bool is_dir) {

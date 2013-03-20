@@ -51,7 +51,6 @@ struct inode {
     uint8_t blocks_owned[16];           /*!< Blocks in cache owned. */
     struct lock extending;              /*!< Lock for extending files. */
     struct lock loading_to_cache;       /*!< Lock for loading into block cache. */
-    struct bool is_dir;                 /*!< Is it a directory?. */
     //file_sector *file_sectors;          /*!< Array of file sectors. */
     // ^14 words?
 
