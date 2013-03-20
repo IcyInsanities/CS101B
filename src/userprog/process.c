@@ -134,6 +134,10 @@ static void start_process(void *file_name_) {
     /* Update stack pointer in frame */
     *(&if_.esp) = esp;
 
+    /* Create initial directory as current working directory */
+    // TODO!!!!!
+    t->curr_dir = dir_open_root();
+    
     /* Clean up page now that arguments are parsed */
     palloc_free_page(file_name);
 

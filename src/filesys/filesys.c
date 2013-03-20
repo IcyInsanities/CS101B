@@ -9,6 +9,7 @@
 #include "filesys/directory.h"
 #include "threads/synch.h"
 #include "threads/thread.h"
+#include "threads/malloc.h"
 
 struct lock filesys_lock;
 
@@ -32,8 +33,10 @@ void filesys_init(bool format) {
 
     free_map_open();
 
-    // Initialize the lock for the file system
+    /* Initialize the lock for the file system */
     lock_init(&filesys_lock);
+    /* Set root dir to current directory for initial thread */
+    thread_current()->curr_dir = dir_open_root();
 }
 
 /*! Shuts down the file system module, writing any unwritten data to disk. */
@@ -54,6 +57,7 @@ bool filesys_create(const char *name, off_t initial_size) {
     block_sector_t inode_sector = 0;
     struct dir *dir = NULL;
     char name_file[NAME_MAX + 1];
+    // TODO: seems to get out of filesys_parse_path_split with correct return values... need to check dir is NULL for some reason?
     bool success = (!filesys_parse_path_split(name, dir, name_file) && // Can't / terminate
                     dir != NULL && name_file != NULL &&
                     free_map_allocate(1, &inode_sector) &&
@@ -230,15 +234,26 @@ bool filesys_parse_path_split(const char *path, struct dir *dir, char *name) {
     bool in_root;
     bool slash_at_end;
     
+    printf("HI!!!\n");
+    printf(path);
+    printf("\n");
+    printf("^PATH\n");
+    path_tokens = malloc(path_len);
+    ASSERT(path_tokens != NULL);
     /* The starting parent directory is the current directory. */
-    dir = t->curr_dir;
+    //dir = t->curr_dir;
+    // DEBUG: use root for now:
+    dir = dir_open_root();
     
     /* Copy the path so it can be tokenized. */
     strlcpy(path_tokens, path, path_len);
     
+    printf(path_tokens);
+    printf("\n");
+    
     /* Check if the path ends with a '/' */
     slash_at_end = (bool) (path[strlen(path)-1] == '/');
-    
+    printf("checked for slash\n");
     /* Preserve the current directory. */
     thread_dir = dir_open(dir_get_inode(dir)); // TODO: Might have to NOT do this if path string is empty?
     
@@ -251,11 +266,13 @@ bool filesys_parse_path_split(const char *path, struct dir *dir, char *name) {
     /* Get the first name in the path. */
     curr_name = strtok_r(path_tokens, "/", &save_ptr);
     
+    printf("got first name in path!\n");
     /* If there is no name, nothing to extract from path. */
     if (curr_name == NULL) {
         dir = NULL;
         name = NULL;
         t->curr_dir = thread_dir;
+        free(path_tokens);
         return slash_at_end;
     }
     
@@ -278,6 +295,7 @@ bool filesys_parse_path_split(const char *path, struct dir *dir, char *name) {
                 dir = NULL;
                 name = NULL;
                 t->curr_dir = thread_dir;
+                free(path_tokens);
                 return NULL;
             }
         }
@@ -291,12 +309,14 @@ bool filesys_parse_path_split(const char *path, struct dir *dir, char *name) {
         name = NULL;
         dir = NULL;
         t->curr_dir = thread_dir;
+        free(path_tokens);
         return slash_at_end;
     }
     
     /* Return the name, parent directory, and whether path ended with '/'. */
-    strlcpy(name, curr_name, strlen(name) + 1);
+    strlcpy(name, curr_name, strlen(curr_name) + 1);
     t->curr_dir = thread_dir;
+    free(path_tokens);
     return slash_at_end;
     
 }
@@ -370,8 +390,12 @@ struct dir *filesys_parse_path(const char *path) {
     char *save_ptr;
     struct inode *curr_inode;
     struct dir *thread_dir;
+    
+    path_tokens = malloc(path_len);
+    ASSERT(path_tokens != NULL);
+    
     strlcpy(path_tokens, path, path_len);
-   
+    
     /* Open another copy of the current directory to preserve it. */
     //thread_dir = dir_open(curr_dir->inode); // TODO: Might have to NOT do this if path string is empty?
     thread_dir = dir_open(dir_get_inode(curr_dir)); // TODO: Might have to NOT do this if path string is empty?
@@ -393,6 +417,7 @@ struct dir *filesys_parse_path(const char *path) {
         }
         else {
             t->curr_dir = thread_dir;
+            free(path_tokens);
             return NULL;
         }
         
@@ -411,12 +436,14 @@ struct dir *filesys_parse_path(const char *path) {
             }
             else {
                 t->curr_dir = thread_dir;
+                free(path_tokens);
                 return NULL;
             }
         }
     }
     
     t->curr_dir = thread_dir;
+    free(path_tokens);
     return curr_dir;
     
 }
