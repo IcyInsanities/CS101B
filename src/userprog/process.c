@@ -75,6 +75,9 @@ static void start_process(void *file_name_) {
     /* Get process name */
     proc = strtok_r(file_name, " ", &save_ptr);
 
+    /* Create initial directory as current working directory */
+    t->curr_dir = dir_reopen((t->parent)->curr_dir);
+    
     /* Initialize interrupt frame and load executable. */
     memset(&if_, 0, sizeof(if_));
     if_.gs = if_.fs = if_.es = if_.ds = if_.ss = SEL_UDSEG;
@@ -133,9 +136,6 @@ static void start_process(void *file_name_) {
 
     /* Update stack pointer in frame */
     *(&if_.esp) = esp;
-
-    /* Create initial directory as current working directory */
-    t->curr_dir = dir_reopen((t->parent)->curr_dir);
     
     /* Clean up page now that arguments are parsed */
     palloc_free_page(file_name);
