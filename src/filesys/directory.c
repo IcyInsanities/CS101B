@@ -25,8 +25,31 @@ struct dir_entry {
 
 /*! Creates a directory with space for ENTRY_CNT entries in the
     given SECTOR.  Returns true if successful, false on failure. */
-bool dir_create(block_sector_t sector, size_t entry_cnt) {
-    return inode_create(sector, entry_cnt * sizeof(struct dir_entry));
+bool dir_create(block_sector_t sector, size_t entry_cnt, struct dir *parent) {
+    if (inode_create(sector, entry_cnt * sizeof(struct dir_entry))) {
+        struct dir_entry e;
+        e.name[0] = '.'; e.name[1] = '.';
+        e.in_use = true;
+        e.is_dir = true;
+        if (parent == NULL) { /* Indicates that root is parent */
+            e.inode_sector = sector;
+        } else {
+            e.inode_sector = inode_get_inumber(parent->inode);
+        }
+        /* Write parent directory to file */
+        struct inode *inode = inode_open(sector);
+        if (inode == NULL || inode_write_at(inode, &e, sizeof(e), 0) != sizeof(e)) {
+            /* Failed to write parent to directory, fail and deallocate */
+            if (inode != NULL) {
+                inode_remove(inode);
+            }
+            inode_close(inode);
+            return false;
+        }
+        inode_close(inode);
+        return true;
+    }
+    return false;
 }
 
 /*! Opens and returns the directory for the given INODE, of which
@@ -35,6 +58,7 @@ struct dir * dir_open(struct inode *inode) {
     struct dir *dir = calloc(1, sizeof(*dir));
     if (inode != NULL && dir != NULL) {
         dir->inode = inode;
+        inode_set_dir(dir->inode);
         dir->pos = 0;
         return dir;
     }

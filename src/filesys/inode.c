@@ -221,6 +221,7 @@ struct inode * inode_open(block_sector_t sector) {
     inode->open_cnt = 1;
     inode->deny_write_cnt = 0;
     inode->removed = false;
+    inode->is_dir = false;
     block_read(fs_device, inode->sector, &inode->data);
     block_read(fs_device, inode->data.sector_list[NUM_DIRECT_FILE_SECTOR], &inode->data2);
     bitmap_create_in_buf(NUM_FBLOCKS, (void *) inode->blocks_owned, 16);
@@ -245,6 +246,10 @@ block_sector_t inode_get_inumber(const struct inode *inode) {
 /*! Returns if INODE is a directory. */
 bool inode_is_dir(const struct inode *inode) {
     return inode->is_dir;
+}
+/*! Sets an INODE to be a directory. */
+void inode_set_dir(struct inode *inode) {
+    inode->is_dir = true;
 }
 
 /*! Closes INODE and writes it to disk.
