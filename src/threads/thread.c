@@ -763,6 +763,7 @@ init_thread (struct thread *t, const char *name, int priority, struct thread *t_
   sema_init(&(t->child_loaded), 0);
   t->parent = t_par;
   t->executable = NULL;
+  t->curr_dir = dir_open_root();
 #endif
   old_level = intr_disable ();
   list_push_back (&all_list, &t->allelem);

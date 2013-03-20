@@ -78,6 +78,7 @@ int strcmp(const char *a_, const char *b_) {
     return *a < *b ? -1 : *a > *b;
 }
 
+/*! Returns whether strings A and B are equal. */
 bool streq(const char *a_, const char *b_) {
     return (bool) (strcmp(a_, b_) == 0);
 }

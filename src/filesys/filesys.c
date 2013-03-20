@@ -213,7 +213,10 @@ bool filesys_change_cwd(const char *name) {
         //  }
         
     // return slash_at_end;
-        
+    
+/*! Parses PATH, returning whether there is a '/' at then end.  DIR is set
+    to the parent directory of the directory or file name that NAME is set to.
+    If parsing of the path fails, DIR and NAME are set to NULL. */
 bool filesys_parse_path_split(const char *path, struct dir *dir, char *name) {
 
     void *path_tokens;
@@ -354,6 +357,8 @@ bool filesys_parse_path_split(const char *path, struct dir *dir, char *name) {
         
     // return curr_dir;
     
+/*! Parse PATH, returning the directory at the end of the path.  Returns NULL if
+    parsing is unsuccessful. */
 struct dir *filesys_parse_path(const char *path) {
 
     void *path_tokens;
@@ -367,8 +372,6 @@ struct dir *filesys_parse_path(const char *path) {
     struct dir *thread_dir;
     strlcpy(path_tokens, path, path_len);
    
-    // TODO: need a way to preserve the curr_dir of the thread, so it can be reopened later
-    
     /* Open another copy of the current directory to preserve it. */
     //thread_dir = dir_open(curr_dir->inode); // TODO: Might have to NOT do this if path string is empty?
     thread_dir = dir_open(dir_get_inode(curr_dir)); // TODO: Might have to NOT do this if path string is empty?
