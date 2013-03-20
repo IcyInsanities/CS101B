@@ -28,7 +28,24 @@ struct dir_entry {
 bool dir_create(block_sector_t sector, size_t entry_cnt, struct dir *parent) {
     if (inode_create(sector, entry_cnt * sizeof(struct dir_entry))) {
         struct dir_entry e;
-        e.name[0] = '.'; e.name[1] = '.';
+        /* Open directory to write initial entries */
+        struct inode *inode = inode_open(sector);
+        if (inode == NULL) {
+            return false;
+        }
+        inode_set_dir(inode);
+        /* Write self directory to file */
+        e.name[0] = '.'; e.name[1] = '\0';
+        e.in_use = true;
+        e.is_dir = true;
+        e.inode_sector = sector;
+        if (inode_write_at(inode, &e, sizeof(e), 0) != sizeof(e)) {
+            inode_remove(inode);
+            inode_close(inode);
+            return false;
+        }
+        /* Write parent directory to file */
+        e.name[0] = '.'; e.name[1] = '.'; e.name[2] = '\0';
         e.in_use = true;
         e.is_dir = true;
         if (parent == NULL) { /* Indicates that root is parent */
@@ -36,14 +53,8 @@ bool dir_create(block_sector_t sector, size_t entry_cnt, struct dir *parent) {
         } else {
             e.inode_sector = inode_get_inumber(parent->inode);
         }
-        /* Write parent directory to file */
-        struct inode *inode = inode_open(sector);
-        inode_set_dir(inode);
-        if (inode == NULL || inode_write_at(inode, &e, sizeof(e), 0) != sizeof(e)) {
-            /* Failed to write parent to directory, fail and deallocate */
-            if (inode != NULL) {
-                inode_remove(inode);
-            }
+        if (inode_write_at(inode, &e, sizeof(e), sizeof(e)) != sizeof(e)) {
+            inode_remove(inode);
             inode_close(inode);
             return false;
         }
