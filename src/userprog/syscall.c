@@ -472,7 +472,7 @@ void syscall_chdir(struct intr_frame *f, void * arg1, void * arg2 UNUSED, void *
 {
     char *name = (char*) arg1;
     acquire_filesys_access();           // Acquire lock for file system access
-    f->eax = filesys_change_dir(name);  // Create directory
+    f->eax = filesys_cwd(name);  // Create directory
     release_filesys_access();           // Done with file system access
 }
 

@@ -8,6 +8,7 @@
 #include "filesys/inode.h"
 #include "filesys/directory.h"
 #include "threads/synch.h"
+#include "threads/thread.h"
 
 struct lock filesys_lock;
 
@@ -234,3 +235,65 @@ bool filesys_change_cwd(const char *name) {
         //  }
         
     // return curr_dir;
+    
+struct dir *filesys_parse_path(char *path) {
+
+    void *path_tokens;
+    size_t path_len = strlen(path) + 1; // Need to get the NULL char
+    struct thread *t = thread_current();
+    struct dir *curr_dir = t->curr_dir;
+    //char dir_name[NAME_MAX + 1];
+    char *dir_name;
+    char *save_ptr;
+    struct inode *curr_inode;
+    struct dir *thread_dir;
+    strlcpy(path_tokens, path, path_len);
+   
+    // TODO: need a way to preserve the curr_dir of the thread, so it can be reopened later
+    
+    /* Open another copy of the current directory to preserve it. */
+    //thread_dir = dir_open(curr_dir->inode); // TODO: Might have to NOT do this if path string is empty?
+    thread_dir = dir_open(dir_get_inode(curr_dir)); // TODO: Might have to NOT do this if path string is empty?
+    
+    if (path[0] == '/') {
+        dir_close(curr_dir);
+        curr_dir = dir_open_root();
+    }
+    
+    dir_name = strtok_r(path_tokens, "/", &save_ptr);
+    if (strcmp(dir_name, "/") != 0) {
+        
+        if (dir_lookup_dir(curr_dir, dir_name, &curr_inode)) {
+            // TODO: do we need to close the old inode as well, or does closing the directory do that?
+            // Close the "old" directory
+            dir_close(curr_dir);
+            // Get the next directory
+            curr_dir = dir_open(curr_inode);
+        }
+        else {
+            t->curr_dir = thread_dir;
+            return NULL;
+        }
+        
+    }
+    
+    for (dir_name = strtok_r(NULL, "/", &save_ptr); dir_name != NULL;
+         dir_name = strtok_r(NULL, "/", &save_ptr))
+    {
+        if (dir_lookup_dir(curr_dir, dir_name, &curr_inode)) {
+        // TODO: do we need to close the old inode as well, or does closing the directory do that?
+        // Close the "old" directory
+        dir_close(curr_dir);
+        // Get the next directory
+        curr_dir = dir_open(curr_inode);
+        }
+        else {
+            t->curr_dir = thread_dir;
+            return NULL;
+        }
+    }
+    
+    t->curr_dir = thread_dir;
+    return curr_dir;
+    
+}
