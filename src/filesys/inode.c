@@ -137,11 +137,11 @@ bool inode_create(block_sector_t sector, off_t length) {
             for (i = 0; i < sectors; i++) {
 
                 /* Select correct file_sector list */
-                if (sectors < NUM_DIRECT_FILE_SECTOR) {
+                if (i < NUM_DIRECT_FILE_SECTOR) {
                     sector_list = disk_inode->sector_list;
                     sec = i;
                 }
-                else if (sectors < NUM_DIRECT_FILE_SECTOR + NUM_INDIRECT_FILE_SECTOR) {
+                else if (i < NUM_DIRECT_FILE_SECTOR + NUM_INDIRECT_FILE_SECTOR) {
                     sector_list = disk_inode_fs->sector_list;
                     sec = i - NUM_DIRECT_FILE_SECTOR;
                 }
