@@ -12,6 +12,7 @@
 
 /*! Identifies an inode. */
 #define INODE_MAGIC 0x494e4f44
+static char zeros[BLOCK_SECTOR_SIZE];
 
 /*! On-disk inode. Must be exactly BLOCK_SECTOR_SIZE bytes long, done by
     modifying NUM_DIRECT_FILE_SECTOR */
@@ -66,76 +67,138 @@ block_sector_t byte_to_sector(struct inode *inode, off_t pos) {
     size_t num_sectors;
     block_sector_t *sector_tbl;
     block_sector_t sector;
-    
+
     ASSERT(inode != NULL);
-    
+
     if (pos < inode->length) {
         /* Load the direct sector table. */
         cache_idx = inode_get_cache_block_idx(inode, DIRECT_BLOCK_OFFSET, inode->sector);
         direct_data = (struct inode_disk *) fballoc_idx_to_addr(cache_idx);
         sector_tbl = direct_data->sector_list;
 
-        /* Find how many sectors the position would. */
-        num_sectors = bytes_to_sectors(pos);
-        
-        /* Check if it is a direct sector. */
-        if (num_sectors <= NUM_DIRECT_FILE_SECTOR) {
-            /* Get the sector. */
-            if (num_sectors != 0) {
-                sector = sector_tbl[num_sectors - 1];
-            }
-            else {
-                sector = sector_tbl[0];
-            }
-        }
+        /* Find how many sectors the position would be. */
+        num_sectors = pos / BLOCK_SECTOR_SIZE;
 
+        /* Check if it is a direct sector. */
+        if (num_sectors < NUM_DIRECT_FILE_SECTOR) {
+            sector = sector_tbl[num_sectors];
+        }
         /* Check if it is a single indirect sector. */
-        else if (num_sectors <= NUM_DIRECT_FILE_SECTOR + NUM_INDIRECT_FILE_SECTOR) {
+        else if (num_sectors < NUM_DIRECT_FILE_SECTOR + NUM_INDIRECT_FILE_SECTOR) {
             /* Load the indirect sector table. */
             cache_idx = inode_get_cache_block_idx(inode, INDIRECT_BLOCK_OFFSET, sector_tbl[INDIRECT_ENTRY_IDX]);
             indirect_data = (struct inode_disk_fs *) fballoc_idx_to_addr(cache_idx);
             sector_tbl = indirect_data->sector_list;
-            
+
             /* Get the sector. */
-            sector = sector_tbl[num_sectors - NUM_DIRECT_FILE_SECTOR - 1];
+            sector = sector_tbl[num_sectors - NUM_DIRECT_FILE_SECTOR];
         }
         /* Check if it is a double indirect sector. */
         else {
+            /* Remap sector number to start from 0 */
+            num_sectors -= NUM_DIRECT_FILE_SECTOR + NUM_INDIRECT_FILE_SECTOR;
             /* Load the 1st double indirect table. */
             cache_idx = inode_get_cache_block_idx(inode, DBL_INDIRECT_BLOCK_OFFSET, sector_tbl[DBL_INDIRECT_ENTRY_IDX]);
             indirect_data = (struct inode_disk_fs *) fballoc_idx_to_addr(cache_idx);
             sector_tbl = indirect_data->sector_list;
-            
+
             /* Determine which nested indirect table to use. */
-            dbl_table_idx = (num_sectors - NUM_DIRECT_FILE_SECTOR - NUM_INDIRECT_FILE_SECTOR)/NUM_INDIRECT_FILE_SECTOR;
-            
+            dbl_table_idx = num_sectors / NUM_INDIRECT_FILE_SECTOR;
+
             /* Load the nested indirect table. */
             cache_idx = inode_get_cache_block_idx(inode, DBL_INDIRECT_BLOCK_OFFSET + (dbl_table_idx + 1)*BLOCK_SECTOR_SIZE, sector_tbl[dbl_table_idx]);
             indirect_data = (struct inode_disk_fs *) fballoc_idx_to_addr(cache_idx);
             sector_tbl = indirect_data->sector_list;
-            
-            /* Get the sector. */
-            sector = sector_tbl[num_sectors - NUM_DIRECT_FILE_SECTOR - (dbl_table_idx * NUM_INDIRECT_FILE_SECTOR) - 1];
-        
-        }
 
+            /* Get the sector. */
+            sector = sector_tbl[num_sectors % BLOCK_SECTOR_SIZE];
+        }
         return sector;
-        
     }
-    
     return -1;
-    
 }
 
 /*! This function adds a sector to an inode, and returns it success status.
     Length is externally synched. */
 static bool inode_add_sector(struct inode * inode) {
-    // TODO
-    return false;
+    off_t cache_idx;
+    off_t dbl_table_idx;
+    struct inode_disk *direct_data;
+    struct inode_disk_fs *indirect_data;
+    size_t num_sectors;
+    block_sector_t *sector_tbl;
+    block_sector_t sector = 0;
+    
+    ASSERT(inode != NULL);
+    
+    if (!free_map_allocate(1, &sector)) {
+        return false;
+    }
+    block_write(fs_device, sector, zeros);
+    
+    /* Add into meta data */
+    /* Check if file has length of 0 */
+    if (inode->length == 0) {
+        num_sectors = 0;
+    } else {
+        num_sectors = (inode->length-1) / BLOCK_SECTOR_SIZE + 1;
+    }
+    /* Load the direct sector table. */
+    cache_idx = inode_get_cache_block_idx(inode, DIRECT_BLOCK_OFFSET, inode->sector);
+    direct_data = (struct inode_disk *) fballoc_idx_to_addr(cache_idx);
+    sector_tbl = direct_data->sector_list;
+
+    /* Check if it is a direct sector. */
+    if (num_sectors < NUM_DIRECT_FILE_SECTOR) {
+        sector_tbl[num_sectors] = sector;
+    }
+    /* Check if it is a single indirect sector. */
+    else if (num_sectors < NUM_DIRECT_FILE_SECTOR + NUM_INDIRECT_FILE_SECTOR) {
+        /* Check if need to create the indirect sector */
+        if (num_sectors == NUM_DIRECT_FILE_SECTOR) {
+            block_sector_t meta_sector = 0;
+            if (free_map_allocate(1, &meta_sector)) {
+                return false;
+            }
+            block_write(fs_device, meta_sector, zeros);
+            sector_tbl[INDIRECT_ENTRY_IDX] = meta_sector;
+        }
+    
+        /* Load the indirect sector table. */
+        cache_idx = inode_get_cache_block_idx(inode, INDIRECT_BLOCK_OFFSET, sector_tbl[INDIRECT_ENTRY_IDX]);
+        indirect_data = (struct inode_disk_fs *) fballoc_idx_to_addr(cache_idx);
+        sector_tbl = indirect_data->sector_list;
+
+        /* Get the sector. */
+        sector_tbl[num_sectors - NUM_DIRECT_FILE_SECTOR] = sector;
+    }
+    /* Check if it is a double indirect sector. */
+    else {
+        /* Remap sector number to start from 0 */
+        num_sectors -= NUM_DIRECT_FILE_SECTOR + NUM_INDIRECT_FILE_SECTOR;
+        /* Load the 1st double indirect table. */
+        cache_idx = inode_get_cache_block_idx(inode, DBL_INDIRECT_BLOCK_OFFSET, sector_tbl[DBL_INDIRECT_ENTRY_IDX]);
+        indirect_data = (struct inode_disk_fs *) fballoc_idx_to_addr(cache_idx);
+        sector_tbl = indirect_data->sector_list;
+
+        /* Determine which nested indirect table to use. */
+        dbl_table_idx = num_sectors / NUM_INDIRECT_FILE_SECTOR;
+
+        /* Load the nested indirect table. */
+        cache_idx = inode_get_cache_block_idx(inode, DBL_INDIRECT_BLOCK_OFFSET + (dbl_table_idx + 1)*BLOCK_SECTOR_SIZE, sector_tbl[dbl_table_idx]);
+        indirect_data = (struct inode_disk_fs *) fballoc_idx_to_addr(cache_idx);
+        sector_tbl = indirect_data->sector_list;
+
+        /* Get the sector. */
+        sector_tbl[num_sectors % BLOCK_SECTOR_SIZE] = sector;
+    }
+    return sector;
+    
 }
 /*! This function removes a sector from an inode, length is externally synched. */
 static void inode_remove_sector(struct inode * inode) {
-    // TODO
+    block_sector_t sector = 0;
+    free_map_release(sector, 1);
 }
 static off_t length_from_disk(struct inode * inode) {
     uint32_t idx = inode_get_cache_block_idx(inode, DIRECT_BLOCK_OFFSET, inode->sector);
@@ -153,7 +216,6 @@ static void length_set_on_disk(struct inode * inode, off_t length) {
     returns the same `struct inode'. */
 static struct list open_inodes;
 
-static char zeros[BLOCK_SECTOR_SIZE];
 static struct inode_disk disk_zero;
 
 /*! Initializes the inode module. */
@@ -172,7 +234,7 @@ bool inode_create(block_sector_t sector, off_t length) {
     struct inode_disk_fs *disk_inode_fs = NULL;
     bool success = false;
     size_t i, j;
-    
+
     ASSERT(length >= 0);
 
     /* If this assertion fails, the inode structure is not exactly
@@ -182,7 +244,7 @@ bool inode_create(block_sector_t sector, off_t length) {
 
     /* Create an empty file on the disk */
     block_write(fs_device, sector, &disk_zero);
-    
+
     /* Open the empty file and zero it */
     struct inode *inode = inode_open(sector);
     if (inode != NULL) {
@@ -202,7 +264,7 @@ bool inode_create(block_sector_t sector, off_t length) {
         success = true;
     }
     inode_close(inode);
-    
+
     return success;
 }
 
@@ -283,10 +345,10 @@ void inode_close(struct inode *inode) {
                 fballoc_free_fblock(i);
             }
         }
-        
+
         /* Remove from inode list and release lock. */
         list_remove(&inode->elem);
-        
+
         /* Deallocate blocks if removed. */
         if (inode->removed) {
             size_t sectors = bytes_to_sectors(inode->length);
@@ -390,10 +452,10 @@ off_t inode_write_at(struct inode *inode, const void *buffer_, off_t size, off_t
             inode_add_sector(inode);
             inode->length += BLOCK_SECTOR_SIZE;
         }
-        
+
         inode->length = offset + size;
         length_set_on_disk(inode, inode->length);
-        
+
         /* NOTE: do not need to put last block into cache, it will get loaded by
          * the write below. */
     }
