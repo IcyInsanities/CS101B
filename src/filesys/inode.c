@@ -186,7 +186,14 @@ static void inode_remove_sector(struct inode * inode) {
     // TODO: also note, must keep length synchonized with inode_disk
 }
 static off_t length_from_disk(struct inode * inode) {
-    return 0;
+    uint32_t idx = inode_get_cache_block_idx(inode, DIRECT_BLOCK_OFFSET, inode->sector);
+    inode_disk * disk = (inode_disk *) fballoc_idx_to_addr(idx);
+    return disk->length;
+}
+static void length_set_on_disk(struct inode * inode, off_t length) {
+    uint32_t idx = inode_get_cache_block_idx(inode, DIRECT_BLOCK_OFFSET, inode->sector);
+    inode_disk * disk = (inode_disk *) fballoc_idx_to_addr(idx);
+    disk->length = length;
 }
 
 
