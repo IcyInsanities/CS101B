@@ -23,6 +23,16 @@ struct dir_entry {
     bool is_dir;                        /*!< Is this a subdirectory. */
 };
 
+//void print_dir_contents(struct dir *dir)
+//{
+//    struct dir_entry e;
+//    size_t ofs;
+//    printf("In dir %d:\n", inode_get_inumber(dir_get_inode(dir)));
+//    for (ofs = 0; inode_read_at(dir->inode, &e, sizeof(e), ofs) == sizeof(e); ofs += sizeof(e)) {
+//        printf("          At %d, in use %d, name %s at %d\n", ofs, e.in_use, e.name, e.inode_sector);
+//    }
+//}
+
 /*! Creates a directory with space for ENTRY_CNT entries in the
     given SECTOR.  Returns true if successful, false on failure. */
 bool dir_create(block_sector_t sector, size_t entry_cnt, struct dir *parent) {
@@ -118,7 +128,6 @@ static bool lookup(const struct dir *dir, const char *name,
 
     ASSERT(dir != NULL);
     ASSERT(name != NULL);
-
     for (ofs = 0; inode_read_at(dir->inode, &e, sizeof(e), ofs) == sizeof(e);
          ofs += sizeof(e)) {
         if (e.in_use && !strcmp(name, e.name)) {
@@ -280,10 +289,15 @@ bool dir_remove(struct dir *dir, const char *name) {
     ASSERT(dir != NULL);
     ASSERT(name != NULL);
 
+    //printf("REMOVE START!!!!!!!!!!!!!!!!!!!!!!!!");
+    //print_dir_contents(dir);
+    
     /* Find directory entry. */
     if (!lookup(dir, name, &e, &ofs, &is_dir))
         goto done;
-
+    //printf("REMOVE %s in dir %d at %d\n", name, inode_get_inumber(dir_get_inode(dir)), e.inode_sector);
+    //print_dir_contents(dir);
+    
     /* Open inode. */
     inode = inode_open(e.inode_sector);
     if (inode == NULL)
@@ -291,7 +305,7 @@ bool dir_remove(struct dir *dir, const char *name) {
     if (is_dir) {
         dir_rm = dir_open(inode);
     }
-
+    //printf("OPENED TO REMOVE %d\n", is_dir);
     /* For directories, check if empty first */
     if (is_dir && (dir_rm == NULL || !dir_empty(dir_rm))) {
         goto done;
@@ -301,17 +315,22 @@ bool dir_remove(struct dir *dir, const char *name) {
     e.in_use = false;
     if (inode_write_at(dir->inode, &e, sizeof(e), ofs) != sizeof(e))
         goto done;
-
+    //printf("REMOVED STUFF\n");
+    //print_dir_contents(dir);
     /* Remove inode. */
     inode_remove(inode);
     success = true;
 
 done:
     if (is_dir) {
+        //printf("REMOVED DIR\n");
         dir_close(dir_rm);
     } else {
+        //printf("REMOVED FILE\n");
         inode_close(inode);
     }
+    //print_dir_contents(dir);
+    //printf("REMOVED DONE!!!!!!!!!!!!!!!!!!\n");
     return success;
 }
 /* This variant removes only directories */

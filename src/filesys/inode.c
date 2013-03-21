@@ -532,7 +532,7 @@ void inode_close(struct inode *inode) {
         /* Write back blocks to disk and free them */
         uint32_t i;
         for (i = 0; i < NUM_FBLOCKS; ++i) {
-            if (fblock_cache_owned(inode, i)) {
+            if (fblock_cache_owned(inode_get_inumber(inode), i)) {
                 fballoc_free_fblock(i);
             }
         }
@@ -575,24 +575,26 @@ off_t inode_read_at(struct inode *inode, void *buffer_, off_t size, off_t offset
     // TODO: need to check length
 
     while (size > 0) {
-        /* Disk sector to read, starting byte offset within sector. */
-        uint32_t sector = byte_to_sector(inode, offset);
+        /* Starting byte offset within sector. */
         int sector_ofs = offset % BLOCK_SECTOR_SIZE;
-
-        //TODO printf("Reading %d or %d at %d\n",  inode_get_inumber(inode), sector, offset);
         
         /* Bytes left in inode, bytes left in sector, lesser of the two. */
         off_t inode_left = inode_length(inode) - offset;
         int sector_left = BLOCK_SECTOR_SIZE - sector_ofs;
         int min_left = inode_left < sector_left ? inode_left : sector_left;
 
-        /* Number of bytes to actually copy out of this sector. */
+        /* Number of bytes to actually read from this sector. */
         int chunk_size = size < min_left ? size : min_left;
         if (chunk_size <= 0)
             break;
-
-        /* Get the pointer to the cache block containing file sector to write. */
-        uint32_t block_idx = inode_get_cache_block_idx(inode, offset, sector);
+            
+        /* Sector to read */
+        uint32_t block_idx = fblock_is_cached(inode_get_inumber(inode), offset);
+        if (block_idx == (uint32_t) -1) {
+            uint32_t sector = byte_to_sector(inode, offset);
+            /* Get the pointer to the cache block containing file sector to read. */
+            block_idx = inode_get_cache_block_idx(inode, offset, sector);
+        }
         void *cache_block = fballoc_idx_to_addr(block_idx);
 
         /* Read the chunk from the cache block. */
@@ -654,10 +656,9 @@ off_t inode_write_at(struct inode *inode, const void *buffer_, off_t size, off_t
     }
 
     while (size > 0) {
-        /* Sector to write, starting byte offset within sector. */
-        uint32_t sector = byte_to_sector(inode, offset);
+        /* starting byte offset within sector. */
         int sector_ofs = offset % BLOCK_SECTOR_SIZE;
-
+        
         /* Bytes left in inode, bytes left in sector, lesser of the two. */
         off_t inode_left = inode_length(inode) - offset;
         int sector_left = BLOCK_SECTOR_SIZE - sector_ofs;
@@ -667,9 +668,14 @@ off_t inode_write_at(struct inode *inode, const void *buffer_, off_t size, off_t
         int chunk_size = size < min_left ? size : min_left;
         if (chunk_size <= 0)
             break;
-
-        /* Get the pointer to the cache block containing file sector to write. */
-        uint32_t block_idx = inode_get_cache_block_idx(inode, offset, sector);
+            
+        /* Sector to write */
+        uint32_t block_idx = fblock_is_cached(inode_get_inumber(inode), offset);
+        if (block_idx == (uint32_t) -1) {
+            uint32_t sector = byte_to_sector(inode, offset);
+            /* Get the pointer to the cache block containing file sector to write. */
+            block_idx = inode_get_cache_block_idx(inode, offset, sector);
+        }
         void *cache_block = fballoc_idx_to_addr(block_idx);
 
         /* Write chunk to the cache block */
@@ -719,9 +725,9 @@ off_t inode_length(const struct inode *inode) {
 
 uint32_t inode_get_cache_block_idx(struct inode *inode, off_t offset, block_sector_t sector) {
     // If it is not present, need to pull it from disk into the cache.
-    uint32_t idx = fblock_is_cached(inode, offset);
+    uint32_t idx = fblock_is_cached(inode_get_inumber(inode), offset);
     if (idx == (uint32_t) -1) {
-        idx = fballoc_load_fblock(inode, offset, sector);
+        idx = fballoc_load_fblock(inode_get_inumber(inode), offset, sector);
     }
     // Get the block index into the cache
     return idx;

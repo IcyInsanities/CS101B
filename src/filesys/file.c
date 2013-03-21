@@ -19,7 +19,7 @@ struct file * file_open(struct inode *inode) {
     else {
         inode_close(inode);
         free(file);
-        printf("no good: no more memory for file :(\n"); //DEBUG:
+        //TODO printf("no good: no more memory for file :(\n"); //DEBUG:
         return NULL;
     }
 }

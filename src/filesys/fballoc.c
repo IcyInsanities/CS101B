@@ -34,12 +34,13 @@ void fballoc_init(void)
     // Initialize fblock entries
     for (i = 0; i < NUM_FBLOCKS; ++i)
     {
+        fblock_entry_arr[i].inumber = -1;
         lock_init(&(fblock_entry_arr[i].in_use));
     }
 }
 
 // Loads the given file location into the file block cache
-uint32_t fballoc_load_fblock(struct inode* inode, off_t start, block_sector_t sector)
+uint32_t fballoc_load_fblock(block_sector_t inumber, off_t start, block_sector_t sector)
 {
     // Get an open block
     uint32_t idx = fballoc_evict();
@@ -47,7 +48,7 @@ uint32_t fballoc_load_fblock(struct inode* inode, off_t start, block_sector_t se
     // Set up block metadata
     fblock_set_used(&fblock_entry_arr[idx].status);
     fblock_set_accessed(&fblock_entry_arr[idx].status);
-    fblock_entry_arr[idx].inode = inode;
+    fblock_entry_arr[idx].inumber = inumber;
     fblock_entry_arr[idx].start = start & ~(BLOCK_SECTOR_SIZE-1);
     fblock_entry_arr[idx].sector = sector;
     // Read in data
@@ -57,6 +58,7 @@ uint32_t fballoc_load_fblock(struct inode* inode, off_t start, block_sector_t se
     // Queue next block
 
     // TODO!!!!!!!
+    //printf("Cache load %d of %d at %x\n", idx, fblock_entry_arr[idx].inumber, fblock_entry_arr[idx].start);
     return idx;
 }
 
@@ -66,12 +68,13 @@ void fballoc_free_fblock(uint32_t idx)
     ASSERT(idx < NUM_FBLOCKS);
     if (fblock_is_used(fblock_entry_arr[idx].status))
     {
+        //printf("Cache released %d of %d at %x\n", idx, fblock_entry_arr[idx].inumber, fblock_entry_arr[idx].start);
         lock_acquire(&(fblock_entry_arr[idx].in_use));
         // Write block back
         fballoc_write_back(idx);
         fblock_set_not_used(&fblock_entry_arr[idx].status);
         fblock_set_not_accessed(&fblock_entry_arr[idx].status);
-        fblock_entry_arr[idx].inode = NULL;
+        fblock_entry_arr[idx].inumber = -1;
         fblock_entry_arr[idx].start = 0;
         fblock_entry_arr[idx].sector = 0;
         // Done with block
@@ -240,22 +243,26 @@ bool fblock_lock_owner(uint32_t idx)
 }
 
 // Check if a file location is already in cache and return the block idx
-uint32_t fblock_is_cached(struct inode* inode, off_t offset)
+uint32_t fblock_is_cached(block_sector_t inumber, off_t offset)
 {
     off_t start = offset & ~(BLOCK_SECTOR_SIZE-1);
+    //printf("Finding %d at %x in cache ", inumber, start);
     uint32_t i;
     for (i = 0; i < NUM_FBLOCKS; ++i)
     {
         struct fblock_entry *e = &(fblock_entry_arr[i]);
-        if (e->inode == inode && e->start == start) {
+        if (e->inumber == inumber && e->start == start) {
+            ASSERT(fblock_is_used(e->status)); // Ensure block is in use
+            //printf(" at %d\n", i);
             return i;
         }
     }
+    //printf(" failed\n");
     return -1;
 }
-// Check if a cache block is owned by the given inode
-bool fblock_cache_owned(struct inode* inode, uint32_t idx)
+// Check if a cache block is owned by the given inumber
+bool fblock_cache_owned(block_sector_t inumber, uint32_t idx)
 {
     ASSERT(idx < NUM_FBLOCKS);
-    return (fblock_entry_arr[idx].inode == inode);
+    return (fblock_entry_arr[idx].inumber == inumber);
 }

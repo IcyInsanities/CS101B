@@ -105,8 +105,6 @@ struct file * filesys_open(const char *name) {
         }
     }
     
-    //TODO printf("%x %x open in dir %d of %d named %s\n", dir, dir_get_inode(dir), inode_get_inumber(dir_get_inode(dir)), (inode != NULL) ? inode_get_inumber(inode) : -1, name_file);
-    
     dir_close(dir);
 
     /* Open file or directory correctly */
@@ -127,6 +125,7 @@ bool filesys_remove(const char *name) {
     bool success = false;
 
     bool slash_term = filesys_parse_path_split(name, &dir, name_file);
+    //printf("Remove %s in dir %d named %s\n", name, (dir == NULL) ? -1 : inode_get_inumber(dir_get_inode(dir)), name_file);
     if (dir != NULL && !dir_is_removed(dir)) {
         if (slash_term) {
             success = dir_remove_dir(dir, name_file);
@@ -231,6 +230,7 @@ bool filesys_parse_path_split(const char *path, struct dir **dir, char *name) {
     }
 
     /* Loop until we hit the end of the path. */
+    //print_dir_contents(*dir);
     for (new_name = strtok_r(NULL, "/", &save_ptr); new_name != NULL;
          new_name = strtok_r(NULL, "/", &save_ptr)) {
 
@@ -239,6 +239,7 @@ bool filesys_parse_path_split(const char *path, struct dir **dir, char *name) {
             dir_close(*dir);
             /* Get the next directory. */
             *dir = dir_open(curr_inode);
+            //print_dir_contents(*dir);
         }
         /* If it wasn't found, cannot parse path. */
         else {
@@ -271,6 +272,8 @@ bool filesys_parse_path_split(const char *path, struct dir **dir, char *name) {
     return slash_at_end;
     
 filesys_parse_path_split_done_fail:
+    //printf("FAIL");
+    //print_dir_contents(*dir);
     dir_close(*dir);
     *dir = NULL;
     name[0] = '\0';
