@@ -56,27 +56,122 @@ struct inode {
     within INODE.
     Returns -1 if INODE does not contain data for a byte at offset
     POS. */
+// add_sector
 block_sector_t byte_to_sector(struct inode *inode, off_t pos) {
-    ASSERT(inode != NULL);
-    if (pos < inode->data.length)
-    {
-        // TODO: read inode structures correctly
+//    ASSERT(inode != NULL);
+//    if (pos < inode->data.length)
+//    {
+//        // TODO: read inode structures correctly
+//
+//        off_t fs_idx = pos / BLOCK_SECTOR_SIZE;
+//
+//        // If direct, then just get file sector
+//        if (fs_idx < NUM_DIRECT_FILE_SECTOR) {
+//            return (inode->data.sector_list)[fs_idx];
+//        }
+//        else if (fs_idx < NUM_DIRECT_FILE_SECTOR + NUM_INDIRECT_FILE_SECTOR) {
+//            return (inode->data2.sector_list)[fs_idx - NUM_DIRECT_FILE_SECTOR];
+//        }
+//        else {
+//            // TODO: DOUBLE INDIRECT CASE
+//            PANIC("byte_to_sector_ptr: Sorry, double indirection is not implemented at %d", fs_idx);
+//        }
+//    }
+//    return -1;
+//
+//
+//  sec_to_return
+//
+//  check if direct block (sector table?) is in cache
+//      load direct block (sector table?) into cache if not in cache
 
-        off_t fs_idx = pos / BLOCK_SECTOR_SIZE;
+//uint32_t inode_get_cache_block_idx(struct inode *inode, off_t offset, block_sector_t sector)
 
-        // If direct, then just get file sector
-        if (fs_idx < NUM_DIRECT_FILE_SECTOR) {
-            return (inode->data.sector_list)[fs_idx];
-        }
-        else if (fs_idx < NUM_DIRECT_FILE_SECTOR + NUM_INDIRECT_FILE_SECTOR) {
-            return (inode->data2.sector_list)[fs_idx - NUM_DIRECT_FILE_SECTOR];
+    cache_idx = inode_get_cache_block_idx()
+    inode_data = (inode_disk *) fballoc_idx_to_addr(cache_idx);
+    sector_tbl = inode_data->sector_list;
+//  
+//  if (no indirection needed)
+//      sec_to_return = direct table[pos]
+//  
+    num_sectors = bytes_to_sectors(pos);
+    ASSERT(num_sectors <= NUM_FBLOCKS);
+    if (num_sectors <= NUM_DIRECT_FILE_SECTOR) {
+        if (num_sectors != 0) {
+            sector = sector_tbl[num_sectors - 1];
         }
         else {
-            // TODO: DOUBLE INDIRECT CASE
-            PANIC("byte_to_sector_ptr: Sorry, double indirection is not implemented at %d", fs_idx);
+            sector = sector_tbl[0];
         }
     }
-    return -1;
+//  if (the passed pos requires single indirection)
+//      load indirect table (get nth element in direct table (inode disk?), then load it)
+//      sec_to_return = indirect_table[pos - NUM_DIRECT]
+    else {
+        cache_idx = inode_get_cache_block_idx(indirect index);
+        inode_data = (inode_disk *) fballoc_idx_to_addr(cache_idx);
+        sector_table = inode_data->sector_list;
+        
+        if (num_sectors <= NUM_DIRECT_FILE_SECTOR + NUM_INDIRECT_FILE_SECTOR) {
+            sector = sector_table[num_sectors - NUM_DIRECT_FILE_SECTOR - 1];
+        }
+        //  if (the passed pos requires double indirection)
+//      load 1st double indirect table (the n+1th element in direct table (inode disk?))
+//      
+//      figure out which 2nd double indirect table we need to load (look in inode disk? for the ith entry of the table and load it)
+//      
+//      sec_to_return = double_indirect_table[pos - NUM_DIRECT - NUM_INDIRECT - (i*BLOCK_SECTOR_SIZE)];
+
+        else {
+            dbl_table_idx = (num_sectors - NUM_DIRECT_FILE_SECTOR - NUM_INDIRECT_FILE_SECTOR)/NUM_INDIRECT_FILE_SECTOR;
+            cache_idx = inode_get_cache_block_idx(dbl_table_idx);
+            inode_data = (inode_disk *) fballoc_idx_to_addr(cache_idx);
+            sector_table = inode_data->sector_list;
+            
+            sector = sector_table[num_sectors - NUM_DIRECT_FILE_SECTOR - (dbl_table_idx * NUM_INDIRECT_FILE_SECTOR)];
+        
+        }
+    }
+    
+    return sector;
+
+//
+//  return sec_to_return;
+//  
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//    
+//    
+
 }
 
 /*! List of open inodes, so that opening a single inode twice
