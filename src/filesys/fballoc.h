@@ -1,7 +1,6 @@
 #ifndef VM_FBALLOC_H
 #define VM_FBALLOC_H
 
-#include "file_sector.h"
 #include "off_t.h"
 #include <stddef.h>
 #include <list.h>
@@ -32,7 +31,7 @@ struct fblock
 };
 
 void fballoc_init(void);
-void fballoc_load_fblock(struct inode*, off_t, file_sector *);
+uint32_t fballoc_load_fblock(struct inode*, off_t, block_sector_t);
 void fballoc_free_fblock(uint32_t);
 
 void fballoc_write_back(uint32_t);
@@ -48,29 +47,31 @@ void fblock_lock_acquire(uint32_t);
 void fblock_lock_release(uint32_t);
 bool fblock_lock_owner(uint32_t);
 
+uint32_t fblock_is_cached(struct inode*, off_t);
+
 // Functions to set the status bits
-static inline void fblock_set_used(uint32_t* status)
+static inline void fblock_set_used(uint32_t *status)
 {
     *status |= FBLOCK_U;
 }
-static inline void fblock_set_dirty(uint32_t* status)
+static inline void fblock_set_dirty(uint32_t *status)
 {
     *status |= FBLOCK_D;
 }
-static inline void fblock_set_accessed(uint32_t* status)
+static inline void fblock_set_accessed(uint32_t *status)
 {
     *status |= FBLOCK_A;
 }
 
-static inline void fblock_set_not_used(uint32_t* status)
+static inline void fblock_set_not_used(uint32_t *status)
 {
     *status &= ~FBLOCK_U;
 }
-static inline void fblock_set_not_dirty(uint32_t* status)
+static inline void fblock_set_not_dirty(uint32_t *status)
 {
     *status &= ~FBLOCK_D;
 }
-static inline void fblock_set_not_accessed(uint32_t* status)
+static inline void fblock_set_not_accessed(uint32_t *status)
 {
     *status &= ~FBLOCK_A;
 }

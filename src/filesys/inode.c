@@ -1,6 +1,5 @@
 #include "inode.h"
 #include "fballoc.h"
-#include "file_sector.h"
 #include "filesys.h"
 #include "free-map.h"
 #include <list.h>
@@ -19,13 +18,13 @@ static char zeros[BLOCK_SECTOR_SIZE];
     modifying NUM_DIRECT_FILE_SECTOR */
 struct inode_disk {
     off_t length;                       /*!< File size in bytes. */
-    file_sector sector_list[NUM_DIRECT_FILE_SECTOR + 2];  /*!< List of file sectors. */
+    block_sector_t sector_list[NUM_DIRECT_FILE_SECTOR + 2];  /*!< List of file sectors. */
     unsigned magic;                     /*!< Magic number. */
 };
 /*! On-disk inode with only file sectors. Must be exactly BLOCK_SECTOR_SIZE
     bytes long, done by modifying NUM_INDIRECT_FILE_SECTOR */
 struct inode_disk_fs {
-    file_sector sector_list[NUM_INDIRECT_FILE_SECTOR];  /*!< List of file sectors. */
+    block_sector_t sector_list[NUM_INDIRECT_FILE_SECTOR];  /*!< List of file sectors. */
 };
 
 /*! Returns the number of sectors to allocate for an inode SIZE
@@ -42,8 +41,6 @@ struct inode {
     bool removed;                       /*!< True if deleted, false otherwise. */
     bool is_dir;                        /*!< True if directory, false otherwise. */
     int deny_write_cnt;                 /*!< 0: writes ok, >0: deny writes. */
-    struct inode_disk data;             /*!< Inode content. */
-    struct inode_disk_fs data2;         /*!< Inode content for indirection. */
 
     #ifdef FILESYS
     // TODO: note the below is a bitmap
@@ -51,8 +48,6 @@ struct inode {
     uint8_t blocks_owned[16];           /*!< Blocks in cache owned. */
     struct lock extending;              /*!< Lock for extending files. */
     struct lock loading_to_cache;       /*!< Lock for loading into block cache. */
-    //file_sector *file_sectors;          /*!< Array of file sectors. */
-    // ^14 words?
 
     #endif
 };
@@ -61,35 +56,27 @@ struct inode {
     within INODE.
     Returns -1 if INODE does not contain data for a byte at offset
     POS. */
-file_sector* byte_to_sector_ptr(struct inode *inode, off_t pos) {
-    ASSERT(inode != NULL);
-    // TODO: read inode structures correctly
-
-    off_t fs_idx = pos / BLOCK_SECTOR_SIZE;
-
-    // If direct, then just get file sector
-    if (fs_idx < NUM_DIRECT_FILE_SECTOR) {
-        return &((inode->data.sector_list)[fs_idx]);
-    }
-    else if (fs_idx < NUM_DIRECT_FILE_SECTOR + NUM_INDIRECT_FILE_SECTOR) {
-        return &((inode->data2.sector_list)[fs_idx - NUM_DIRECT_FILE_SECTOR]);
-    }
-    else {
-        // TODO: DOUBLE INDIRECT CASE
-        PANIC("byte_to_sector_ptr: Sorry, double indirection is not implemented");
-    }
-    return &((inode->data.sector_list)[0]);
-}
-
 block_sector_t byte_to_sector(struct inode *inode, off_t pos) {
     ASSERT(inode != NULL);
     if (pos < inode->data.length)
     {
-        file_sector *sec = byte_to_sector_ptr(inode, pos);
-        return file_sec_get_addr(*sec);
-    } else {
-        return -1;
+        // TODO: read inode structures correctly
+
+        off_t fs_idx = pos / BLOCK_SECTOR_SIZE;
+
+        // If direct, then just get file sector
+        if (fs_idx < NUM_DIRECT_FILE_SECTOR) {
+            return (inode->data.sector_list)[fs_idx];
+        }
+        else if (fs_idx < NUM_DIRECT_FILE_SECTOR + NUM_INDIRECT_FILE_SECTOR) {
+            return (inode->data2.sector_list)[fs_idx - NUM_DIRECT_FILE_SECTOR];
+        }
+        else {
+            // TODO: DOUBLE INDIRECT CASE
+            PANIC("byte_to_sector_ptr: Sorry, double indirection is not implemented at %d", fs_idx);
+        }
     }
+    return -1;
 }
 
 /*! List of open inodes, so that opening a single inode twice
@@ -274,24 +261,16 @@ void inode_close(struct inode *inode) {
         /* Remove from inode list and release lock. */
         list_remove(&inode->elem);
         
-        /* Write back inode to disk if not removed, ensure file sectors are 0ed */
-        size_t sectors = bytes_to_sectors(inode->data.length);
-        if (!inode->removed) {
-            for (i = 0; i < sectors; i++) {
-                file_sector *sec = byte_to_sector_ptr(inode, i * BLOCK_SECTOR_SIZE);
-                *sec = file_sec_get_addr(*sec);
-            }
-            block_write(fs_device, inode->data.sector_list[NUM_DIRECT_FILE_SECTOR], &inode->data2);
-            block_write(fs_device, inode->sector, &inode->data);
         /* Deallocate blocks if removed. */
-        } else {
-            free_map_release(inode->sector, 1);
-            free_map_release(inode->data.sector_list[NUM_DIRECT_FILE_SECTOR], 1);
+        if (inode->removed) {
+            size_t sectors = bytes_to_sectors(inode->data.length);
             size_t i;
             for (i = 0; i < sectors; i++) {
-                file_sector *sec = byte_to_sector_ptr(inode, i * BLOCK_SECTOR_SIZE);
-                free_map_release(file_sec_get_addr(*sec), 1);
+                block_sector_t sec = byte_to_sector(inode, i * BLOCK_SECTOR_SIZE);
+                free_map_release(sec, 1);
             }
+            // TODO DOUBLE: CLEAN UP SECTORS IN METADATA
+            free_map_release(inode->sector, 1);
         }
         free(inode);
     }
@@ -363,7 +342,7 @@ off_t inode_write_at(struct inode *inode, const void *buffer_, off_t size, off_t
     off_t curr_file_len;
     off_t ext_file_len;
     off_t num_sec_to_alloc;
-    file_sector *curr_sector;
+    block_sector_t curr_sector;
 
     if (inode->deny_write_cnt) {
         return 0;
@@ -383,14 +362,9 @@ off_t inode_write_at(struct inode *inode, const void *buffer_, off_t size, off_t
 
         (inode->data).length = offset + size;
 
-        /* If more sectors must be allocated, allocate and then write 0's to it. */
+        /* If more sectors must be allocated, allocate. */
         for (i = 0; i < num_sec_to_alloc; i++) {
-            curr_sector = byte_to_sector_ptr(inode, BLOCK_SECTOR_SIZE*(i + curr_file_len));
-            /* Allocate sector on disk. */
-            free_map_allocate(1, curr_sector);
-
-            /* Zero the sector. */
-            block_write(fs_device, *curr_sector, zeros);
+            inode_add_sector(inode);
         }
         /* NOTE: do not need to put last block into cache, it will get loaded by
          * the write below. */
@@ -473,14 +447,14 @@ bool inode_is_block_owned(struct inode *inode, size_t block_num) {
     return bitmap_test((struct bitmap *) inode->blocks_owned, block_num);
 }
 
-uint32_t inode_get_cache_block_idx(struct inode *inode, off_t offset, file_sector *sector) {
+uint32_t inode_get_cache_block_idx(struct inode *inode, off_t offset, block_sector_t sector) {
     // If it is not present, need to pull it from disk into the cache.
-    if (!file_sec_is_present(*sector)) {
-        fballoc_load_fblock(inode, offset, sector);
+    uint32_t idx = fblock_is_cached(inode, offset);
+    if (idx == -1) {
+        idx = fballoc_load_fblock(inode, offset, sector);
     }
-
     // Get the block index into the cache
-    return file_sec_get_block_idx(*sector);
+    return idx;
 }
 
 /* Force all inodes to close */

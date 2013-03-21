@@ -1,5 +1,4 @@
 #include "fballoc.h"
-#include "file_sector.h"
 #include "inode.h"
 #include "off_t.h"
 #include <stddef.h>
@@ -40,7 +39,7 @@ void fballoc_init(void)
 }
 
 // Loads the given file location into the file block cache
-void fballoc_load_fblock(struct inode* inode, off_t start, file_sector *sector)
+uint32_t fballoc_load_fblock(struct inode* inode, off_t start, block_sector_t sector)
 {
     // Get an open block
     uint32_t idx = fballoc_evict();
@@ -54,14 +53,13 @@ void fballoc_load_fblock(struct inode* inode, off_t start, file_sector *sector)
     // Read in data
     block_read(fs_device, fblock_entry_arr[idx].sector, (void*) &fblock_arr[idx]);
     // Update inode
-    file_sec_make_present(sector);
-    file_sec_set_block_num(sector, idx);
     inode_get_block(inode, idx);
     // Done with block setup
     lock_release(&(fblock_entry_arr[idx].in_use));
     // Queue next block
 
     // TODO!!!!!!!
+    return idx;
 }
 
 // Frees file block location.
@@ -72,8 +70,6 @@ void fballoc_free_fblock(uint32_t idx)
     {
         lock_acquire(&(fblock_entry_arr[idx].in_use));
         // Update inode
-        file_sector* sec = byte_to_sector_ptr(fblock_entry_arr[idx].inode, fblock_entry_arr[idx].start);
-        file_sec_clear_present(sec);
         inode_release_block(fblock_entry_arr[idx].inode, idx);
         // Write block back
         fballoc_write_back(idx);
@@ -245,4 +241,19 @@ bool fblock_lock_owner(uint32_t idx)
 {
     ASSERT(idx < NUM_FBLOCKS);
     return lock_held_by_current_thread(&(fblock_entry_arr[idx].in_use));
+}
+
+// Check if a file location is already in cache and return the block idx
+uint32_t fblock_is_cached(struct inode* inode, off_t offset)
+{
+    off_t start = offset & ~(BLOCK_SECTOR_SIZE-1);
+    uint32_t i;
+    for (i = 0; i < NUM_FBLOCKS; ++i)
+    {
+        fblock_entry *e = fblock_entry_arr[i];
+        if (e->inode == inode && e->start == start) {
+            return i;
+        }
+    }
+    return -1;
 }
