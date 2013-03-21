@@ -270,18 +270,23 @@ void inode_close(struct inode *inode) {
                 fballoc_free_fblock(i);
             }
         }
-        /* Write back inode to disk */
-        block_write(fs_device, inode->data.sector_list[NUM_DIRECT_FILE_SECTOR], &inode->data2);
-        block_write(fs_device, inode->sector, &inode->data);
-
+        
         /* Remove from inode list and release lock. */
         list_remove(&inode->elem);
-
+        
+        /* Write back inode to disk if not removed, ensure file sectors are 0ed */
+        size_t sectors = bytes_to_sectors(inode->data.length);
+        if (!inode->removed) {
+            for (i = 0; i < sectors; i++) {
+                file_sector *sec = byte_to_sector_ptr(inode, i * BLOCK_SECTOR_SIZE);
+                *sec = file_sec_get_addr(*sec);
+            }
+            block_write(fs_device, inode->data.sector_list[NUM_DIRECT_FILE_SECTOR], &inode->data2);
+            block_write(fs_device, inode->sector, &inode->data);
         /* Deallocate blocks if removed. */
-        if (inode->removed) {
+        } else {
             free_map_release(inode->sector, 1);
             free_map_release(inode->data.sector_list[NUM_DIRECT_FILE_SECTOR], 1);
-            size_t sectors = bytes_to_sectors(inode->data.length);
             size_t i;
             for (i = 0; i < sectors; i++) {
                 file_sector *sec = byte_to_sector_ptr(inode, i * BLOCK_SECTOR_SIZE);
