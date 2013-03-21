@@ -8,6 +8,7 @@
     and returns the new file.  Returns a null pointer if an
     allocation fails or if INODE is null. */
 struct file * file_open(struct inode *inode) {
+    // BUG: CALLOC ReTURNS NULL ON dir-mk-tree
     struct file *file = calloc(1, sizeof *file);
     if (inode != NULL && file != NULL) {
         file->inode = inode;
@@ -18,6 +19,7 @@ struct file * file_open(struct inode *inode) {
     else {
         inode_close(inode);
         free(file);
+        printf("no good: no more memory for file :(\n"); //DEBUG:
         return NULL;
     }
 }

@@ -112,6 +112,7 @@ struct file * filesys_open(const char *name) {
     } else {
         return file_open(inode);
     }
+
 }
 
 /*! Deletes the file or directoy named NAME.  Returns true if successful, false

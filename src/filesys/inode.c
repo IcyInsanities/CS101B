@@ -344,7 +344,7 @@ bool inode_create(block_sector_t direct_sector, off_t length) {
         for (i = 0; i < sectors; i++) {
             if (!free_map_allocate(1, &sector)) {
                 // TODO: clean up correctly
-                return false;
+                goto clean_up;
             }
             block_write(fs_device, sector, zeros);
 
@@ -357,15 +357,16 @@ bool inode_create(block_sector_t direct_sector, off_t length) {
             else if (i < NUM_DIRECT_FILE_SECTOR + NUM_INDIRECT_FILE_SECTOR) {
                 /* Check if need to create the indirect sector */
                 if (i == NUM_DIRECT_FILE_SECTOR) {
+                    ASSERT(indirect_data == NULL);
                     indirect_data = calloc(1, sizeof(struct inode_disk_fs));
                     if (indirect_data == NULL) {
                         // TODO: clean up correctly
-                        return false;
+                        goto clean_up;
                     }
                     block_sector_t meta_sector = 0;
                     if (!free_map_allocate(1, &meta_sector)) {
                         // TODO: clean up correctly
-                        return false;
+                        goto clean_up;
                     }
                     direct_data->sector_list[INDIRECT_ENTRY_IDX] = meta_sector;
                 }
@@ -379,15 +380,16 @@ bool inode_create(block_sector_t direct_sector, off_t length) {
 
                 /* Check if need to create the double indirect sector */
                 if (j == 0) {
+                    ASSERT(dbl_indirect_data == NULL);
                     dbl_indirect_data = calloc(1, sizeof(struct inode_disk_fs));
                     if (dbl_indirect_data == NULL) {
                         // TODO: clean up correctly
-                        return false;
+                        goto clean_up;
                     }
                     block_sector_t meta_sector = 0;
                     if (!free_map_allocate(1, &meta_sector)) {
                         // TODO: clean up correctly
-                        return false;
+                        goto clean_up;
                     }
                     direct_data->sector_list[DBL_INDIRECT_ENTRY_IDX] = meta_sector;
                 }
@@ -397,15 +399,16 @@ bool inode_create(block_sector_t direct_sector, off_t length) {
 
                 /* Check if need to create the double indirect sub-sector */
                 if (j % NUM_INDIRECT_FILE_SECTOR == 0) {
+                    ASSERT(dbl_indirect_sub_data == NULL);
                     dbl_indirect_sub_data = calloc(1, sizeof(struct inode_disk_fs));
                     if (dbl_indirect_sub_data == NULL) {
                         // TODO: clean up correctly
-                        return false;
+                        goto clean_up;
                     }
                     block_sector_t meta_sector = 0;
                     if (!free_map_allocate(1, &meta_sector)) {
                         // TODO: clean up correctly
-                        return false;
+                        goto clean_up;
                     }
                     dbl_indirect_data->sector_list[dbl_table_idx] = meta_sector;
                 }
@@ -423,23 +426,30 @@ bool inode_create(block_sector_t direct_sector, off_t length) {
                 }
             }
         }
+        success = true;
     }
+    
+    clean_up:
     if (indirect_data != NULL) {
-        block_write(fs_device, direct_data->sector_list[INDIRECT_ENTRY_IDX], indirect_data);
+        if (success)
+            block_write(fs_device, direct_data->sector_list[INDIRECT_ENTRY_IDX], indirect_data);
         free(indirect_data);
     }
     if (dbl_indirect_data != NULL) {
-        block_write(fs_device, direct_data->sector_list[DBL_INDIRECT_ENTRY_IDX], dbl_indirect_data);
+        if (success)
+            block_write(fs_device, direct_data->sector_list[DBL_INDIRECT_ENTRY_IDX], dbl_indirect_data);
         free(dbl_indirect_data);
     }
     if (dbl_indirect_sub_data != NULL) {
         free(dbl_indirect_sub_data);
     }
     if (direct_data != NULL) {
-        block_write(fs_device, direct_sector, direct_data);
+        if (success)
+            block_write(fs_device, direct_sector, direct_data);
         free(direct_data);
     }
     return success;
+    
 }
 
 /*! Reads an inode from SECTOR
