@@ -157,7 +157,7 @@ static bool inode_add_sector(struct inode * inode) {
         /* Check if need to create the indirect sector */
         if (num_sectors == NUM_DIRECT_FILE_SECTOR) {
             block_sector_t meta_sector = 0;
-            if (free_map_allocate(1, &meta_sector)) {
+            if (!free_map_allocate(1, &meta_sector)) {
                 return false;
             }
             block_write(fs_device, meta_sector, zeros);
@@ -180,7 +180,7 @@ static bool inode_add_sector(struct inode * inode) {
         /* Check if need to create the double indirect sector */
         if (num_sectors == 0) {
             block_sector_t meta_sector = 0;
-            if (free_map_allocate(1, &meta_sector)) {
+            if (!free_map_allocate(1, &meta_sector)) {
                 return false;
             }
             block_write(fs_device, meta_sector, zeros);
@@ -198,7 +198,7 @@ static bool inode_add_sector(struct inode * inode) {
         /* Check if need to create the double indirect sub-sector */
         if (num_sectors % NUM_INDIRECT_FILE_SECTOR == 0) {
             block_sector_t meta_sector = 0;
-            if (free_map_allocate(1, &meta_sector)) {
+            if (!free_map_allocate(1, &meta_sector)) {
                 return false;
             }
             block_write(fs_device, meta_sector, zeros);
@@ -308,12 +308,9 @@ static void length_set_on_disk(struct inode * inode, off_t length) {
     returns the same `struct inode'. */
 static struct list open_inodes;
 
-static struct inode_disk disk_zero;
-
 /*! Initializes the inode module. */
 void inode_init(void) {
     list_init(&open_inodes);
-    disk_zero.magic = INODE_MAGIC;
 }
 
 /*! Initializes an inode with LENGTH bytes of data and
@@ -321,9 +318,15 @@ void inode_init(void) {
     device.
     Returns true if successful.
     Returns false if memory or disk allocation fails. */
-bool inode_create(block_sector_t sector, off_t length) {
-    struct inode_disk *disk_inode = NULL;
-    struct inode_disk_fs *disk_inode_fs = NULL;
+bool inode_create(block_sector_t direct_sector, off_t length) {
+    off_t dbl_table_idx;
+    struct inode_disk *direct_data = calloc(1, sizeof(struct inode_disk));
+    struct inode_disk_fs *indirect_data = NULL;
+    struct inode_disk_fs *dbl_indirect_data = NULL;
+    struct inode_disk_fs *dbl_indirect_sub_data = NULL;
+    block_sector_t *sector_tbl;
+    block_sector_t sector = 0;
+
     bool success = false;
     size_t i, j;
 
@@ -331,32 +334,111 @@ bool inode_create(block_sector_t sector, off_t length) {
 
     /* If this assertion fails, the inode structure is not exactly
        one sector in size, and you should fix that. */
-    ASSERT(sizeof *disk_inode == BLOCK_SECTOR_SIZE);
-    ASSERT(sizeof *disk_inode_fs == BLOCK_SECTOR_SIZE);
+    ASSERT(sizeof(struct inode_disk) == BLOCK_SECTOR_SIZE);
+    ASSERT(sizeof(struct inode_disk_fs) == BLOCK_SECTOR_SIZE);
 
-    /* Create an empty file on the disk */
-    block_write(fs_device, sector, &disk_zero);
-
-    /* Open the empty file and zero it */
-    struct inode *inode = inode_open(sector);
-    if (inode != NULL) {
+    if (direct_data != NULL) {
         size_t sectors = bytes_to_sectors(length);
+        direct_data->length = length;
+        direct_data->magic = INODE_MAGIC;
         for (i = 0; i < sectors; i++) {
-            if (!inode_add_sector(inode)) {
-                for (j = 0; j < i; j++) {
-                    inode_remove_sector(inode);
-                    inode->length -= BLOCK_SECTOR_SIZE;
-                }
+            if (!free_map_allocate(1, &sector)) {
+                // TODO: clean up correctly
                 return false;
             }
-            inode->length += BLOCK_SECTOR_SIZE;
-        }
-        inode->length = length; /* Just in case, inode should be deleted anyway */
-        length_set_on_disk(inode, length);
-        success = true;
-    }
-    inode_close(inode);
+            block_write(fs_device, sector, zeros);
 
+            /* Add into meta data */
+            /* Check if it is a direct sector. */
+            if (i < NUM_DIRECT_FILE_SECTOR) {
+                direct_data->sector_list[i] = sector;
+            }
+            /* Check if it is a single indirect sector. */
+            else if (i < NUM_DIRECT_FILE_SECTOR + NUM_INDIRECT_FILE_SECTOR) {
+                /* Check if need to create the indirect sector */
+                if (i == NUM_DIRECT_FILE_SECTOR) {
+                    indirect_data = calloc(1, sizeof(struct inode_disk_fs));
+                    if (indirect_data == NULL) {
+                        // TODO: clean up correctly
+                        return false;
+                    }
+                    block_sector_t meta_sector = 0;
+                    if (!free_map_allocate(1, &meta_sector)) {
+                        // TODO: clean up correctly
+                        return false;
+                    }
+                    direct_data->sector_list[INDIRECT_ENTRY_IDX] = meta_sector;
+                }
+                /* Set the sector. */
+                indirect_data->sector_list[i - NUM_DIRECT_FILE_SECTOR] = sector;
+            }
+            /* Check if it is a double indirect sector. */
+            else {
+                /* Remap sector number to start from 0 */
+                j = i - (NUM_DIRECT_FILE_SECTOR + NUM_INDIRECT_FILE_SECTOR);
+
+                /* Check if need to create the double indirect sector */
+                if (j == 0) {
+                    dbl_indirect_data = calloc(1, sizeof(struct inode_disk_fs));
+                    if (dbl_indirect_data == NULL) {
+                        // TODO: clean up correctly
+                        return false;
+                    }
+                    block_sector_t meta_sector = 0;
+                    if (!free_map_allocate(1, &meta_sector)) {
+                        // TODO: clean up correctly
+                        return false;
+                    }
+                    direct_data->sector_list[DBL_INDIRECT_ENTRY_IDX] = meta_sector;
+                }
+
+                /* Determine which nested indirect table to use. */
+                dbl_table_idx = j / NUM_INDIRECT_FILE_SECTOR;
+
+                /* Check if need to create the double indirect sub-sector */
+                if (j % NUM_INDIRECT_FILE_SECTOR == 0) {
+                    dbl_indirect_sub_data = calloc(1, sizeof(struct inode_disk_fs));
+                    if (dbl_indirect_sub_data == NULL) {
+                        // TODO: clean up correctly
+                        return false;
+                    }
+                    block_sector_t meta_sector = 0;
+                    if (!free_map_allocate(1, &meta_sector)) {
+                        // TODO: clean up correctly
+                        return false;
+                    }
+                    dbl_indirect_data->sector_list[dbl_table_idx] = meta_sector;
+                }
+
+                /* Load the nested indirect table. */
+                sector_tbl = indirect_data->sector_list;
+
+                /* Set the sector. */
+                sector_tbl[j % BLOCK_SECTOR_SIZE] = sector;
+                
+                /* Check if need to write back double indirect sub-sector */
+                if (j % NUM_INDIRECT_FILE_SECTOR == NUM_INDIRECT_FILE_SECTOR-1) {
+                    block_write(fs_device, dbl_indirect_data->sector_list[dbl_table_idx], dbl_indirect_sub_data);
+                    free(dbl_indirect_sub_data);
+                }
+            }
+        }
+    }
+    if (indirect_data != NULL) {
+        block_write(fs_device, direct_data->sector_list[INDIRECT_ENTRY_IDX], indirect_data);
+        free(indirect_data);
+    }
+    if (dbl_indirect_data != NULL) {
+        block_write(fs_device, direct_data->sector_list[DBL_INDIRECT_ENTRY_IDX], dbl_indirect_data);
+        free(dbl_indirect_data);
+    }
+    if (dbl_indirect_sub_data != NULL) {
+        free(dbl_indirect_sub_data);
+    }
+    if (direct_data != NULL) {
+        block_write(fs_device, direct_sector, direct_data);
+        free(direct_data);
+    }
     return success;
 }
 
@@ -386,7 +468,6 @@ struct inode * inode_open(block_sector_t sector) {
     /* Initialize. */
     list_push_front(&open_inodes, &inode->elem);
     inode->sector = sector;
-    inode->length = length_from_disk(inode);
     inode->open_cnt = 1;
     inode->deny_write_cnt = 0;
     inode->removed = false;
@@ -394,6 +475,7 @@ struct inode * inode_open(block_sector_t sector) {
     bitmap_create_in_buf(NUM_FBLOCKS, (void *) inode->blocks_owned, 16);
     lock_init(&(inode->extending));
     lock_init(&(inode->loading_to_cache));
+    inode->length = length_from_disk(inode);
 
     return inode;
 }
