@@ -204,6 +204,7 @@ bool filesys_parse_path_split(const char *path, struct dir **dir, char *name) {
         /* Handle special case of path = "/" */
         if (path_len-1 == 1) {
             name[0] = '.'; name[1] = '\0'; /* Set name to self and return as dir */
+            free(path_tokens);
             return true;
         }
     }
