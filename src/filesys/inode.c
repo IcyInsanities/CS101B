@@ -58,122 +58,73 @@ struct inode {
     POS. */
 // add_sector
 block_sector_t byte_to_sector(struct inode *inode, off_t pos) {
-//    ASSERT(inode != NULL);
-//    if (pos < inode->data.length)
-//    {
-//        // TODO: read inode structures correctly
-//
-//        off_t fs_idx = pos / BLOCK_SECTOR_SIZE;
-//
-//        // If direct, then just get file sector
-//        if (fs_idx < NUM_DIRECT_FILE_SECTOR) {
-//            return (inode->data.sector_list)[fs_idx];
-//        }
-//        else if (fs_idx < NUM_DIRECT_FILE_SECTOR + NUM_INDIRECT_FILE_SECTOR) {
-//            return (inode->data2.sector_list)[fs_idx - NUM_DIRECT_FILE_SECTOR];
-//        }
-//        else {
-//            // TODO: DOUBLE INDIRECT CASE
-//            PANIC("byte_to_sector_ptr: Sorry, double indirection is not implemented at %d", fs_idx);
-//        }
-//    }
-//    return -1;
-//
-//
-//  sec_to_return
-//
-//  check if direct block (sector table?) is in cache
-//      load direct block (sector table?) into cache if not in cache
 
-//uint32_t inode_get_cache_block_idx(struct inode *inode, off_t offset, block_sector_t sector)
+    off_t cache_idx;
+    off_t dbl_table_idx;
+    struct inode_disk *direct_data;
+    struct inode_disk_fs *indirect_data;
+    size_t num_sectors;
+    block_sector_t *sector_tbl;
+    block_sector_t sector;
+    
+    ASSERT(inode != NULL);
+    
+    if (pos < inode->length) {
+        /* Load the direct sector table. */
+        cache_idx = inode_get_cache_block_idx(inode, DIRECT_BLOCK_OFFSET, inode->sector);
+        direct_data = (struct inode_disk *) fballoc_idx_to_addr(cache_idx);
+        sector_tbl = direct_data->sector_list;
 
-    cache_idx = inode_get_cache_block_idx(inode, DIR_BLOCK_OFFSET, inode->sector);
-    inode_data = (inode_disk *) fballoc_idx_to_addr(cache_idx);
-    sector_tbl = inode_data->sector_list;
-//  
-//  if (no indirection needed)
-//      sec_to_return = direct table[pos]
-//  
-    num_sectors = bytes_to_sectors(pos);
-    ASSERT(num_sectors <= NUM_FBLOCKS);
-    if (num_sectors <= NUM_DIRECT_FILE_SECTOR) {
-        if (num_sectors != 0) {
-            sector = sector_tbl[num_sectors - 1];
+        /* Find how many sectors the position would. */
+        num_sectors = bytes_to_sectors(pos);
+        
+        /* Check if it is a direct sector. */
+        if (num_sectors <= NUM_DIRECT_FILE_SECTOR) {
+            /* Get the sector. */
+            if (num_sectors != 0) {
+                sector = sector_tbl[num_sectors - 1];
+            }
+            else {
+                sector = sector_tbl[0];
+            }
         }
+
+        /* Check if it is a single indirect sector. */
+        else if (num_sectors <= NUM_DIRECT_FILE_SECTOR + NUM_INDIRECT_FILE_SECTOR) {
+            /* Load the indirect sector table. */
+            cache_idx = inode_get_cache_block_idx(inode, INDIRECT_BLOCK_OFFSET, sector_tbl[INDIRECT_ENTRY_IDX]);
+            indirect_data = (struct inode_disk_fs *) fballoc_idx_to_addr(cache_idx);
+            sector_tbl = indirect_data->sector_list;
+            
+            /* Get the sector. */
+            sector = sector_tbl[num_sectors - NUM_DIRECT_FILE_SECTOR - 1];
+        }
+        /* Check if it is a double indirect sector. */
         else {
-            sector = sector_tbl[0];
+            /* Load the 1st double indirect table. */
+            cache_idx = inode_get_cache_block_idx(inode, DBL_INDIRECT_BLOCK_OFFSET, sector_tbl[DBL_INDIRECT_ENTRY_IDX]);
+            indirect_data = (struct inode_disk_fs *) fballoc_idx_to_addr(cache_idx);
+            sector_tbl = indirect_data->sector_list;
+            
+            /* Determine which nested indirect table to use. */
+            dbl_table_idx = (num_sectors - NUM_DIRECT_FILE_SECTOR - NUM_INDIRECT_FILE_SECTOR)/NUM_INDIRECT_FILE_SECTOR;
+            
+            /* Load the nested indirect table. */
+            cache_idx = inode_get_cache_block_idx(inode, DBL_INDIRECT_BLOCK_OFFSET + (dbl_table_idx + 1)*BLOCK_SECTOR_SIZE, sector_tbl[dbl_table_idx]);
+            indirect_data = (struct inode_disk_fs *) fballoc_idx_to_addr(cache_idx);
+            sector_tbl = indirect_data->sector_list;
+            
+            /* Get the sector. */
+            sector = sector_tbl[num_sectors - NUM_DIRECT_FILE_SECTOR - (dbl_table_idx * NUM_INDIRECT_FILE_SECTOR) - 1];
+        
         }
-    }
-//  if (the passed pos requires single indirection)
-//      load indirect table (get nth element in direct table (inode disk?), then load it)
-//      sec_to_return = indirect_table[pos - NUM_DIRECT]
-    else if (num_sectors <= NUM_DIRECT_FILE_SECTOR + NUM_INDIRECT_FILE_SECTOR) {
-        cache_idx = inode_get_cache_block_idx(inode, INDIRECT_BLOCK_OFFSET, sector_tbl[INDIRECT_ENTRY_IDX]);
-        inode_data = (inode_disk *) fballoc_idx_to_addr(cache_idx);
-        sector_table = inode_data->sector_list;
-        sector = sector_table[num_sectors - NUM_DIRECT_FILE_SECTOR - 1];
-    }
-        //  if (the passed pos requires double indirection)
-//      load 1st double indirect table (the n+1th element in direct table (inode disk?))
-//      
-//      figure out which 2nd double indirect table we need to load (look in inode disk? for the ith entry of the table and load it)
-//      
-//      sec_to_return = double_indirect_table[pos - NUM_DIRECT - NUM_INDIRECT - (i*BLOCK_SECTOR_SIZE)];
 
-    else {
-        cache_idx = inode_get_cache_block_idx(inode, DBL_INDIRECT_BLOCK_OFFSET, sector_tbl[DBL_INDIRECT_ENTRY_IDX]);
-        inode_data = (inode_disk *) fballoc_idx_to_addr(cache_idx);
-        sector_table = inode_data->sector_list;
+        return sector;
         
-        dbl_table_idx = (num_sectors - NUM_DIRECT_FILE_SECTOR - NUM_INDIRECT_FILE_SECTOR)/NUM_INDIRECT_FILE_SECTOR;
-        cache_idx = inode_get_cache_block_idx(dbl_table_idx);
-        inode_data = (inode_disk *) fballoc_idx_to_addr(cache_idx);
-        sector_table = inode_data->sector_list;
-        
-        sector = sector_table[num_sectors - NUM_DIRECT_FILE_SECTOR - (dbl_table_idx * NUM_INDIRECT_FILE_SECTOR)];
-    
     }
-
     
-    return sector;
-
-//
-//  return sec_to_return;
-//  
-//
-//
-//
-//
-//
-//
-//
-//
-//
-//
-//
-//
-//
-//
-//
-//
-//
-//
-//
-//
-//
-//
-//
-//
-//
-//
-//
-//
-//
-//
-//
-//    
-//    
-
+    return -1;
+    
 }
 
 /*! This function adds a sector to an inode, and returns it success status */
