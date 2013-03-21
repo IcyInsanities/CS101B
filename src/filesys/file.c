@@ -90,7 +90,7 @@ off_t file_write_at(struct file *file, const void *buffer, off_t size,
     until file_allow_write() is called or FILE is closed. */
 void file_deny_write(struct file *file) {
     ASSERT(file != NULL);
-    if (!file->deny_write) {
+    if (!inode_is_dir(file->inode) && !file->deny_write) {
         file->deny_write = true;
         inode_deny_write(file->inode);
     }
@@ -100,7 +100,7 @@ void file_deny_write(struct file *file) {
     still be denied by some other file that has the same inode open.) */
 void file_allow_write(struct file *file) {
     ASSERT(file != NULL);
-    if (file->deny_write) {
+    if (!inode_is_dir(file->inode) && file->deny_write) {
         file->deny_write = false;
         inode_allow_write(file->inode);
     }

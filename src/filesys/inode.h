@@ -21,6 +21,7 @@ bool inode_is_dir(const struct inode *);
 void inode_set_dir(struct inode *);
 void inode_close(struct inode *);
 void inode_remove(struct inode *);
+bool inode_is_removed(struct inode *);
 off_t inode_read_at(struct inode *, void *, off_t size, off_t offset);
 off_t inode_write_at(struct inode *, const void *, off_t size, off_t offset);
 void inode_deny_write(struct inode *);

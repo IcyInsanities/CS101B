@@ -324,6 +324,9 @@ bool dir_empty(struct dir *dir) {
     dir->pos = pos_orig;
     return !not_empty;
 }
+bool dir_is_removed(struct dir *dir) {
+    return inode_is_removed(dir->inode);
+}
 
 /*! Reads the next directory entry in DIR and stores the name in NAME.  Returns
     true if successful, false if the directory contains no more entries. */

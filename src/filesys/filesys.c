@@ -59,7 +59,7 @@ bool filesys_create(const char *name, off_t initial_size) {
     char name_file[NAME_MAX + 1];
 
     bool success = (!filesys_parse_path_split(name, &dir, name_file) && // Can't / terminate
-                    dir != NULL && name_file != NULL &&
+                    dir != NULL && !dir_is_removed(dir) &&
                     free_map_allocate(1, &inode_sector) &&
                     inode_create(inode_sector, initial_size) &&
                     dir_add(dir, name_file, inode_sector));
@@ -76,7 +76,7 @@ bool filesys_create_dir(const char *name) {
     struct dir *dir = NULL;
     char name_file[NAME_MAX + 1];
     filesys_parse_path_split(name, &dir, name_file); // Don't care if / terminate
-    bool success = (dir != NULL && name_file != NULL &&
+    bool success = (dir != NULL && !dir_is_removed(dir) &&
                     free_map_allocate(1, &inode_sector) &&
                     dir_create(inode_sector, 5, dir) &&
                     dir_add_dir(dir, name_file, inode_sector));
@@ -96,7 +96,7 @@ struct file * filesys_open(const char *name) {
     char name_file[NAME_MAX + 1];
 
     bool slash_term = filesys_parse_path_split(name, &dir, name_file);
-    if (dir != NULL) {
+    if (dir != NULL && !dir_is_removed(dir)) {
         if (slash_term) {
             dir_lookup_dir(dir, name_file, &inode);
         } else {
@@ -105,7 +105,12 @@ struct file * filesys_open(const char *name) {
     }
     dir_close(dir);
 
-    return file_open(inode);
+    /* Open file or directory correctly */
+    if (inode != NULL && inode_is_dir(inode)) {
+        return (struct file *) dir_open(inode);
+    } else {
+        return file_open(inode);
+    }
 }
 
 /*! Deletes the file named NAME.  Returns true if successful, false on failure.
@@ -192,6 +197,11 @@ bool filesys_parse_path_split(const char *path, struct dir **dir, char *name) {
     if (path[0] == '/') {
         dir_close(*dir);
         *dir = dir_open_root();
+        /* Handle special case of path = "/" */
+        if (path_len-1 == 1) {
+            name[0] = '.'; name[1] = '\0'; /* Set name to self and return as dir */
+            return true;
+        }
     }
     //TODO printf("start dir: %d\n", inode_get_inumber(dir_get_inode(*dir)));
 
