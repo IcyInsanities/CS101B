@@ -104,6 +104,9 @@ struct file * filesys_open(const char *name) {
             dir_lookup_any(dir, name_file, &inode);
         }
     }
+    
+    //TODO printf("%x %x open in dir %d of %d named %s\n", dir, dir_get_inode(dir), inode_get_inumber(dir_get_inode(dir)), (inode != NULL) ? inode_get_inumber(inode) : -1, name_file);
+    
     dir_close(dir);
 
     /* Open file or directory correctly */

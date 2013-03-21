@@ -7,7 +7,6 @@
 #include <round.h>
 #include <string.h>
 #include "devices/block.h"
-#include "lib/kernel/bitmap.h"
 #include "threads/malloc.h"
 
 /*! Identifies an inode. */
@@ -44,9 +43,6 @@ struct inode {
     int deny_write_cnt;                 /*!< 0: writes ok, >0: deny writes. */
 
     #ifdef FILESYS
-    // TODO: note the below is a bitmap
-    // NEED TO INITIALIZE and DESTROY
-    uint8_t blocks_owned[16];           /*!< Blocks in cache owned. */
     struct lock extending;              /*!< Lock for extending files. */
     struct lock loading_to_cache;       /*!< Lock for loading into block cache. */
 
@@ -121,6 +117,7 @@ block_sector_t byte_to_sector(struct inode *inode, off_t pos) {
 /*! This function adds a sector to an inode, and returns it success status.
     Length is externally synched. */
 static bool inode_add_sector(struct inode * inode) {
+    //TODO printf("INODE ADD SECTOR\n");
     off_t cache_idx;
     off_t dbl_table_idx;
     struct inode_disk *direct_data;
@@ -218,6 +215,7 @@ static bool inode_add_sector(struct inode * inode) {
 
 /*! This function removes a sector from an inode, length is externally synched. */
 static void inode_remove_sector(struct inode * inode) {
+    //TODO printf("INODE REMOVE SECTOR\n");
     off_t cache_idx;
     off_t dbl_table_idx;
     struct inode_disk *direct_data;
@@ -253,7 +251,7 @@ static void inode_remove_sector(struct inode * inode) {
 
         /* Get the sector. */
         sector = sector_tbl[num_sectors - NUM_DIRECT_FILE_SECTOR];
-        
+
         /* Check if need to remove the indirect sector */
         if (num_sectors == NUM_DIRECT_FILE_SECTOR) {
             free_map_release(sector_tbl[INDIRECT_ENTRY_IDX], 1);
@@ -415,7 +413,7 @@ bool inode_create(block_sector_t direct_sector, off_t length) {
 
                 /* Set the sector. */
                 dbl_indirect_sub_data->sector_list[j % NUM_INDIRECT_FILE_SECTOR] = sector;
-                
+
                 /* Check if need to write back double indirect sub-sector */
                 if (j % NUM_INDIRECT_FILE_SECTOR == NUM_INDIRECT_FILE_SECTOR-1) {
                     block_write(fs_device, dbl_indirect_data->sector_list[dbl_table_idx], dbl_indirect_sub_data);
@@ -425,7 +423,7 @@ bool inode_create(block_sector_t direct_sector, off_t length) {
         }
         success = true;
     }
-    
+
     clean_up:
     if (indirect_data != NULL) {
         if (success)
@@ -446,7 +444,7 @@ bool inode_create(block_sector_t direct_sector, off_t length) {
         free(direct_data);
     }
     return success;
-    
+
 }
 
 /*! Reads an inode from SECTOR
@@ -479,7 +477,6 @@ struct inode * inode_open(block_sector_t sector) {
     inode->deny_write_cnt = 0;
     inode->removed = false;
     inode->is_dir = false;
-    bitmap_create_in_buf(NUM_FBLOCKS, (void *) inode->blocks_owned, 16);
     lock_init(&(inode->extending));
     lock_init(&(inode->loading_to_cache));
     inode->length = length_from_disk(inode);
@@ -522,7 +519,7 @@ void inode_close(struct inode *inode) {
         /* Write back blocks to disk and free them */
         uint32_t i;
         for (i = 0; i < NUM_FBLOCKS; ++i) {
-            if (inode_is_block_owned(inode, i)) {
+            if (fblock_cache_owned(inode, i)) {
                 fballoc_free_fblock(i);
             }
         }
@@ -569,6 +566,8 @@ off_t inode_read_at(struct inode *inode, void *buffer_, off_t size, off_t offset
         uint32_t sector = byte_to_sector(inode, offset);
         int sector_ofs = offset % BLOCK_SECTOR_SIZE;
 
+        //TODO printf("Reading %d or %d at %d\n",  inode_get_inumber(inode), sector, offset);
+        
         /* Bytes left in inode, bytes left in sector, lesser of the two. */
         off_t inode_left = inode_length(inode) - offset;
         int sector_left = BLOCK_SECTOR_SIZE - sector_ofs;
@@ -704,19 +703,6 @@ off_t inode_length(const struct inode *inode) {
     // Write a function to check if any blocks are owned
     // Write a function to check if a specific block is owned?
     // Write a function to give up ownership of blocks
-
-// MIGHT WANT TO CHANGE THESE NAMES
-void inode_get_block(struct inode *inode, size_t block_num) {
-    bitmap_mark((struct bitmap *) inode->blocks_owned, block_num);
-}
-
-void inode_release_block(struct inode *inode, size_t block_num) {
-    bitmap_reset((struct bitmap *) inode->blocks_owned, block_num);
-}
-
-bool inode_is_block_owned(struct inode *inode, size_t block_num) {
-    return bitmap_test((struct bitmap *) inode->blocks_owned, block_num);
-}
 
 uint32_t inode_get_cache_block_idx(struct inode *inode, off_t offset, block_sector_t sector) {
     // If it is not present, need to pull it from disk into the cache.

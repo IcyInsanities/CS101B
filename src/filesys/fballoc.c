@@ -52,8 +52,6 @@ uint32_t fballoc_load_fblock(struct inode* inode, off_t start, block_sector_t se
     fblock_entry_arr[idx].sector = sector;
     // Read in data
     block_read(fs_device, fblock_entry_arr[idx].sector, (void*) &fblock_arr[idx]);
-    // Update inode
-    inode_get_block(inode, idx);
     // Done with block setup
     lock_release(&(fblock_entry_arr[idx].in_use));
     // Queue next block
@@ -69,8 +67,6 @@ void fballoc_free_fblock(uint32_t idx)
     if (fblock_is_used(fblock_entry_arr[idx].status))
     {
         lock_acquire(&(fblock_entry_arr[idx].in_use));
-        // Update inode
-        inode_release_block(fblock_entry_arr[idx].inode, idx);
         // Write block back
         fballoc_write_back(idx);
         fblock_set_not_used(&fblock_entry_arr[idx].status);
@@ -256,4 +252,10 @@ uint32_t fblock_is_cached(struct inode* inode, off_t offset)
         }
     }
     return -1;
+}
+// Check if a cache block is owned by the given inode
+bool fblock_cache_owned(struct inode* inode, uint32_t idx)
+{
+    ASSERT(idx < NUM_FBLOCKS);
+    return (fblock_entry_arr[idx].inode == inode);
 }
