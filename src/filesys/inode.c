@@ -127,23 +127,24 @@ block_sector_t byte_to_sector(struct inode *inode, off_t pos) {
     
 }
 
-/*! This function adds a sector to an inode, and returns it success status */
+/*! This function adds a sector to an inode, and returns it success status.
+    Length is externally synched. */
 static bool inode_add_sector(struct inode * inode) {
-    // TODO: also note, must keep length synchonized with inode_disk
+    // TODO
     return false;
 }
-/*! This function removes a sector from an inode */
+/*! This function removes a sector from an inode, length is externally synched. */
 static void inode_remove_sector(struct inode * inode) {
-    // TODO: also note, must keep length synchonized with inode_disk
+    // TODO
 }
 static off_t length_from_disk(struct inode * inode) {
     uint32_t idx = inode_get_cache_block_idx(inode, DIRECT_BLOCK_OFFSET, inode->sector);
-    inode_disk * disk = (inode_disk *) fballoc_idx_to_addr(idx);
+    struct inode_disk * disk = (struct inode_disk *) fballoc_idx_to_addr(idx);
     return disk->length;
 }
 static void length_set_on_disk(struct inode * inode, off_t length) {
     uint32_t idx = inode_get_cache_block_idx(inode, DIRECT_BLOCK_OFFSET, inode->sector);
-    inode_disk * disk = (inode_disk *) fballoc_idx_to_addr(idx);
+    struct inode_disk * disk = (struct inode_disk *) fballoc_idx_to_addr(idx);
     disk->length = length;
 }
 
@@ -190,10 +191,14 @@ bool inode_create(block_sector_t sector, off_t length) {
             if (!inode_add_sector(inode)) {
                 for (j = 0; j < i; j++) {
                     inode_remove_sector(inode);
+                    inode->length -= BLOCK_SECTOR_SIZE;
                 }
                 return false;
             }
+            inode->length += BLOCK_SECTOR_SIZE;
         }
+        inode->length = length; /* Just in case, inode should be deleted anyway */
+        length_set_on_disk(inode, length);
         success = true;
     }
     inode_close(inode);
@@ -288,6 +293,7 @@ void inode_close(struct inode *inode) {
             size_t i;
             for (i = 0; i < sectors; i++) {
                 inode_remove_sector(inode);
+                inode->length -= BLOCK_SECTOR_SIZE; /* Exact size unimportant */
             }
             free_map_release(inode->sector, 1);
         }
@@ -361,7 +367,6 @@ off_t inode_write_at(struct inode *inode, const void *buffer_, off_t size, off_t
     off_t curr_file_len;
     off_t ext_file_len;
     off_t num_sec_to_alloc;
-    block_sector_t curr_sector;
 
     if (inode->deny_write_cnt) {
         return 0;
@@ -379,13 +384,16 @@ off_t inode_write_at(struct inode *inode, const void *buffer_, off_t size, off_t
         /* Determine how many more file sectors must be allocated. */
         num_sec_to_alloc = ext_file_len - curr_file_len;
 
-        inode->length = offset + size;
-
         /* If more sectors must be allocated, allocate. */
         for (i = 0; i < num_sec_to_alloc; i++) {
             // TODO: need to check for success
             inode_add_sector(inode);
+            inode->length += BLOCK_SECTOR_SIZE;
         }
+        
+        inode->length = offset + size;
+        length_set_on_disk(inode, inode->length);
+        
         /* NOTE: do not need to put last block into cache, it will get loaded by
          * the write below. */
     }
