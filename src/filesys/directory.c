@@ -293,6 +293,52 @@ bool dir_remove(struct dir *dir, const char *name) {
     }
 
     /* For directories, check if empty first */
+    if (is_dir && (dir_rm == NULL || !dir_empty(dir_rm))) {
+        goto done;
+    }
+    
+    /* Erase directory entry. */
+    e.in_use = false;
+    if (inode_write_at(dir->inode, &e, sizeof(e), ofs) != sizeof(e))
+        goto done;
+
+    /* Remove inode. */
+    inode_remove(inode);
+    success = true;
+
+done:
+    if (is_dir) {
+        dir_close(dir_rm);
+    } else {
+        inode_close(inode);
+    }
+    return success;
+}
+/* This variant removes only directories */
+bool dir_remove_dir(struct dir *dir, const char *name) {
+    struct dir_entry e;
+    struct inode *inode = NULL;
+    bool success = false;
+    bool is_dir = false;
+    off_t ofs;
+    struct dir *dir_rm = NULL;
+
+    ASSERT(dir != NULL);
+    ASSERT(name != NULL);
+
+    /* Find directory entry. */
+    if (!lookup_typed(dir, name, &e, &ofs, true))
+        goto done;
+
+    /* Open inode. */
+    inode = inode_open(e.inode_sector);
+    if (inode == NULL)
+        goto done;
+    if (is_dir) {
+        dir_rm = dir_open(inode);
+    }
+
+    /* For directories, check if empty first */
     if (dir_rm == NULL || !dir_empty(dir_rm)) {
         goto done;
     }

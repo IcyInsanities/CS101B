@@ -113,20 +113,24 @@ struct file * filesys_open(const char *name) {
     }
 }
 
-/*! Deletes the file named NAME.  Returns true if successful, false on failure.
-    Fails if no file named NAME exists, or if an internal memory allocation
-    fails. */
+/*! Deletes the file or directoy named NAME.  Returns true if successful, false
+    on failure. Fails if nothing by NAME exists, or if an internal memory
+    allocation fails. */
 bool filesys_remove(const char *name) {
     struct dir *dir = NULL;
     char name_file[NAME_MAX + 1];
     bool success = false;
 
-    /* Ensure that not / terminated file name */
-    if (!filesys_parse_path_split(name, &dir, name_file)) {
-        success = dir != NULL && dir_remove(dir, name_file);
+    bool slash_term = filesys_parse_path_split(name, &dir, name_file);
+    if (dir != NULL && !dir_is_removed(dir)) {
+        if (slash_term) {
+            success = dir_remove_dir(dir, name_file);
+        } else {
+            success = dir_remove(dir, name_file);
+        }
     }
     dir_close(dir);
-
+    
     return success;
 }
 

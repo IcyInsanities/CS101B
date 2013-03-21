@@ -30,6 +30,7 @@ bool dir_lookup_any(const struct dir *, const char *name, struct inode **);
 bool dir_add(struct dir *, const char *name, block_sector_t);
 bool dir_add_dir(struct dir *, const char *name, block_sector_t);
 bool dir_remove(struct dir *, const char *name);
+bool dir_remove_dir(struct dir *, const char *name);
 bool dir_empty(struct dir *);
 bool dir_is_removed(struct dir *);
 bool dir_readdir(struct dir *, char name[NAME_MAX + 1]);
