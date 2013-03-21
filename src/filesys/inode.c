@@ -111,7 +111,7 @@ block_sector_t byte_to_sector(struct inode *inode, off_t pos) {
             sector_tbl = indirect_data->sector_list;
 
             /* Get the sector. */
-            sector = sector_tbl[num_sectors % BLOCK_SECTOR_SIZE];
+            sector = sector_tbl[num_sectors % NUM_INDIRECT_FILE_SECTOR];
         }
         return sector;
     }
@@ -211,7 +211,7 @@ static bool inode_add_sector(struct inode * inode) {
         sector_tbl = indirect_data->sector_list;
 
         /* Set the sector. */
-        sector_tbl[num_sectors % BLOCK_SECTOR_SIZE] = sector;
+        sector_tbl[num_sectors % NUM_INDIRECT_FILE_SECTOR] = sector;
     }
     return true;
 }
@@ -288,7 +288,7 @@ static void inode_remove_sector(struct inode * inode) {
         }
 
         /* Get the sector. */
-        sector = sector_tbl[num_sectors % BLOCK_SECTOR_SIZE];
+        sector = sector_tbl[num_sectors % NUM_INDIRECT_FILE_SECTOR];
     }
     free_map_release(sector, 1);
 }
@@ -413,11 +413,8 @@ bool inode_create(block_sector_t direct_sector, off_t length) {
                     dbl_indirect_data->sector_list[dbl_table_idx] = meta_sector;
                 }
 
-                /* Load the nested indirect table. */
-                sector_tbl = indirect_data->sector_list;
-
                 /* Set the sector. */
-                sector_tbl[j % BLOCK_SECTOR_SIZE] = sector;
+                dbl_indirect_sub_data->sector_list[j % NUM_INDIRECT_FILE_SECTOR] = sector;
                 
                 /* Check if need to write back double indirect sub-sector */
                 if (j % NUM_INDIRECT_FILE_SECTOR == NUM_INDIRECT_FILE_SECTOR-1) {
