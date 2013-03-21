@@ -380,7 +380,7 @@ off_t inode_write_at(struct inode *inode, const void *buffer_, off_t size, off_t
 
         /* If more sectors must be allocated, allocate and then write 0's to it. */
         for (i = 0; i < num_sec_to_alloc; i++) {
-            curr_sector = byte_to_sector_ptr(inode, BLOCK_SECTOR_SIZE*(i + curr_file_len + 1));
+            curr_sector = byte_to_sector_ptr(inode, BLOCK_SECTOR_SIZE*(i + curr_file_len));
             /* Allocate sector on disk. */
             free_map_allocate(1, curr_sector);
 
