@@ -478,7 +478,10 @@ uint32_t inode_get_cache_block_idx(struct inode *inode, off_t offset, file_secto
     return file_sec_get_block_idx(*sector);
 }
 
-
-// TODO: file extension (in write function)
-// Write all new blocks directly to disk (bypass cache), then load
-// the correct block into cache from disk
+/* Force all inodes to close */
+void inode_force_close_all(void) {
+    while (!list_empty(&open_inodes)) {
+        struct inode *inode = list_entry(list_begin(&open_inodes), struct inode, elem);
+        inode_close(inode);
+    }
+}

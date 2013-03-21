@@ -37,4 +37,6 @@ void inode_release_block(struct inode *, size_t);
 bool inode_is_block_owned(struct inode *, size_t);
 uint32_t inode_get_cache_block_idx(struct inode *, off_t, file_sector *);
 
+void inode_force_close_all(void);
+
 #endif /* filesys/inode.h */
