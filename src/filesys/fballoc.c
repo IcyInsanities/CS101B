@@ -49,7 +49,7 @@ uint32_t fballoc_load_fblock(struct inode* inode, off_t start, block_sector_t se
     fblock_set_accessed(&fblock_entry_arr[idx].status);
     fblock_entry_arr[idx].inode = inode;
     fblock_entry_arr[idx].start = start & ~(BLOCK_SECTOR_SIZE-1);
-    fblock_entry_arr[idx].sector = file_sec_get_addr(*sector);
+    fblock_entry_arr[idx].sector = sector;
     // Read in data
     block_read(fs_device, fblock_entry_arr[idx].sector, (void*) &fblock_arr[idx]);
     // Update inode
@@ -250,7 +250,7 @@ uint32_t fblock_is_cached(struct inode* inode, off_t offset)
     uint32_t i;
     for (i = 0; i < NUM_FBLOCKS; ++i)
     {
-        fblock_entry *e = fblock_entry_arr[i];
+        struct fblock_entry *e = &(fblock_entry_arr[i]);
         if (e->inode == inode && e->start == start) {
             return i;
         }

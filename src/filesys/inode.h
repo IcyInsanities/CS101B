@@ -10,7 +10,10 @@
 #define NUM_INDIRECT_FILE_SECTOR    128
 
 #define INDIRECT_ENTRY_IDX          NUM_DIRECT_FILE_SECTOR
-#define DOULBE_IN_ENTRY_IDX         NUM_DIRECT_FILE_SECTOR+1
+#define DBL_INDIRECT_ENTRY_IDX      NUM_DIRECT_FILE_SECTOR+1
+#define DIRECT_BLOCK_OFFSET         0x10000000
+#define INDIRECT_BLOCK_OFFSET       DIRECT_BLOCK_OFFSET + BLOCK_SECTOR_SIZE
+#define DBL_INDIRECT_BLOCK_OFFSET   INDIRECT_BLOCK_OFFSET + BLOCK_SECTOR_SIZE
 
 struct bitmap;
 
@@ -36,7 +39,7 @@ block_sector_t byte_to_sector(struct inode *, off_t);
 void inode_get_block(struct inode *, size_t);
 void inode_release_block(struct inode *, size_t);
 bool inode_is_block_owned(struct inode *, size_t);
-uint32_t inode_get_cache_block_idx(struct inode *, off_t, block_sector_t *);
+uint32_t inode_get_cache_block_idx(struct inode *, off_t, block_sector_t);
 
 void inode_force_close_all(void);
 

@@ -274,62 +274,6 @@ filesys_parse_path_split_done_fail:
     return slash_at_end;
 }
 
-    //if (strcmp(name, ".") != 0) { // NEED TO ADD NULL AT END OF CONSTANT STRING?
-
-    //if (dir_lookup_dir(curr_dir, name, &curr_inode)) {
-    //    // TODO: do we need to close the old inode as well, or does closing the directory do that?
-    //    // Close the "old" directory
-    //    dir_close(curr_dir);
-    //    // Get the next directory
-    //    curr_dir = dir_open(curr_inode);
-    //}
-    //else {
-    //    t->curr_dir = thread_dir;
-    //    return NULL;
-    //}
-
-    //}
-
-
-//dir *filesys_parse_path(char* path)
-    // Make a copy of the path string
-    // length = strlen(string) + 1
-    // use strlcpy(buffer, string_2_cpy,lengh)
-    // bool slash_at_end;
-
-    // thread_dir
-    // if (first char is '/') {
-    //      curr_dir = root;
-    // } else {
-    //      curr_dir = thread_dir
-    // }
-    //
-    // Initialize tokenizer and get first obj_name
-    // if ('.') {
-    //      do nothing
-    //  } else {
-    //      if (dir_lookup_dir(token)) {
-    //          curr_dir = looked_up_dir;
-    //      } else {
-    //          return null;
-    //      }
-    //  }
-    //
-
-    // Loop
-        // Get a token (dir or file name)
-        // if ('.') {
-        //      do nothing
-        //  } else {
-        //      if (dir_lookup_dir(token)) {
-        //          curr_dir = looked_up_dir;
-        //      } else {
-        //          return null;
-        //      }
-        //  }
-
-    // return curr_dir;
-
 /*! Parse PATH, returning the directory at the end of the path.  Returns NULL if
     parsing is unsuccessful. */
 struct dir *filesys_parse_path(const char *path) {
