@@ -241,6 +241,21 @@ bool fblock_lock_owner(uint32_t idx)
     ASSERT(idx < NUM_FBLOCKS);
     return lock_held_by_current_thread(&(fblock_entry_arr[idx].in_use));
 }
+void fblock_add_user(uint32_t idx)
+{
+    ASSERT(idx < NUM_FBLOCKS);
+    lock_acquire(&(fblock_entry_arr[idx].in_use));
+    fblock_entry_arr[idx].num_users += 1;
+    lock_release(&(fblock_entry_arr[idx].in_use));
+}
+void fblock_rm_user(uint32_t idx)
+{
+    ASSERT(idx < NUM_FBLOCKS);
+    lock_acquire(&(fblock_entry_arr[idx].in_use));
+    ASSERT(fblock_entry_arr[idx].num_users > 0);
+    fblock_entry_arr[idx].num_users -= 1;
+    lock_release(&(fblock_entry_arr[idx].in_use));
+}
 
 // Check if a file location is already in cache and return the block idx
 uint32_t fblock_is_cached(block_sector_t inumber, off_t offset)

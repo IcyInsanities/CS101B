@@ -69,7 +69,7 @@ bool inode_in_use_owner(struct inode *inode)
     POS. */
 block_sector_t byte_to_sector(struct inode *inode, off_t pos) {
 
-    off_t cache_idx;
+    off_t cache_idx1, cache_idx2, cache_idx3, cache_idx4;
     off_t dbl_table_idx;
     struct inode_disk *direct_data;
     struct inode_disk_fs *indirect_data;
@@ -81,9 +81,10 @@ block_sector_t byte_to_sector(struct inode *inode, off_t pos) {
 
     if (pos < inode->length) {
         /* Load the direct sector table. */
-        cache_idx = inode_get_cache_block_idx(inode, DIRECT_BLOCK_OFFSET, inode->sector);
-        fblock_mark_read(cache_idx);
-        direct_data = (struct inode_disk *) fballoc_idx_to_addr(cache_idx);
+        cache_idx1 = inode_get_cache_block_idx(inode, DIRECT_BLOCK_OFFSET, inode->sector);
+        fblock_add_user(cache_idx1);
+        fblock_mark_read(cache_idx1);
+        direct_data = (struct inode_disk *) fballoc_idx_to_addr(cache_idx1);
         sector_tbl = direct_data->sector_list;
 
         /* Find how many sectors the position would be. */
@@ -92,39 +93,48 @@ block_sector_t byte_to_sector(struct inode *inode, off_t pos) {
         /* Check if it is a direct sector. */
         if (num_sectors < NUM_DIRECT_FILE_SECTOR) {
             sector = sector_tbl[num_sectors];
+            fblock_rm_user(cache_idx1);
         }
         /* Check if it is a single indirect sector. */
         else if (num_sectors < NUM_DIRECT_FILE_SECTOR + NUM_INDIRECT_FILE_SECTOR) {
             /* Load the indirect sector table. */
-            cache_idx = inode_get_cache_block_idx(inode, INDIRECT_BLOCK_OFFSET, sector_tbl[INDIRECT_ENTRY_IDX]);
-            fblock_mark_read(cache_idx);
-            indirect_data = (struct inode_disk_fs *) fballoc_idx_to_addr(cache_idx);
+            cache_idx2 = inode_get_cache_block_idx(inode, INDIRECT_BLOCK_OFFSET, sector_tbl[INDIRECT_ENTRY_IDX]);
+            fblock_rm_user(cache_idx1);
+            fblock_add_user(cache_idx2);
+            fblock_mark_read(cache_idx2);
+            indirect_data = (struct inode_disk_fs *) fballoc_idx_to_addr(cache_idx2);
             sector_tbl = indirect_data->sector_list;
 
             /* Get the sector. */
             sector = sector_tbl[num_sectors - NUM_DIRECT_FILE_SECTOR];
+            fblock_rm_user(cache_idx2);
         }
         /* Check if it is a double indirect sector. */
         else {
             /* Remap sector number to start from 0 */
             num_sectors -= NUM_DIRECT_FILE_SECTOR + NUM_INDIRECT_FILE_SECTOR;
             /* Load the 1st double indirect table. */
-            cache_idx = inode_get_cache_block_idx(inode, DBL_INDIRECT_BLOCK_OFFSET, sector_tbl[DBL_INDIRECT_ENTRY_IDX]);
-            fblock_mark_read(cache_idx);
-            indirect_data = (struct inode_disk_fs *) fballoc_idx_to_addr(cache_idx);
+            cache_idx3 = inode_get_cache_block_idx(inode, DBL_INDIRECT_BLOCK_OFFSET, sector_tbl[DBL_INDIRECT_ENTRY_IDX]);
+            fblock_rm_user(cache_idx1);
+            fblock_add_user(cache_idx3);
+            fblock_mark_read(cache_idx3);
+            indirect_data = (struct inode_disk_fs *) fballoc_idx_to_addr(cache_idx3);
             sector_tbl = indirect_data->sector_list;
 
             /* Determine which nested indirect table to use. */
             dbl_table_idx = num_sectors / NUM_INDIRECT_FILE_SECTOR;
 
             /* Load the nested indirect table. */
-            cache_idx = inode_get_cache_block_idx(inode, DBL_INDIRECT_BLOCK_OFFSET + (dbl_table_idx + 1)*BLOCK_SECTOR_SIZE, sector_tbl[dbl_table_idx]);
-            fblock_mark_read(cache_idx);
-            indirect_data = (struct inode_disk_fs *) fballoc_idx_to_addr(cache_idx);
+            cache_idx4 = inode_get_cache_block_idx(inode, DBL_INDIRECT_BLOCK_OFFSET + (dbl_table_idx + 1)*BLOCK_SECTOR_SIZE, sector_tbl[dbl_table_idx]);
+            fblock_rm_user(cache_idx3);
+            fblock_add_user(cache_idx4);
+            fblock_mark_read(cache_idx4);
+            indirect_data = (struct inode_disk_fs *) fballoc_idx_to_addr(cache_idx4);
             sector_tbl = indirect_data->sector_list;
 
             /* Get the sector. */
             sector = sector_tbl[num_sectors % NUM_INDIRECT_FILE_SECTOR];
+            fblock_rm_user(cache_idx4);
         }
         return sector;
     }

@@ -22,6 +22,7 @@ struct fblock_entry
     off_t start;                // Start offset for fblock in file
     block_sector_t sector;      // Sector for fblock on disk
     struct lock in_use;         // Lock a fblock while modifying data
+    uint32_t num_users;         // Number of users for a block
 };
 
 // A file block struct
@@ -46,6 +47,9 @@ void fblock_mark_write(uint32_t);
 void fblock_lock_acquire(uint32_t);
 void fblock_lock_release(uint32_t);
 bool fblock_lock_owner(uint32_t);
+
+void fblock_add_user(uint32_t);
+void fblock_rm_user(uint32_t);
 
 uint32_t fblock_is_cached(block_sector_t, off_t);
 bool fblock_cache_owned(block_sector_t, uint32_t);
