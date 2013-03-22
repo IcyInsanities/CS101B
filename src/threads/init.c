@@ -41,6 +41,7 @@
 
 #include "devices/block.h"
 #include "devices/ide.h"
+#include "filesys/fballoc.h"
 #include "filesys/filesys.h"
 #include "filesys/fsutil.h"
 

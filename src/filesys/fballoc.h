@@ -54,6 +54,8 @@ void fblock_rm_user(uint32_t);
 uint32_t fblock_is_cached(block_sector_t, off_t);
 bool fblock_cache_owned(block_sector_t, uint32_t);
 
+void fballoc_background(void *);
+
 // Functions to set the status bits
 static inline void fblock_set_used(uint32_t *status)
 {

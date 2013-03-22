@@ -4,6 +4,7 @@
 #include <stddef.h>
 #include <stdint.h>
 #include "devices/block.h"
+#include "devices/timer.h"
 #include "threads/palloc.h"
 #include "threads/synch.h"
 #include "threads/vaddr.h"
@@ -282,4 +283,13 @@ bool fblock_cache_owned(block_sector_t inumber, uint32_t idx)
 {
     ASSERT(idx < NUM_FBLOCKS);
     return (fblock_entry_arr[idx].inumber == inumber);
+}
+
+// This function runs the background tasks for the cache system
+void fballoc_background(void * aux UNUSED)
+{
+    while (true) {
+        timer_msleep(1000); // Sleep for 1 second
+        fballoc_write_all();
+    }
 }
