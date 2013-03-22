@@ -11,8 +11,6 @@
 #include "threads/thread.h"
 #include "threads/malloc.h"
 
-struct lock filesys_lock;
-
 /*! Partition that contains the file system. */
 struct block *fs_device;
 
@@ -32,9 +30,7 @@ void filesys_init(bool format) {
         do_format();
 
     free_map_open();
-
-    /* Initialize the lock for the file system */
-    lock_init(&filesys_lock);
+    
     /* Set root dir to current directory for initial thread */
     thread_current()->curr_dir = dir_open_root();
 }
@@ -145,26 +141,6 @@ static void do_format(void) {
         PANIC("root directory creation failed");
     free_map_close();
     printf("done.\n");
-}
-
-/*! Acquires file system lock, blocking until successful. */
-void acquire_filesys_access(void) {
-    lock_acquire(&filesys_lock);
-}
-
-/*! Releases file system lock. */
-void release_filesys_access(void) {
-    lock_release(&filesys_lock);
-}
-
-/*! Attempts to acquire file system lock, returns if successful or not. */
-bool try_acquire_filesys_access(void) {
-    return lock_try_acquire(&filesys_lock);
-}
-
-/*! Retturns whether the current thread holds access to the file system. */
-bool filesys_access_held(void) {
-    return lock_held_by_current_thread(&filesys_lock);
 }
 
 /*! Changes the current working directory to the given directory */

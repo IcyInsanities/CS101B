@@ -622,7 +622,13 @@ off_t inode_read_at(struct inode *inode, void *buffer_, off_t size, off_t offset
     uint8_t *buffer = buffer_;
     off_t bytes_read = 0;
 
-    // TODO: need to check length - dont think so? -shir
+    /* Ensure that user buffer is valid memory before getting cache blocks */
+    if (size > 0) {
+        void *trash = malloc(1);
+        memcpy(buffer, (void *) trash, 1);
+        memcpy(buffer+size-1, (void *) trash, 1);
+        free(trash);
+    }
 
     while (size > 0) {
         /* Starting byte offset within sector. */
@@ -677,6 +683,14 @@ off_t inode_write_at(struct inode *inode, const void *buffer_, off_t size, off_t
 
     if (inode->deny_write_cnt) {
         return 0;
+    }
+    
+    /* Ensure that user buffer is valid memory before getting cache blocks */
+    if (size > 0) {
+        void *trash = malloc(1);
+        memcpy((void *) trash, buffer, 1);
+        memcpy((void *) trash, buffer+size-1, 1);
+        free(trash);
     }
     
     /* If new file is extended, need to update length */
