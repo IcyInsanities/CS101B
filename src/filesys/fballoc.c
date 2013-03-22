@@ -288,6 +288,6 @@ void fballoc_background(void * aux UNUSED)
 {
     while (true) {
         timer_msleep(1000); // Sleep for 1 second
-        fballoc_write_all();
+        //fballoc_write_all();
     }
 }
