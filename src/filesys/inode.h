@@ -33,6 +33,10 @@ void inode_deny_write(struct inode *);
 void inode_allow_write(struct inode *);
 off_t inode_length(const struct inode *);
 
+void inode_in_use_acquire(struct inode *);
+void inode_in_use_release(struct inode *);
+bool inode_in_use_owner(struct inode *);
+
 block_sector_t byte_to_sector(struct inode *, off_t);
 
 /* Block cache for file system. */

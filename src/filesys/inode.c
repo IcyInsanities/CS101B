@@ -43,11 +43,25 @@ struct inode {
     int deny_write_cnt;                 /*!< 0: writes ok, >0: deny writes. */
 
     #ifdef FILESYS
+    struct lock in_use;                 /*!< Lock for marking inode in use. */
     struct lock extending;              /*!< Lock for extending files. */
     struct lock loading_to_cache;       /*!< Lock for loading into block cache. */
-
     #endif
 };
+
+// Acquire and release lock on an inode in_use
+void inode_in_use_acquire(struct inode *inode)
+{
+    lock_acquire(&(inode->in_use));
+}
+void inode_in_use_release(struct inode *inode)
+{
+    lock_release(&(inode->in_use));
+}
+bool inode_in_use_owner(struct inode *inode)
+{
+    return lock_held_by_current_thread(&(inode->in_use));
+}
 
 /*! Returns the block device sector that contains byte offset POS
     within INODE.
@@ -487,6 +501,7 @@ struct inode * inode_open(block_sector_t sector) {
     inode->deny_write_cnt = 0;
     inode->removed = false;
     inode->is_dir = false;
+    lock_init(&(inode->in_use));
     lock_init(&(inode->extending));
     lock_init(&(inode->loading_to_cache));
     inode->length = length_from_disk(inode);

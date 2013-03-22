@@ -6,6 +6,7 @@
 #include "filesys/filesys.h"
 #include "filesys/inode.h"
 #include "threads/malloc.h"
+#include "threads/synch.h"
 
 bool dir_add_obj(struct dir *dir, const char *name, block_sector_t inode_sector, bool is_dir);
 
@@ -233,9 +234,13 @@ bool dir_add_obj(struct dir *dir, const char *name, block_sector_t inode_sector,
     ASSERT(dir != NULL);
     ASSERT(name != NULL);
 
+    inode_in_use_acquire(dir->inode);
+    
     /* Check NAME for validity. */
-    if (*name == '\0' || strlen(name) > NAME_MAX)
+    if (*name == '\0' || strlen(name) > NAME_MAX) {
+        inode_in_use_release(dir->inode);
         return false;
+    }
 
     /* Check that NAME is not in use. */
     bool trash;
@@ -263,6 +268,7 @@ bool dir_add_obj(struct dir *dir, const char *name, block_sector_t inode_sector,
     success = inode_write_at(dir->inode, &e, sizeof(e), ofs) == sizeof(e);
 
 done:
+    inode_in_use_release(dir->inode);
     return success;
 
 }
@@ -279,6 +285,8 @@ bool dir_remove(struct dir *dir, const char *name) {
 
     ASSERT(dir != NULL);
     ASSERT(name != NULL);
+    
+    inode_in_use_acquire(dir->inode);
     
     /* Find directory entry. */
     if (!lookup(dir, name, &e, &ofs, &is_dir))
@@ -309,6 +317,7 @@ done:
     } else {
         inode_close(inode);
     }
+    inode_in_use_release(dir->inode);
     return success;
 }
 /* This variant removes only directories */
@@ -323,6 +332,8 @@ bool dir_remove_dir(struct dir *dir, const char *name) {
     ASSERT(dir != NULL);
     ASSERT(name != NULL);
 
+    inode_in_use_acquire(dir->inode);
+    
     /* Find directory entry. */
     if (!lookup_typed(dir, name, &e, &ofs, true))
         goto done;
@@ -355,6 +366,7 @@ done:
     } else {
         inode_close(inode);
     }
+    inode_in_use_release(dir->inode);
     return success;
 }
 
