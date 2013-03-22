@@ -90,15 +90,11 @@ void kill_current_thread(int status) {
     // Release filesys lock if owned
     // TODO: CHECK CORRECTLY FOR ALL FILE SYSTEM LOCKS
     // Currently this just checks for acquired fballoc locks
-    if (filesys_access_held())
+    uint32_t i;
+    for (i = 0; i < NUM_FBLOCKS; ++i)
     {
-        release_filesys_access();
-        uint32_t i;
-        for (i = 0; i < NUM_FBLOCKS; ++i)
-        {
-            if (fblock_lock_owner(i)) {
-                fblock_lock_release(i);
-            }
+        if (fblock_lock_owner(i)) {
+            fblock_lock_release(i);
         }
     }
 
@@ -165,10 +161,8 @@ void syscall_create(struct intr_frame *f, void * arg1, void * arg2, void * arg3 
     }
     else
     {
-        acquire_filesys_access();   // Acquire lock for file system access
         // Create the file, return if successful
         f->eax = (uint32_t) filesys_create(file, initial_size);
-        release_filesys_access();   // Done with file system access
     }
 }
 
@@ -186,10 +180,8 @@ void syscall_remove(struct intr_frame *f, void * arg1, void * arg2 UNUSED, void 
     // Otherwise delete the file.
     else
     {
-        acquire_filesys_access();   // Acquire lock for file system access
         // Remove the file, return if successful
         f->eax = (uint32_t) filesys_remove(file);
-        release_filesys_access();   // Done with file system access
     }
 }
 
@@ -211,9 +203,7 @@ void syscall_open(struct intr_frame *f, void * arg1, void * arg2 UNUSED, void * 
     else
     // Otherwise open the file.
     {
-        acquire_filesys_access();     // Acquire lock for file system access
         file_pt = filesys_open(file); // Open the file, return the file pointer
-        release_filesys_access();     // Done with file system access
         // Check if open failed
         if (file_pt == NULL)
         {
@@ -261,10 +251,8 @@ void syscall_filesize(struct intr_frame *f, void * arg1, void * arg2 UNUSED, voi
     // Otherwise get the size of the file.
     else
     {
-        acquire_filesys_access();   // Acquire lock for file system access
         // Read from the file
         f->eax = (uint32_t) file_length(file_to_access);
-        release_filesys_access();   // Done with file system access
     }
 }
 
@@ -320,10 +308,8 @@ void syscall_read(struct intr_frame *f, void * arg1, void * arg2, void * arg3)
         }
         else
         {
-            acquire_filesys_access();   // Acquire lock for file system access
             // Read from the file
             f->eax = (uint32_t) file_read(file_to_access, buffer, (off_t) size);
-            release_filesys_access();   // Done with file system access.
         }
     }
 }
@@ -371,10 +357,8 @@ void syscall_write(struct intr_frame *f, void * arg1, void * arg2, void * arg3)
     }
     else
     {
-        acquire_filesys_access();   // Acquire lock for file system access
         // Write to the file
         f->eax = (uint32_t) file_write(file_to_access, buffer, (off_t) size);
-        release_filesys_access();   // Done with file system access
     }
 }
 
@@ -398,10 +382,8 @@ void syscall_seek(struct intr_frame *f UNUSED, void * arg1, void * arg2, void * 
     }
     else
     {
-        acquire_filesys_access();   // Acquire lock for file system access
         // Go to position in file
         file_seek(file_to_access, (off_t) position);
-        release_filesys_access();   // Done with file system access
     }
 }
 
@@ -424,10 +406,8 @@ void syscall_tell(struct intr_frame *f UNUSED, void * arg1, void * arg2 UNUSED, 
     }
     else
     {
-        acquire_filesys_access();   // Acquire lock for file system access
         // Get position in file
         f->eax = (uint32_t) file_tell(file_to_access);
-        release_filesys_access();   // Done with file system access
     }
 }
 
@@ -447,9 +427,7 @@ void syscall_close(struct intr_frame *f UNUSED, void * arg1, void * arg2 UNUSED,
     }
     else
     {
-        acquire_filesys_access();   // Acquire lock for file system access
         file_close(f_id->f);        // Close the file
-        release_filesys_access();   // Done with file system access
         list_remove(&(f_id->elem)); // Remove from file list
         free((void*)f_id);          // Clean up memory
     }
@@ -471,18 +449,14 @@ void syscall_munmap(struct intr_frame *f UNUSED, void * arg1 UNUSED, void * arg2
 void syscall_chdir(struct intr_frame *f, void * arg1, void * arg2 UNUSED, void * arg3 UNUSED)
 {
     char *name = (char*) arg1;
-    acquire_filesys_access();           // Acquire lock for file system access
     f->eax = filesys_change_cwd(name);  // Create directory
-    release_filesys_access();           // Done with file system access
 }
 
 // Creates new directory, returns bool based on success
 void syscall_mkdir(struct intr_frame *f, void * arg1, void * arg2 UNUSED, void * arg3 UNUSED)
 {
     char *name = (char*) arg1;
-    acquire_filesys_access();           // Acquire lock for file system access
     f->eax = filesys_create_dir(name);  // Create directory
-    release_filesys_access();           // Done with file system access
 }
 
 
@@ -499,9 +473,7 @@ void syscall_readdir(struct intr_frame *f, void * arg1, void * arg2, void * arg3
         kill_current_thread(-1);
     }
     // Read directory
-    acquire_filesys_access();   // Acquire lock for file system access
     f->eax = dir_readdir((struct dir*) file, name);
-    release_filesys_access();   // Done with file system access
 }
 
 // Returns a bool based on if given file is a directory or not
@@ -516,9 +488,7 @@ void syscall_isdir(struct intr_frame *f, void * arg1, void * arg2 UNUSED, void *
         kill_current_thread(-1);
     }
     // Return sector of inode
-    acquire_filesys_access();   // Acquire lock for file system access
     f->eax = dir_is_dir(file);
-    release_filesys_access();   // Done with file system access
 }
 
 // Return a unique number identifying the inode. Done by returning the sector of
@@ -534,7 +504,5 @@ void syscall_inumber(struct intr_frame *f, void * arg1, void * arg2 UNUSED, void
         kill_current_thread(-1);
     }
     // Return sector of inode
-    acquire_filesys_access();   // Acquire lock for file system access
     f->eax = file_get_inode_sector(file);
-    release_filesys_access();   // Done with file system access
 }
