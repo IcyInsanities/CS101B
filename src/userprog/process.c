@@ -77,7 +77,7 @@ static void start_process(void *file_name_) {
 
     /* Create initial directory as current working directory */
     t->curr_dir = dir_reopen((t->parent)->curr_dir);
-    
+
     /* Initialize interrupt frame and load executable. */
     memset(&if_, 0, sizeof(if_));
     if_.gs = if_.fs = if_.es = if_.ds = if_.ss = SEL_UDSEG;
@@ -136,7 +136,7 @@ static void start_process(void *file_name_) {
 
     /* Update stack pointer in frame */
     *(&if_.esp) = esp;
-    
+
     /* Clean up page now that arguments are parsed */
     palloc_free_page(file_name);
 
@@ -190,7 +190,7 @@ int process_wait(tid_t child_tid) {
     }
     // Block until process exits. */
     sema_down(&(thread_waited_on->has_exited));
-    
+
     /* Get exit status and destroy thread. */
     status = thread_waited_on->exit_status;
 

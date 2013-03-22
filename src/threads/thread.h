@@ -127,7 +127,6 @@ struct thread {
     struct file *executable;            /*!< File pointer to executable. */
     bool child_success;                 /*!< Flag to signal success of child load. */
     struct list_elem childelem;         /*!< List element for all children list. */
-    // TODO: INITIALIZE THIS IN THE INIT FUNCTUION (DONT FORGET THIS FOR THE ROOT PROCESS)
     struct dir *curr_dir;               /*!< Current directory of thread. */
     /**@}*/
 #endif
