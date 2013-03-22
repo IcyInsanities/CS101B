@@ -424,12 +424,34 @@ recently accessed blocks that it is to load the next one.
 >> buffer cache block, how are other processes prevented from evicting
 >> that block?
 
-    TODO
+    Currently explicit synchronization is not fully implemented. If a block is
+evicted while it has a non zero number of users, it will fail an assertion. As
+the eviction favors unaccessed and not dirty blocks, this will only be a problem
+if the file system is under heavy usage and blocks are being evicted even when
+having been recently used.
+    A simple solution would be busy waiting for the number of users to go to 0
+(but could potentially never return if constantly getting new user requests), or
+a more sophisticated solution would involve downing a semaphore for the first
+process to change the number of users from 0, which is uped when the last user
+finishes. The eviction could then simply down and then up this semaphore to
+wait for all users to finish, after setting a flag indicating eviction is
+pending so that new users will not begin.
+    This requires more complicated logic however to prevent a process from
+getting a cache block idx and then before it can update the number of users, an
+eviction becomes pending. This would cause the user to wait, but when the block
+becomes free again it would be reading from the wrong sector or obsolete data.
+Resolving this might require a wider scale block to make the searches and the
+setting of eviction pending atomic in the system.
+    Alternativelty, if a block has users we can simply attempt to evict another
+block that doesn't have users, repeating the eviction search until one is found.
 
 >> C6: During the eviction of a block from the cache, how are other
 >> processes prevented from attempting to access the block?
 
-    TODO
+    This relates to the problem above. Right now, the access would be blocked
+until eviction completes, but would then continue to read obsolete data or data
+corresponding to the new sector loaded into the block. The same resolutions
+discussed in the above would be applicable here.
 
 ---- RATIONALE ----
 
