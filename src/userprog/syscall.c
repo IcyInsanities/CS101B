@@ -88,7 +88,6 @@ static void syscall_handler(struct intr_frame *f)
 void kill_current_thread(int status) {
     struct thread *t = thread_current();
     // Release filesys lock if owned
-    // TODO: CHECK CORRECTLY FOR ALL FILE SYSTEM LOCKS
     // Currently this just checks for acquired fballoc locks
     uint32_t i;
     for (i = 0; i < NUM_FBLOCKS; ++i)
@@ -445,22 +444,24 @@ void syscall_munmap(struct intr_frame *f UNUSED, void * arg1 UNUSED, void * arg2
     // TODO
 }
 
-// Changes current directory to given, returns bool based on success
+// Changes current directory to directory specified by passed path.  Returns
+// true if successful. and false otherwise.
 void syscall_chdir(struct intr_frame *f, void * arg1, void * arg2 UNUSED, void * arg3 UNUSED)
 {
     char *name = (char*) arg1;
-    f->eax = filesys_change_cwd(name);  // Create directory
+    f->eax = filesys_change_cwd(name);
 }
 
-// Creates new directory, returns bool based on success
+// Creates a new directory with location and name specified by passed path.
+// Returns true if successful and false otherwise.
 void syscall_mkdir(struct intr_frame *f, void * arg1, void * arg2 UNUSED, void * arg3 UNUSED)
 {
     char *name = (char*) arg1;
-    f->eax = filesys_create_dir(name);  // Create directory
+    f->eax = filesys_create_dir(name);
 }
 
-
-// Gets the name of the next directory element, returns bool based on success
+// Gets the name of the next directory element.  Returns true if successful, and
+// false otherwise.
 void syscall_readdir(struct intr_frame *f, void * arg1, void * arg2, void * arg3 UNUSED)
 {
     int fd = (int) arg1;
@@ -476,7 +477,8 @@ void syscall_readdir(struct intr_frame *f, void * arg1, void * arg2, void * arg3
     f->eax = dir_readdir((struct dir*) file, name);
 }
 
-// Returns a bool based on if given file is a directory or not
+// Returns true if entry specified by passed path is a directory, and false
+// otherwise.
 void syscall_isdir(struct intr_frame *f, void * arg1, void * arg2 UNUSED, void * arg3 UNUSED)
 {
     int fd = (int) arg1;
@@ -487,7 +489,7 @@ void syscall_isdir(struct intr_frame *f, void * arg1, void * arg2 UNUSED, void *
     {
         kill_current_thread(-1);
     }
-    // Return sector of inode
+    // Return whether it is a directory or not.
     f->eax = dir_is_dir(file);
 }
 
