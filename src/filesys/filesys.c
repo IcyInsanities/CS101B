@@ -59,7 +59,7 @@ bool filesys_create(const char *name, off_t initial_size) {
     struct dir *dir = NULL;
     char name_file[NAME_MAX + 1];
 
-    bool success = (!filesys_parse_path_split(name, &dir, name_file) && // Can't / terminate
+    bool success = (!filesys_parse_path_split(name, &dir, name_file) && /* Can't / terminate */
                     dir != NULL && !dir_is_removed(dir) &&
                     free_map_allocate(1, &inode_sector) &&
                     inode_create(inode_sector, initial_size) &&
@@ -76,7 +76,7 @@ bool filesys_create_dir(const char *name) {
     block_sector_t inode_sector = 0;
     struct dir *dir = NULL;
     char name_file[NAME_MAX + 1];
-    filesys_parse_path_split(name, &dir, name_file); // Don't care if / terminate
+    filesys_parse_path_split(name, &dir, name_file); /* Don't care if / terminate */
     bool success = (dir != NULL && !dir_is_removed(dir) &&
                     free_map_allocate(1, &inode_sector) &&
                     dir_create(inode_sector, 5, dir) &&
@@ -125,7 +125,6 @@ bool filesys_remove(const char *name) {
     bool success = false;
 
     bool slash_term = filesys_parse_path_split(name, &dir, name_file);
-    //printf("Remove %s in dir %d named %s\n", name, (dir == NULL) ? -1 : inode_get_inumber(dir_get_inode(dir)), name_file);
     if (dir != NULL && !dir_is_removed(dir)) {
         if (slash_term) {
             success = dir_remove_dir(dir, name_file);
@@ -190,7 +189,7 @@ bool filesys_change_cwd(const char *name) {
 bool filesys_parse_path_split(const char *path, struct dir **dir, char *name) {
 
     void *path_tokens;
-    size_t path_len = strlen(path) + 1; // Need to get the NULL char
+    size_t path_len = strlen(path) + 1; /* Need to get the NULL char */
     char *curr_name;
     char *new_name;
     char *save_ptr;
@@ -212,7 +211,6 @@ bool filesys_parse_path_split(const char *path, struct dir **dir, char *name) {
             return true;
         }
     }
-    //TODO printf("start dir: %d\n", inode_get_inumber(dir_get_inode(*dir)));
 
 
     /* Copy the path so it can be tokenized. */
@@ -230,7 +228,6 @@ bool filesys_parse_path_split(const char *path, struct dir **dir, char *name) {
     }
 
     /* Loop until we hit the end of the path. */
-    //print_dir_contents(*dir);
     for (new_name = strtok_r(NULL, "/", &save_ptr); new_name != NULL;
          new_name = strtok_r(NULL, "/", &save_ptr)) {
 
@@ -239,7 +236,6 @@ bool filesys_parse_path_split(const char *path, struct dir **dir, char *name) {
             dir_close(*dir);
             /* Get the next directory. */
             *dir = dir_open(curr_inode);
-            //print_dir_contents(*dir);
         }
         /* If it wasn't found, cannot parse path. */
         else {
@@ -250,12 +246,6 @@ bool filesys_parse_path_split(const char *path, struct dir **dir, char *name) {
         curr_name = new_name;
     }
 
-    /* If asked to open the current directory, we have no parent dir to return. */
-    //if (streq(curr_name, ".")) {
-    //    strlcpy(name, curr_name, strlen(curr_name) + 1);
-    //    *dir = NULL;
-    //    return slash_at_end;
-    //}
     if (streq(curr_name, "..")) {
         goto filesys_parse_path_split_done_fail;
     }
@@ -267,13 +257,9 @@ bool filesys_parse_path_split(const char *path, struct dir **dir, char *name) {
     strlcpy(name, curr_name, strlen(curr_name) + 1);
     free(path_tokens);
     
-    //TODO printf("dir: %d, name: %s, path: %s\n", inode_get_inumber(dir_get_inode(*dir)), name, path);
-    
     return slash_at_end;
     
 filesys_parse_path_split_done_fail:
-    //printf("FAIL");
-    //print_dir_contents(*dir);
     dir_close(*dir);
     *dir = NULL;
     name[0] = '\0';
@@ -286,7 +272,7 @@ filesys_parse_path_split_done_fail:
 struct dir *filesys_parse_path(const char *path) {
 
     void *path_tokens;
-    size_t path_len = strlen(path) + 1; // Need to get the NULL char
+    size_t path_len = strlen(path) + 1; /* Need to get the NULL char */
     char *dir_name;
     char *save_ptr;
     struct inode *curr_inode;
@@ -308,7 +294,7 @@ struct dir *filesys_parse_path(const char *path) {
     dir_name = strtok_r(path_tokens, "/", &save_ptr);
     if (dir_lookup_dir(dir, dir_name, &curr_inode)) {
         dir_close(dir);
-        // Get the next directory
+        /* Get the next directory */
         dir = dir_open(curr_inode);
     }
     else {
@@ -321,7 +307,7 @@ struct dir *filesys_parse_path(const char *path) {
          dir_name = strtok_r(NULL, "/", &save_ptr)) {
         if (dir_lookup_dir(dir, dir_name, &curr_inode)) {
             dir_close(dir);
-            // Get the next directory
+            /* Get the next directory */
             dir = dir_open(curr_inode);
         }
         else {
@@ -330,8 +316,6 @@ struct dir *filesys_parse_path(const char *path) {
             return NULL;
         }
     }
-
-    //TODO printf("dir: %d, path: %s\n", inode_get_inumber(dir_get_inode(dir)), path);
     
     free(path_tokens);
     return dir;

@@ -1,12 +1,12 @@
 #ifndef FILESYS_INODE_H
 #define FILESYS_INODE_H
 
-#include "off_t.h"
 #include <stdbool.h>
+#include "filesys/off_t.h"
 #include "devices/block.h"
 
-#define NUM_DIRECT_FILE_SECTOR      124 // Leave space for 2 indirect and 2 other
-                                        // data elements in struct inode_disk
+#define NUM_DIRECT_FILE_SECTOR      124 /* Leave space for 2 indirect and 2 other
+                                         * data elements in struct inode_disk */
 #define NUM_INDIRECT_FILE_SECTOR    128
 
 #define INDIRECT_ENTRY_IDX          NUM_DIRECT_FILE_SECTOR

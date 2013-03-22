@@ -9,19 +9,19 @@
 #include "threads/synch.h"
 #include "threads/thread.h"
   
-#define FBLOCK_U    0x1             // 1 = used,     0 = not used
-#define FBLOCK_D    0x2             // 1 = accessed, 0 = not accessed
-#define FBLOCK_A    0x4             // 1 = dirty,    0 = not dirty
-#define NUM_FBLOCKS 64              // Note: must be power of 2, may be partially hardcoded
+#define FBLOCK_U    0x1         // 1 = used,     0 = not used
+#define FBLOCK_D    0x2         // 1 = accessed, 0 = not accessed
+#define FBLOCK_A    0x4         // 1 = dirty,    0 = not dirty
+#define NUM_FBLOCKS 64          // Note: must be power of 2, may be partially hardcoded
 
 // A file block entry struct
 struct fblock_entry
 {
-    uint32_t status;                // Bits used to denote fblock status
-    block_sector_t inumber;         // File inode fblock belongs to
-    off_t start;                    // Start offset for fblock in file
-    block_sector_t sector;          // Sector for fblock on disk
-    struct lock in_use;             // Lock a fblock while modifying data
+    uint32_t status;            // Bits used to denote fblock status
+    block_sector_t inumber;     // File inode fblock belongs to
+    off_t start;                // Start offset for fblock in file
+    block_sector_t sector;      // Sector for fblock on disk
+    struct lock in_use;         // Lock a fblock while modifying data
 };
 
 // A file block struct

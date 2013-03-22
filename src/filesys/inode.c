@@ -53,7 +53,6 @@ struct inode {
     within INODE.
     Returns -1 if INODE does not contain data for a byte at offset
     POS. */
-// add_sector
 block_sector_t byte_to_sector(struct inode *inode, off_t pos) {
 
     off_t cache_idx;
@@ -121,7 +120,6 @@ block_sector_t byte_to_sector(struct inode *inode, off_t pos) {
 /*! This function adds a sector to an inode, and returns it success status.
     Length is externally synched. */
 static bool inode_add_sector(struct inode * inode) {
-    //TODO printf("INODE ADD SECTOR\n");
     off_t cache_idx;
     off_t dbl_table_idx;
     struct inode_disk *direct_data;
@@ -223,7 +221,6 @@ static bool inode_add_sector(struct inode * inode) {
 
 /*! This function removes a sector from an inode, length is externally synched. */
 static void inode_remove_sector(struct inode * inode) {
-    //TODO printf("INODE REMOVE SECTOR\n");
     off_t cache_idx;
     off_t dbl_table_idx;
     struct inode_disk *direct_data;
@@ -572,7 +569,7 @@ off_t inode_read_at(struct inode *inode, void *buffer_, off_t size, off_t offset
     uint8_t *buffer = buffer_;
     off_t bytes_read = 0;
 
-    // TODO: need to check length
+    // TODO: need to check length - dont think so? -shir
 
     while (size > 0) {
         /* Starting byte offset within sector. */
@@ -629,7 +626,7 @@ off_t inode_write_at(struct inode *inode, const void *buffer_, off_t size, off_t
         return 0;
     }
 
-    // If new file is extended, need to update length
+    /* If new file is extended, need to update length */
     if (offset + size > inode->length) {
 
         /* Get how many file sectors long the file currently is. */
@@ -724,12 +721,12 @@ off_t inode_length(const struct inode *inode) {
     // Write a function to give up ownership of blocks
 
 uint32_t inode_get_cache_block_idx(struct inode *inode, off_t offset, block_sector_t sector) {
-    // If it is not present, need to pull it from disk into the cache.
+    /* If it is not present, need to pull it from disk into the cache. */
     uint32_t idx = fblock_is_cached(inode_get_inumber(inode), offset);
     if (idx == (uint32_t) -1) {
         idx = fballoc_load_fblock(inode_get_inumber(inode), offset, sector);
     }
-    // Get the block index into the cache
+    /* Get the block index into the cache */
     return idx;
 }
 

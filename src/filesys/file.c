@@ -8,7 +8,6 @@
     and returns the new file.  Returns a null pointer if an
     allocation fails or if INODE is null. */
 struct file * file_open(struct inode *inode) {
-    // BUG: CALLOC ReTURNS NULL ON dir-mk-tree
     struct file *file = calloc(1, sizeof *file);
     if (inode != NULL && file != NULL) {
         file->inode = inode;
@@ -19,7 +18,6 @@ struct file * file_open(struct inode *inode) {
     else {
         inode_close(inode);
         free(file);
-        //TODO printf("no good: no more memory for file :(\n"); //DEBUG:
         return NULL;
     }
 }
@@ -134,7 +132,7 @@ off_t file_tell(struct file *file) {
 struct file * file_fid_to_f(fid_t fd, struct list * file_list) {
     struct list_elem *e;
     
-    // Ensure that list exists and is not empty 
+    /* Ensure that list exists and is not empty */
     if ((file_list == NULL) || (list_empty(file_list))) {
         return NULL;
     }
@@ -144,7 +142,7 @@ struct file * file_fid_to_f(fid_t fd, struct list * file_list) {
             return f_id->f;
         }
     }
-    // Not found if got here, return NULL pointer
+    /* Not found if got here, return NULL pointer */
     return NULL;
 }
 
@@ -153,17 +151,17 @@ struct file * file_fid_to_f(fid_t fd, struct list * file_list) {
 struct file_id * file_fid_to_f_id(fid_t fd, struct list * file_list) {
     struct list_elem *e;
     
-    // Ensure that list exists and is not empty 
+    /* Ensure that list exists and is not empty */
     if ((file_list == NULL) || (list_empty(file_list))) {
         return NULL;
     }
     for (e = list_begin(file_list); e != list_end(file_list); e = list_next(e)) {
         struct file_id *f_id = list_entry(e, struct file_id, elem);
         if (f_id->fid == fd) {
-            return f_id;    // If a matching id is found, return the pointer
+            return f_id;    /* If a matching id is found, return the pointer */
         }
     }
-    // Not found if got here, return NULL pointer
+    /* Not found if got here, return NULL pointer */
     return NULL;
 }
 

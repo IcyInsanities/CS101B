@@ -58,7 +58,7 @@ uint32_t fballoc_load_fblock(block_sector_t inumber, off_t start, block_sector_t
     // Queue next block
 
     // TODO!!!!!!!
-    //printf("Cache load %d of %d at %x\n", idx, fblock_entry_arr[idx].inumber, fblock_entry_arr[idx].start);
+    
     return idx;
 }
 

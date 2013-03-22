@@ -17,7 +17,7 @@ void free_map_init(void) {
         PANIC("bitmap creation failed--file system device is too large");
     bitmap_mark(free_map, FREE_MAP_SECTOR);
     bitmap_mark(free_map, ROOT_DIR_SECTOR);
-    // Initialize the lock for the free map
+    /* Initialize the lock for the free map */
     lock_init(&freemap_lock);
 }
 
@@ -27,7 +27,6 @@ void free_map_init(void) {
     available or if the free_map file could not be written. */
 bool free_map_allocate(size_t cnt, block_sector_t *sectorp) {
     /* Ensure only 1 thread is allocating from free map at a time */
-    // TODO: check nesting from current thread? only need to lock bitmap_scan_and_flip call?
     lock_acquire(&freemap_lock);
     block_sector_t sector = bitmap_scan_and_flip(free_map, 0, cnt, false);
     if (sector != BITMAP_ERROR && free_map_file != NULL &&
