@@ -45,7 +45,6 @@ struct inode {
     #ifdef FILESYS
     struct lock in_use;                 /*!< Lock for marking inode in use. */
     struct lock extending;              /*!< Lock for extending files. */
-    struct lock loading_to_cache;       /*!< Lock for loading into block cache. */
     #endif
 };
 
@@ -557,7 +556,6 @@ struct inode * inode_open(block_sector_t sector) {
     inode->is_dir = false;
     lock_init(&(inode->in_use));
     lock_init(&(inode->extending));
-    lock_init(&(inode->loading_to_cache));
     inode->length = length_from_disk(inode);
 
     return inode;

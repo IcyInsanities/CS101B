@@ -94,15 +94,15 @@ void fballoc_write_back(uint32_t idx)
     // Write data back if dirty
     if (fblock_is_used(fblock_entry_arr[idx].status) && fblock_is_dirty(fblock_entry_arr[idx].status))
     {
-        ASSERT(fblock_entry_arr[idx].inumber != -1);
+        ASSERT(fblock_entry_arr[idx].inumber != (block_sector_t) -1);
         if (!got_lock)
         {
             lock_acquire(&(fblock_entry_arr[idx].in_use));
         }
         block_sector_t sector = fblock_entry_arr[idx].sector;
-        block_write(fs_device, sector, (void*) &fblock_arr[idx]);
         // Mark file block as not dirty
         fblock_set_not_dirty(&fblock_entry_arr[idx].status);
+        block_write(fs_device, sector, (void*) &fblock_arr[idx]);
         // Done with block
         if (!got_lock)
         {
