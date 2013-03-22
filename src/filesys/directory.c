@@ -8,7 +8,8 @@
 #include "threads/malloc.h"
 #include "threads/synch.h"
 
-bool dir_add_obj(struct dir *dir, const char *name, block_sector_t inode_sector, bool is_dir);
+bool dir_add_obj(struct dir *dir, const char *name, block_sector_t inode_sector,
+                bool is_dir);
 
 /*! A directory. */
 struct dir {
@@ -27,10 +28,11 @@ struct dir_entry {
 /*! Creates a directory with space for ENTRY_CNT entries in the
     given SECTOR.  Returns true if successful, false on failure. */
 bool dir_create(block_sector_t sector, size_t entry_cnt, struct dir *parent) {
+    struct inode *inode;
     if (inode_create(sector, entry_cnt * sizeof(struct dir_entry))) {
         struct dir_entry e;
         /* Open directory to write initial entries */
-        struct inode *inode = inode_open(sector);
+        inode = inode_open(sector);
         if (inode == NULL) {
             return false;
         }
@@ -40,10 +42,9 @@ bool dir_create(block_sector_t sector, size_t entry_cnt, struct dir *parent) {
         e.in_use = true;
         e.is_dir = true;
         e.inode_sector = sector;
+        /* If write to created inode fails, creation of directory failed. */
         if (inode_write_at(inode, &e, sizeof(e), 0) != sizeof(e)) {
-            inode_remove(inode);
-            inode_close(inode);
-            return false;
+            goto dir_create_fail;
         }
         /* Write parent directory to file */
         e.name[0] = '.'; e.name[1] = '.'; e.name[2] = '\0';
@@ -54,27 +55,34 @@ bool dir_create(block_sector_t sector, size_t entry_cnt, struct dir *parent) {
         } else {
             e.inode_sector = inode_get_inumber(parent->inode);
         }
+        /* If write to created inode fails, creation of directory failed. */
         if (inode_write_at(inode, &e, sizeof(e), sizeof(e)) != sizeof(e)) {
-            inode_remove(inode);
-            inode_close(inode);
-            return false;
+            goto dir_create_fail;
         }
         inode_close(inode);
         return true;
     }
     return false;
+    
+    /* Clean up and return. */
+    dir_create_fail:
+        inode_remove(inode);
+        inode_close(inode);
+        return false;
 }
 
 /*! Opens and returns the directory for the given INODE, of which
     it takes ownership.  Returns a null pointer on failure. */
 struct dir * dir_open(struct inode *inode) {
     struct dir *dir = calloc(1, sizeof(*dir));
+    /* If directory was successfully allocated, initialize it. */
     if (inode != NULL && dir != NULL) {
         dir->inode = inode;
         inode_set_dir(dir->inode);
         dir->pos = sizeof(struct dir_entry) * 2;
         return dir;
     }
+    /* Otherwise, fail, return NULL. */
     else {
         inode_close(inode);
         free(dir);
@@ -171,8 +179,12 @@ bool dir_lookup(const struct dir *dir, const char *name, struct inode **inode) {
 
     return *inode != NULL;
 }
-/*! Lookup version that searches for a directory of the given name */
-bool dir_lookup_dir(const struct dir *dir, const char *name, struct inode **inode) {
+
+/*! Searches DIR for a subdirectory with the given NAME and returns true if one
+    exists, and false otherwise.  On success, sets *INODE to an inode for the 
+    subdirectory, otherwise to a null pointer.  The caller must close *INODE. */
+bool dir_lookup_dir(const struct dir *dir, const char *name, 
+                    struct inode **inode) {
     struct dir_entry e;
 
     ASSERT(dir != NULL);
@@ -187,8 +199,13 @@ bool dir_lookup_dir(const struct dir *dir, const char *name, struct inode **inod
 
     return *inode != NULL;
 }
-/*! Lookup version that finds either a file or a directory */
-bool dir_lookup_any(const struct dir *dir, const char *name, struct inode **inode) {
+
+/*! Searches DIR for a file or subdirectory with the given NAME and returns
+    true if one exists, and false otherwise.  On success, sets *INODE to an
+    inode for the subdirectory, otherwise to a null pointer.  The caller must
+    close *INODE. */
+bool dir_lookup_any(const struct dir *dir, const char *name, 
+                    struct inode **inode) {
     struct dir_entry e;
 
     ASSERT(dir != NULL);
@@ -221,11 +238,17 @@ bool dir_add(struct dir *dir, const char *name, block_sector_t inode_sector) {
     Returns true if successful, false on failure.
     Fails if NAME is invalid (i.e. too long) or a disk or memory
     error occurs. */
-bool dir_add_dir(struct dir *dir, const char *name, block_sector_t inode_sector) {
+bool dir_add_dir(struct dir *dir, const char *name,
+                block_sector_t inode_sector) {
     return dir_add_obj(dir, name, inode_sector, true);
 }
 
-bool dir_add_obj(struct dir *dir, const char *name, block_sector_t inode_sector, bool is_dir) {
+/*! Adds a file or directory named NAME to DIR, which must not already contain a 
+    file or directory by that name.  The directory's inode is in sector
+    INODE_SECTOR.  Returns true if successful, false on failure.  Fails if
+    NAME is invalid (i.e. too long) or a disk or memory error occurs. */
+bool dir_add_obj(struct dir *dir, const char *name, block_sector_t inode_sector,
+                bool is_dir) {
 
     struct dir_entry e;
     off_t ofs;
@@ -234,6 +257,7 @@ bool dir_add_obj(struct dir *dir, const char *name, block_sector_t inode_sector,
     ASSERT(dir != NULL);
     ASSERT(name != NULL);
 
+    /* Acquire the lock to access the inode of DIR. */
     inode_in_use_acquire(dir->inode);
     
     /* Check NAME for validity. */
@@ -267,6 +291,7 @@ bool dir_add_obj(struct dir *dir, const char *name, block_sector_t inode_sector,
     e.is_dir = is_dir;
     success = inode_write_at(dir->inode, &e, sizeof(e), ofs) == sizeof(e);
 
+/* Done, release the lock on the inode. */
 done:
     inode_in_use_release(dir->inode);
     return success;
@@ -274,7 +299,7 @@ done:
 }
 
 /*! Removes any entry for NAME in DIR.  Returns true if successful, false on
-    failure, which occurs only if there is no file with the given NAME. */
+    failure, which occurs only if there is no entry with the given NAME. */
 bool dir_remove(struct dir *dir, const char *name) {
     struct dir_entry e;
     struct inode *inode = NULL;
@@ -286,6 +311,7 @@ bool dir_remove(struct dir *dir, const char *name) {
     ASSERT(dir != NULL);
     ASSERT(name != NULL);
     
+    /* Acquire the lock to access the inode of DIR. */
     inode_in_use_acquire(dir->inode);
     
     /* Find directory entry. */
@@ -311,6 +337,8 @@ bool dir_remove(struct dir *dir, const char *name) {
     inode_remove(inode);
     success = true;
 
+/* Done, release the lock on the inode. Make sure to close the directory if it
+   is one. */
 done:
     if (is_dir) {
         dir_close(dir_rm);
@@ -320,7 +348,10 @@ done:
     inode_in_use_release(dir->inode);
     return success;
 }
-/* This variant removes only directories */
+
+/*! Removes a subdirectory for NAME in DIR.  Returns true if successful,
+    false on failure, which occurs only if there is no subdirectory with the
+    given NAME. */
 bool dir_remove_dir(struct dir *dir, const char *name) {
     struct dir_entry e;
     struct inode *inode = NULL;
@@ -332,6 +363,7 @@ bool dir_remove_dir(struct dir *dir, const char *name) {
     ASSERT(dir != NULL);
     ASSERT(name != NULL);
 
+    /* Acquire the lock to access the inode of DIR. */
     inode_in_use_acquire(dir->inode);
     
     /* Find directory entry. */
@@ -360,6 +392,8 @@ bool dir_remove_dir(struct dir *dir, const char *name) {
     inode_remove(inode);
     success = true;
 
+/* Done, release the lock on the inode. Make sure to close the directory if it
+is one. */
 done:
     if (is_dir) {
         dir_close(dir_rm);
@@ -370,7 +404,8 @@ done:
     return success;
 }
 
-/*! Returns true if a directory is empty and contains no files or subdirectories */
+/*! Returns true if a directory is empty and contains no files or 
+    subdirectories */
 bool dir_empty(struct dir *dir) {
     char trash[NAME_MAX+1];
     off_t pos_orig = dir->pos;
@@ -379,6 +414,8 @@ bool dir_empty(struct dir *dir) {
     dir->pos = pos_orig;
     return !not_empty;
 }
+
+/*! Returns TRUE if directory is removed, false otherwise. */
 bool dir_is_removed(struct dir *dir) {
     return inode_is_removed(dir->inode);
 }
