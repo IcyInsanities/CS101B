@@ -49,7 +49,7 @@ struct inode {
     #endif
 };
 
-// Acquire and release lock on an inode in_use
+/* Acquire and release lock on an inode in_use */
 void inode_in_use_acquire(struct inode *inode)
 {
     lock_acquire(&(inode->in_use));
@@ -170,6 +170,7 @@ static bool inode_add_sector(struct inode * inode) {
     cache_idx1 = inode_get_cache_block_idx(inode, DIRECT_BLOCK_OFFSET, inode->sector);
     fblock_add_user(cache_idx1);
     fblock_mark_write(cache_idx1);
+    direct_data = (struct inode_disk *) fballoc_idx_to_addr(cache_idx1);
     sector_tbl = direct_data->sector_list;
 
     /* Check if it is a direct sector. */
@@ -347,15 +348,20 @@ static void inode_remove_sector(struct inode * inode) {
 }
 static off_t length_from_disk(struct inode * inode) {
     uint32_t idx = inode_get_cache_block_idx(inode, DIRECT_BLOCK_OFFSET, inode->sector);
+    fblock_add_user(idx);
     struct inode_disk * disk = (struct inode_disk *) fballoc_idx_to_addr(idx);
     fblock_mark_read(idx);
-    return disk->length;
+    off_t length = disk->length;
+    fblock_rm_user(idx);
+    return length;
 }
 static void length_set_on_disk(struct inode * inode, off_t length) {
     uint32_t idx = inode_get_cache_block_idx(inode, DIRECT_BLOCK_OFFSET, inode->sector);
+    fblock_add_user(idx);
     struct inode_disk * disk = (struct inode_disk *) fballoc_idx_to_addr(idx);
     fblock_mark_write(idx);
     disk->length = length;
+    fblock_rm_user(idx);
 }
 
 
@@ -642,10 +648,10 @@ off_t inode_read_at(struct inode *inode, void *buffer_, off_t size, off_t offset
         void *cache_block = fballoc_idx_to_addr(block_idx);
 
         /* Read the chunk from the cache block. */
-        fblock_lock_acquire(block_idx);
+        fblock_add_user(block_idx);
         memcpy(buffer + bytes_read, cache_block + sector_ofs, chunk_size);
         fblock_mark_read(block_idx);
-        fblock_lock_release(block_idx);
+        fblock_rm_user(block_idx);
 
         /* Advance. */
         size -= chunk_size;
@@ -728,10 +734,10 @@ off_t inode_write_at(struct inode *inode, const void *buffer_, off_t size, off_t
         void *cache_block = fballoc_idx_to_addr(block_idx);
 
         /* Write chunk to the cache block */
-        fblock_lock_acquire(block_idx);
+        fblock_add_user(block_idx);
         memcpy(cache_block + sector_ofs, buffer + bytes_written, chunk_size);
         fblock_mark_write(block_idx);
-        fblock_lock_release(block_idx);
+        fblock_rm_user(block_idx);
 
         /* Advance. */
         size -= chunk_size;
@@ -763,15 +769,7 @@ off_t inode_length(const struct inode *inode) {
     return inode->length;
 }
 
-
-// TODO:
-
-    // Write a "is_accessible() function based on locks?
-    // Write a function to take ownership of blocks_owned
-    // Write a function to check if any blocks are owned
-    // Write a function to check if a specific block is owned?
-    // Write a function to give up ownership of blocks
-
+/* Get the index of a block in cache, or load and then return the index */
 uint32_t inode_get_cache_block_idx(struct inode *inode, off_t offset, block_sector_t sector) {
     /* If it is not present, need to pull it from disk into the cache. */
     uint32_t idx = fblock_is_cached(inode_get_inumber(inode), offset);

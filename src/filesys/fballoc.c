@@ -51,6 +51,7 @@ uint32_t fballoc_load_fblock(block_sector_t inumber, off_t start, block_sector_t
     fblock_entry_arr[idx].inumber = inumber;
     fblock_entry_arr[idx].start = start & ~(BLOCK_SECTOR_SIZE-1);
     fblock_entry_arr[idx].sector = sector;
+    ASSERT(fblock_entry_arr[idx].num_users == 0);
     // Read in data
     block_read(fs_device, fblock_entry_arr[idx].sector, (void*) &fblock_arr[idx]);
     // Done with block setup
@@ -77,6 +78,7 @@ void fballoc_free_fblock(uint32_t idx)
         fblock_entry_arr[idx].inumber = -1;
         fblock_entry_arr[idx].start = 0;
         fblock_entry_arr[idx].sector = 0;
+        ASSERT(fblock_entry_arr[idx].num_users == 0);
         // Done with block
         lock_release(&(fblock_entry_arr[idx].in_use));
     }
