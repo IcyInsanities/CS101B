@@ -727,7 +727,7 @@ off_t inode_write_at(struct inode *inode, const void *buffer_, off_t size, off_t
             inode_add_sector(inode, inode->length + BLOCK_SECTOR_SIZE * i);
         }
 
-        length_set_on_disk(inode, inode->length);
+        length_set_on_disk(inode, offset + size);
         inode->length = offset + size;
 
         /* NOTE: do not need to put last block into cache, it will get loaded by
