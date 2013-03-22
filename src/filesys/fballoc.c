@@ -60,7 +60,7 @@ uint32_t fballoc_load_fblock(block_sector_t inumber, off_t start, block_sector_t
     // Queue next block
 
     // TODO!!!!!!!
-    
+
     return idx;
 }
 
@@ -92,8 +92,9 @@ void fballoc_write_back(uint32_t idx)
     // Need to check if thread already locked block and avoid using lock
     bool got_lock = lock_held_by_current_thread(&(fblock_entry_arr[idx].in_use));
     // Write data back if dirty
-    if (fblock_is_dirty(fblock_entry_arr[idx].status))
+    if (fblock_is_used(fblock_entry_arr[idx].status) && fblock_is_dirty(fblock_entry_arr[idx].status))
     {
+        ASSERT(fblock_entry_arr[idx].inumber != -1);
         if (!got_lock)
         {
             lock_acquire(&(fblock_entry_arr[idx].in_use));
@@ -264,18 +265,15 @@ void fblock_rm_user(uint32_t idx)
 uint32_t fblock_is_cached(block_sector_t inumber, off_t offset)
 {
     off_t start = offset & ~(BLOCK_SECTOR_SIZE-1);
-    //printf("Finding %d at %x in cache ", inumber, start);
     uint32_t i;
     for (i = 0; i < NUM_FBLOCKS; ++i)
     {
         struct fblock_entry *e = &(fblock_entry_arr[i]);
         if (e->inumber == inumber && e->start == start) {
             ASSERT(fblock_is_used(e->status)); // Ensure block is in use
-            //printf(" at %d\n", i);
             return i;
         }
     }
-    //printf(" failed\n");
     return -1;
 }
 // Check if a cache block is owned by the given inumber
