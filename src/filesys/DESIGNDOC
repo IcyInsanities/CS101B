@@ -45,28 +45,36 @@ submission of the userprogram project code.
 
 global variables (moved, in inode.c)
     static char zeros[BLOCK_SECTOR_SIZE]
-        TODO
+        This is simply an array of zeros to write to disk in allocating new
+        sectors. Moved to global so multiple functions can use.
 struct inode_disk (modified, in inode.c)
     block_sector_t sector_list[NUM_DIRECT_FILE_SECTOR + 2]
-        TODO
+        Store the list of direct mappings in inode_disk, filling up all extra
+        space. 2 elements reserved for indirect and doubly indirect sectors.
     uint32_t unused[125]
-        TODO
+        Deleted element, all space in inode_disk is now utilized
 struct inode_disk_fs (created, in inode.c)
     block_sector_t sector_list[NUM_INDIRECT_FILE_SECTOR]
-        TODO
+        Store list of mappings, fills up a full sector exactly and can be used
+        for the indirect or doubly indirect mapping lists.
 struct inode (modified, in inode.c)
     off_t length
-        TODO
+        Length of file inode represents, copy of the length saved on disk to
+        minimize reading from disk just to get length.
     struct lock extending
-        TODO
+        This lock is used to indicate that inode is being extended and
+        synchronize the extension process.
     struct inode_disk data
-        TODO
+        Deleted element, inode_disk data is now loaded based on the sector of
+        the inode and goes through the block cache system.
 global variables (removed, filesys.c)
     struct lock filesys_lock
-        TODO
+        Removed, this was top level lock to allow only one process at a time in
+        the file system and is not necessary anymore.
 global variables (added, in freemap.c)
     struct lock freemap_lock
-        TODO
+        This lock was added so that multiple sector allocation requests cannot
+        accidentally return the same sector twice.
 
 >> A2: What is the maximum size of a file supported by your inode
 >> structure?  Show your work.
@@ -197,15 +205,19 @@ the offset conversion cost minimization tradeoff is worth it.
 
 struct thread (added, in thread.c)
     struct dir *curr_dir
-        TODO
-struct directory (added field, in directory.c)
+        This is a pointer to the current working directory of a thread for use
+        in relative path addressing.
+struct dir_entry (added field, in directory.c)
     bool is_dir
-        TODO
+        This marks a directory entry as contained a subdirectory rather than a
+        file.
 struct inode (modified, in inode.c)
     bool is_dir
-        TODO
+        This marks an inode as representing a directory rather than a file, and
+        thus is used to prevent the user from writing to a directory themselves.
     struct lock in_use
-        TODO
+        This lock is used to mark a directory inode as in use during the
+        creation or removal of entries for synchronization.
 
 ---- ALGORITHMS ----
 
@@ -292,25 +304,34 @@ paths, there seemed to be no reason to have any special structures for them.
 
 struct fblock_entry (created, in fballoc.h)
     uint32_t status
-        TODO
+        This holds the status bits for an entry marking if it is in use, has
+        been accessed, and if it is dirty.
     block_sector_t inumber
-        TODO
+        This is used to uniquely identify the inode that an entry belongs to and
+        prevents a block from accidentally belonging to a new inode at the same
+        memory location of the previous.
     off_t start
-        TODO
+        This is the starting offset of the block, used to check if an offset pf
+        a given inumber is already in the cache.
     block_sector_t sector
-        TODO
+        This is the disk sector which holds the data for the given inode and
+        offset, used to load and write back data.
     struct lock in_use
-        TODO
+        This lock marks that the cache block is is in use so that the num_users
+        can be updated, or it can be loaded/evicted.
     uint32_t num_users
-        TODO
+        This keeps count of how many process are reading or writing to the cache
+        block for synchronization purposes.
 struct fblock (created, in fballoc.h)
     uint8_t data[BLOCK_SECTOR_SIZE]
-        TODO
+        This struct simply takes up the space of a sector so that a list of them
+        can be used to represent and index the block cache.
 global variables (added, in fballoc.c)
     static struct fblock *fblock_arr
-        TODO
+        The actual block cache, saved as an array of fblock elements.
     static struct fblock_entry *fblock_entry_arr
-        TODO
+        A list containing the metadata associated with each fblock that the
+        cache has.
 
 ---- ALGORITHMS ----
 
