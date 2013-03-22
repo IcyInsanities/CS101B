@@ -650,11 +650,13 @@ off_t inode_write_at(struct inode *inode, const void *buffer_, off_t size, off_t
     if (inode->deny_write_cnt) {
         return 0;
     }
-
+    
     /* If new file is extended, need to update length */
     if (offset + size > inode->length) {
+        /* Acquire lock to extend file. */
+        lock_acquire(&inode->extending);
 
-        /* Get how many file sectors long the file currently is. */
+        /* Get how many file sectors long the file cucqently is. */
         curr_file_len = bytes_to_sectors(inode->length);
 
         /* Get how many file sectors long file must be to complete write. */
@@ -675,6 +677,9 @@ off_t inode_write_at(struct inode *inode, const void *buffer_, off_t size, off_t
 
         /* NOTE: do not need to put last block into cache, it will get loaded by
          * the write below. */
+         
+        /* Done extending, release the lock. */
+        lock_release(&inode->extending);
     }
 
     while (size > 0) {
