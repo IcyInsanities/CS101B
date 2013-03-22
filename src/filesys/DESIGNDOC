@@ -169,7 +169,7 @@ being used at a time.
     Yes, we used a system very similar to the traditional direct, indirect, and
 doubly indirect hierachy. An inode struct knows only what sector on the disk the
 direct mappings reside on, which must be loaded and accessed each time when
-translating an offset to a disk sector. As inode_disk must be an entrie sector,
+translating an offset to a disk sector. As inode_disk must be an entire sector,
 we allow it to hold as many direct entries as possible, or 124 sectors. Thus
 files up to 62kb can be direct map, and will incur only 1 extra sector load to
 find an offset in the file (which in practice the direct sector will likely be
@@ -343,7 +343,7 @@ Since the cache is small, we check all 64 cache blocks to find the first one
 relative to the clock hand which falls in the categories of not accessed and not
 dirty (na/nd), not accessed but dirty (na/d), accessed and not dirty (a/nd), and
 accessed and dirty (a/d). The a/d block is always the one directly after the
-hand, which was the alst evicted cache block.
+hand, which was the last evicted cache block.
     Now, if any block is not in use, it is immediately returned and the hand is
 unaffected. If all blocks are in use, the the first na/nd block is returned. If
 no such block, the the first na/d is returned. In either case, the accessed bit
@@ -477,7 +477,7 @@ fully written to by the process. The read-ahead will speed up the case where a
 write/read has moved into the next sector as it will already be in the cache.
     However, if a system is accessing a very large number of files relative to
 the cache size, or reading/writing to a large variety of locations, then the
-read-ahead will simply cause trashing in the cache and unnecessary disk reads
+read-ahead will simply cause thrashing in the cache and unnecessary disk reads
 since the assumption that the next block will be used fails. Even the
 write-behind becomes somewhat less effective as it would be slightly faster to
 directly read/write the small chunks being used instead of entire sectors at
