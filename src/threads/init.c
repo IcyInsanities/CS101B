@@ -129,8 +129,8 @@ int main(void) {
     thread_init_vals(); /* Reset mlqfs values to known state */
 
 #ifdef FILESYS
-    fballoc_init();
     /* Initialize file system. */
+    fballoc_init();
     ide_init();
     locate_block_devices();
     filesys_init(format_filesys);

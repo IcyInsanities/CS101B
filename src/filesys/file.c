@@ -41,7 +41,8 @@ void file_close(struct file *file) {
 struct inode * file_get_inode(struct file *file) {
     return file->inode;
 }
-/*! Returns the inode encapsulated by FILE. */
+
+/*! Returns block sector encapsulated by FILE. */
 block_sector_t file_get_inode_sector(struct file *file) {
     return inode_get_inumber(file->inode);
 }

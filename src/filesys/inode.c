@@ -146,8 +146,8 @@ block_sector_t byte_to_sector(struct inode *inode, off_t pos) {
     return -1;
 }
 
-/*! This function adds a sector to an inode, and returns it success status.
-    Length is externally synched. */
+/*! Adds a sector to an inode, returning true if successful, and false
+    otherwise.  Note that length is externally synched. */
 static bool inode_add_sector(struct inode * inode, off_t length) {
     off_t cache_idx1, cache_idx2, cache_idx3, cache_idx4;
     off_t dbl_table_idx;
@@ -264,7 +264,7 @@ static bool inode_add_sector(struct inode * inode, off_t length) {
     return true;
 }
 
-/*! This function removes a sector from an inode, length is externally synched. */
+/*! Removes a sector from an inode.  Note that length is externally synched. */
 static void inode_remove_sector(struct inode * inode) {
     off_t cache_idx1, cache_idx2, cache_idx3, cache_idx4;
     off_t dbl_table_idx;
@@ -361,6 +361,8 @@ static void inode_remove_sector(struct inode * inode) {
     }
     free_map_release(sector, 1);
 }
+
+/*! Returns the length of INODE from the disk. */
 static off_t length_from_disk(struct inode * inode) {
     uint32_t idx = inode_get_cache_block_idx(inode, DIRECT_BLOCK_OFFSET, inode->sector);
     fblock_add_user(idx);
@@ -370,6 +372,8 @@ static off_t length_from_disk(struct inode * inode) {
     fblock_rm_user(idx);
     return length;
 }
+
+/*! update the length of INODE. */
 static void length_set_on_disk(struct inode * inode, off_t length) {
     uint32_t idx = inode_get_cache_block_idx(inode, DIRECT_BLOCK_OFFSET, inode->sector);
     fblock_add_user(idx);
@@ -417,8 +421,8 @@ bool inode_create(block_sector_t direct_sector, off_t length) {
         direct_data->length = length;
         direct_data->magic = INODE_MAGIC;
         for (i = 0; i < sectors; i++) {
+            /* Allocation failed, clean up. */
             if (!free_map_allocate(1, &sector)) {
-                // TODO: clean up correctly
                 goto clean_up;
             }
             block_write(fs_device, sector, zeros);
@@ -434,13 +438,13 @@ bool inode_create(block_sector_t direct_sector, off_t length) {
                 if (i == NUM_DIRECT_FILE_SECTOR) {
                     ASSERT(indirect_data == NULL);
                     indirect_data = calloc(1, sizeof(struct inode_disk_fs));
+                    /* Allocation failed, clean up. */
                     if (indirect_data == NULL) {
-                        // TODO: clean up correctly
                         goto clean_up;
                     }
                     block_sector_t meta_sector = 0;
+                    /* Allocation failed, clean up. */
                     if (!free_map_allocate(1, &meta_sector)) {
-                        // TODO: clean up correctly
                         goto clean_up;
                     }
                     direct_data->sector_list[INDIRECT_ENTRY_IDX] = meta_sector;
@@ -457,13 +461,13 @@ bool inode_create(block_sector_t direct_sector, off_t length) {
                 if (j == 0) {
                     ASSERT(dbl_indirect_data == NULL);
                     dbl_indirect_data = calloc(1, sizeof(struct inode_disk_fs));
+                    /* Allocation failed, clean up. */
                     if (dbl_indirect_data == NULL) {
-                        // TODO: clean up correctly
                         goto clean_up;
                     }
                     block_sector_t meta_sector = 0;
+                    /* Allocation failed, clean up. */
                     if (!free_map_allocate(1, &meta_sector)) {
-                        // TODO: clean up correctly
                         goto clean_up;
                     }
                     direct_data->sector_list[DBL_INDIRECT_ENTRY_IDX] = meta_sector;
@@ -476,13 +480,13 @@ bool inode_create(block_sector_t direct_sector, off_t length) {
                 if (j % NUM_INDIRECT_FILE_SECTOR == 0) {
                     ASSERT(dbl_indirect_sub_data == NULL);
                     dbl_indirect_sub_data = calloc(1, sizeof(struct inode_disk_fs));
+                    /* Allocation failed, clean up. */
                     if (dbl_indirect_sub_data == NULL) {
-                        // TODO: clean up correctly
                         goto clean_up;
                     }
                     block_sector_t meta_sector = 0;
+                    /* Allocation failed, clean up. */
                     if (!free_map_allocate(1, &meta_sector)) {
-                        // TODO: clean up correctly
                         goto clean_up;
                     }
                     dbl_indirect_data->sector_list[dbl_table_idx] = meta_sector;
@@ -501,13 +505,16 @@ bool inode_create(block_sector_t direct_sector, off_t length) {
         success = true;
     }
 
+    /* Clean everything up. */
     clean_up:
     if (indirect_data != NULL) {
+        /* Must write to disk if successful. */
         if (success)
             block_write(fs_device, direct_data->sector_list[INDIRECT_ENTRY_IDX], indirect_data);
         free(indirect_data);
     }
     if (dbl_indirect_data != NULL) {
+        /* Must write to disk if successful. */
         if (success)
             block_write(fs_device, direct_data->sector_list[DBL_INDIRECT_ENTRY_IDX], dbl_indirect_data);
         free(dbl_indirect_data);
@@ -516,6 +523,7 @@ bool inode_create(block_sector_t direct_sector, off_t length) {
         free(dbl_indirect_sub_data);
     }
     if (direct_data != NULL) {
+        /* Must write to disk if successful. */
         if (success)
             block_write(fs_device, direct_sector, direct_data);
         free(direct_data);
@@ -527,7 +535,6 @@ bool inode_create(block_sector_t direct_sector, off_t length) {
 /*! Reads an inode from SECTOR
     and returns a `struct inode' that contains it.
     Returns a null pointer if memory allocation fails. */
-// TODO: UPDATE TO PULL FIRST BLCOK OF FILE INTO CACHE
 struct inode * inode_open(block_sector_t sector) {
     struct list_elem *e;
     struct inode *inode;
@@ -592,7 +599,6 @@ void inode_close(struct inode *inode) {
 
     /* Release resources if this was the last opener. */
     if (--inode->open_cnt == 0) {
-        // TODO: need to lock file from being touched by others
         /* Write back blocks to disk and free them */
         uint32_t i;
         for (i = 0; i < NUM_FBLOCKS; ++i) {
@@ -624,6 +630,8 @@ void inode_remove(struct inode *inode) {
     ASSERT(inode != NULL);
     inode->removed = true;
 }
+
+/*! Returns true if INODE has been removed, and false otherwise. */
 bool inode_is_removed(struct inode *inode) {
     ASSERT(inode != NULL);
     return (inode->removed);
@@ -695,6 +703,7 @@ off_t inode_write_at(struct inode *inode, const void *buffer_, off_t size, off_t
     off_t ext_file_len;
     off_t num_sec_to_alloc;
 
+    /* If writes are denied, don't write. */
     if (inode->deny_write_cnt) {
         return 0;
     }
@@ -723,7 +732,6 @@ off_t inode_write_at(struct inode *inode, const void *buffer_, off_t size, off_t
 
         /* If more sectors must be allocated, allocate. */
         for (i = 0; i < num_sec_to_alloc; i++) {
-            // TODO: need to check for success
             inode_add_sector(inode, inode->length + BLOCK_SECTOR_SIZE * i);
         }
 

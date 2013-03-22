@@ -38,8 +38,8 @@ void filesys_init(bool format) {
 /*! Shuts down the file system module, writing any unwritten data to disk. */
 void filesys_done(void) {
     uint32_t i;
-    // TODO: Prevent new blocks from being loaded?
-    // TODO: Clear read_ahead queue
+    
+    /* Free all blocks in the cache, writing them back to disk. */
     for (i = 0; i < NUM_FBLOCKS; ++i) {
         fballoc_free_fblock(i);
     }
@@ -47,38 +47,50 @@ void filesys_done(void) {
     inode_force_close_all();
 }
 
-/*! Creates a file named NAME with the given INITIAL_SIZE.  Returns true if
-    successful, false otherwise.  Fails if a file named NAME already exists,
-    or if internal memory allocation fails. */
+/*! Creates a file specified by the path NAME with the given INITIAL_SIZE.
+    Returns true if successful, false otherwise.  Fails if a file or directory
+    named NAME already exists, or if internal memory allocation fails. */
 bool filesys_create(const char *name, off_t initial_size) {
     block_sector_t inode_sector = 0;
     struct dir *dir = NULL;
     char name_file[NAME_MAX + 1];
 
-    bool success = (!filesys_parse_path_split(name, &dir, name_file) && /* Can't / terminate */
+    /* Parse the path, create an inode for the new file, and add it to the
+       directory. Note that the path must not be terminated with '/'. */
+    bool success = (!filesys_parse_path_split(name, &dir, name_file) &&
                     dir != NULL && !dir_is_removed(dir) &&
                     free_map_allocate(1, &inode_sector) &&
                     inode_create(inode_sector, initial_size) &&
                     dir_add(dir, name_file, inode_sector));
+    /* If file was not successfully created, clean up. */
     if (!success && inode_sector != 0)
         free_map_release(inode_sector, 1);
+    /* Close the parent directory once done. */
     dir_close(dir);
 
     return success;
 }
-/*! Create variant that creates a directory, default size space for 5 entries.
-    This is arbitrary, but will get extended as needed. */
+
+/*! Creates a directory specified by the path NAME with a default size space for 
+    5 entries.  Returns true if sucessful, false otherwise.  Fails if a file or
+    directory named NAME already exists, or if internal memory allocation
+    fails. */
 bool filesys_create_dir(const char *name) {
     block_sector_t inode_sector = 0;
     struct dir *dir = NULL;
     char name_file[NAME_MAX + 1];
-    filesys_parse_path_split(name, &dir, name_file); /* Don't care if / terminate */
+    
+    /* Parse the path, create an inode for the new directory, and add it to the
+       directory. Note that the path may or may not be terminated with '/'. */
+    filesys_parse_path_split(name, &dir, name_file);
     bool success = (dir != NULL && !dir_is_removed(dir) &&
                     free_map_allocate(1, &inode_sector) &&
                     dir_create(inode_sector, 5, dir) &&
                     dir_add_dir(dir, name_file, inode_sector));
+    /* If directory was not successfully created, clean up. */
     if (!success && inode_sector != 0)
         free_map_release(inode_sector, 1);
+    /* Close the parent directory once done. */
     dir_close(dir);
 
     return success;
@@ -92,15 +104,21 @@ struct file * filesys_open(const char *name) {
     struct inode *inode = NULL;
     char name_file[NAME_MAX + 1];
 
+    /* Parse the path, check if it was terminated with a '/'. */
     bool slash_term = filesys_parse_path_split(name, &dir, name_file);
+    
+    /* Proceed if parent directory is valid. */
     if (dir != NULL && !dir_is_removed(dir)) {
+        /* If path was '/' terminated, must be a directory. */
         if (slash_term) {
             dir_lookup_dir(dir, name_file, &inode);
+        /* Otherwise, could be a file or directory. */
         } else {
             dir_lookup_any(dir, name_file, &inode);
         }
     }
     
+    /* Close the parent directory once done. */
     dir_close(dir);
 
     /* Open file or directory correctly */
@@ -120,14 +138,21 @@ bool filesys_remove(const char *name) {
     char name_file[NAME_MAX + 1];
     bool success = false;
 
+    /* Parse the path, check if it was terminated with a '/'. */
     bool slash_term = filesys_parse_path_split(name, &dir, name_file);
+    
+    /* Proceed if parent directory is valid. */
     if (dir != NULL && !dir_is_removed(dir)) {
+        /* If path was '/' terminated, must be a directory. */
         if (slash_term) {
             success = dir_remove_dir(dir, name_file);
+        /* Otherwise, could be a file or directory. */
         } else {
             success = dir_remove(dir, name_file);
         }
     }
+    
+    /* Close the parent directory once done. */
     dir_close(dir);
     
     return success;
@@ -143,16 +168,19 @@ static void do_format(void) {
     printf("done.\n");
 }
 
-/*! Changes the current working directory to the given directory */
+/*! Changes the current working directory to the given directory sepcified by
+    by the path NAME. */
 bool filesys_change_cwd(const char *name) {
     struct thread *t = thread_current();
-    /* Make a copy in case parsing path fails */
+    /* Make a copy in case parsing path fails. */
     struct dir * temp_cpy = t->curr_dir;
-    /* Check if parsing path failed and restore original cwd */
+    /* Check if parsing path failed and restore original cwd. */
     t->curr_dir = filesys_parse_path(name);
+    /* If the new current directory is invalid, just use the old one. */
     if (t->curr_dir == NULL) {
-        t->curr_dir = temp_cpy;;
+        t->curr_dir = temp_cpy;
         return false;
+    /* Otherwise, close the old current directory and use the new one. */
     } else {
         dir_close(temp_cpy);
         return true;
@@ -174,6 +202,7 @@ bool filesys_parse_path_split(const char *path, struct dir **dir, char *name) {
 
     path_tokens = malloc(path_len);
     ASSERT(path_tokens != NULL);
+    
     /* The starting parent directory is the current directory. */
     *dir = dir_reopen(thread_current()->curr_dir);
     /* If there is a '/' at the start, must go to root. */
@@ -187,8 +216,7 @@ bool filesys_parse_path_split(const char *path, struct dir **dir, char *name) {
             return true;
         }
     }
-
-
+    
     /* Copy the path so it can be tokenized. */
     strlcpy(path_tokens, path, path_len);
 
@@ -222,6 +250,7 @@ bool filesys_parse_path_split(const char *path, struct dir **dir, char *name) {
         curr_name = new_name;
     }
 
+    /* Name cannot be .., as it has no accessable parent. */
     if (streq(curr_name, "..")) {
         goto filesys_parse_path_split_done_fail;
     }
@@ -230,11 +259,14 @@ bool filesys_parse_path_split(const char *path, struct dir **dir, char *name) {
     if (strlen(curr_name) > NAME_MAX) {
         goto filesys_parse_path_split_done_fail;
     }
+    
+    /* Copy the parsed name to buffer and clean up. */
     strlcpy(name, curr_name, strlen(curr_name) + 1);
     free(path_tokens);
     
     return slash_at_end;
     
+/* On failure, clean up and return failure values. */
 filesys_parse_path_split_done_fail:
     dir_close(*dir);
     *dir = NULL;
@@ -259,33 +291,40 @@ struct dir *filesys_parse_path(const char *path) {
         dir_close(dir);
         dir = dir_open_root();
     }
-
+    
     path_tokens = malloc(path_len);
     if (path_tokens == NULL) {
         dir_close(dir);
         return NULL;
     }
+    
+    /* Copy the path so it can be tokenized. */
     strlcpy(path_tokens, path, path_len);
 
+    /* Get the first name in the path. */
     dir_name = strtok_r(path_tokens, "/", &save_ptr);
+    
+    /* If valid directory, close current directory and move to next one. */
     if (dir_lookup_dir(dir, dir_name, &curr_inode)) {
         dir_close(dir);
-        /* Get the next directory */
         dir = dir_open(curr_inode);
     }
+    /* Otherwise, parse failed, clean up and return. */
     else {
         dir_close(dir);
         free(path_tokens);
         return NULL;
     }
 
+    /* Loop through each name in the path. */
     for (dir_name = strtok_r(NULL, "/", &save_ptr); dir_name != NULL;
          dir_name = strtok_r(NULL, "/", &save_ptr)) {
+         /* If valid directory, close current directory and move to next one. */
         if (dir_lookup_dir(dir, dir_name, &curr_inode)) {
             dir_close(dir);
-            /* Get the next directory */
             dir = dir_open(curr_inode);
         }
+        /* Otherwise, parse failed, clean up and return. */
         else {
             dir_close(dir);
             free(path_tokens);
@@ -293,6 +332,7 @@ struct dir *filesys_parse_path(const char *path) {
         }
     }
     
+    /* Done parsing path, clean up and return directory. */
     free(path_tokens);
     return dir;
 }

@@ -5,14 +5,25 @@
 #include "filesys/off_t.h"
 #include "devices/block.h"
 
-#define NUM_DIRECT_FILE_SECTOR      124 /* Leave space for 2 indirect and 2 other
-                                         * data elements in struct inode_disk */
-#define NUM_INDIRECT_FILE_SECTOR    128
+#define NUM_DIRECT_FILE_SECTOR      124 /* Leave space for 2 indirect and 2
+                                         * other data elements in struct
+                                         * inode_disk */
+#define NUM_INDIRECT_FILE_SECTOR    128 /* Fill inode_disk with indirect file
+                                         * file sectors. */
 
+/* Index of indirect entry in the direct file sector table. */
 #define INDIRECT_ENTRY_IDX          NUM_DIRECT_FILE_SECTOR
+
+/* Index of double indirect entry in the direct file sector table. */
 #define DBL_INDIRECT_ENTRY_IDX      NUM_DIRECT_FILE_SECTOR+1
+
+/* Offset indicator for block containing the direct file sector table. */
 #define DIRECT_BLOCK_OFFSET         0x10000000
+
+/* Offset indicator for the indirect file sector table. */
 #define INDIRECT_BLOCK_OFFSET       DIRECT_BLOCK_OFFSET + BLOCK_SECTOR_SIZE
+
+/* Offset indicator for the double indirect file sector table. */
 #define DBL_INDIRECT_BLOCK_OFFSET   INDIRECT_BLOCK_OFFSET + BLOCK_SECTOR_SIZE
 
 struct bitmap;
