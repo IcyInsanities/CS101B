@@ -131,6 +131,8 @@ thread_start (void)
   struct semaphore idle_started;
   sema_init (&idle_started, 0);
   thread_create ("idle", PRI_MIN, idle, &idle_started);
+  
+  /* Create thread to periodically write file cache blocks back to disk. */
   thread_create ("fballoc", PRI_DEFAULT, fballoc_background, NULL);
 
   /* Start preemptive thread scheduling. */
