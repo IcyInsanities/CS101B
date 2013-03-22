@@ -148,7 +148,7 @@ block_sector_t byte_to_sector(struct inode *inode, off_t pos) {
 
 /*! This function adds a sector to an inode, and returns it success status.
     Length is externally synched. */
-static bool inode_add_sector(struct inode * inode) {
+static bool inode_add_sector(struct inode * inode, off_t length) {
     off_t cache_idx1, cache_idx2, cache_idx3, cache_idx4;
     off_t dbl_table_idx;
     struct inode_disk *direct_data;
@@ -166,10 +166,10 @@ static bool inode_add_sector(struct inode * inode) {
 
     /* Add into meta data */
     /* Check if file has length of 0 */
-    if (inode->length == 0) {
+    if (length == 0) {
         num_sectors = 0;
     } else {
-        num_sectors = (inode->length-1) / BLOCK_SECTOR_SIZE + 1;
+        num_sectors = (length-1) / BLOCK_SECTOR_SIZE + 1;
     }
     /* Load the direct sector table. */
     cache_idx1 = inode_get_cache_block_idx(inode, DIRECT_BLOCK_OFFSET, inode->sector);
@@ -724,12 +724,11 @@ off_t inode_write_at(struct inode *inode, const void *buffer_, off_t size, off_t
         /* If more sectors must be allocated, allocate. */
         for (i = 0; i < num_sec_to_alloc; i++) {
             // TODO: need to check for success
-            inode_add_sector(inode);
-            inode->length += BLOCK_SECTOR_SIZE;
+            inode_add_sector(inode, inode->length + BLOCK_SECTOR_SIZE * i);
         }
 
-        inode->length = offset + size;
         length_set_on_disk(inode, inode->length);
+        inode->length = offset + size;
 
         /* NOTE: do not need to put last block into cache, it will get loaded by
          * the write below. */
