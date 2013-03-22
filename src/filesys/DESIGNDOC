@@ -8,25 +8,31 @@
 
 >> Fill in the names and email addresses of your group members.
 
-FirstName LastName <email@domain.example>
-FirstName LastName <email@domain.example>
-FirstName LastName <email@domain.example>
+Shir Aharon <saharon@caltech.edu>
+Steven Okai <codered657@gmail.com>
 
->> Specify how many late tokens you are using on this assignment:  
+>> Specify how many late tokens you are using on this assignment:
+Late tokens: 1
 
 >> What is the Git repository and commit hash for your submission?
 
-   Repository URL:  
+   Repository URL:  https://github.com/IcyInsanities/CS101B
+   Branch:  filesys
    commit ...
+   tag is project6_filesys
 
 ---- PRELIMINARIES ----
 
 >> If you have any preliminary comments on your submission, notes for the
 >> TAs, or extra credit, please give them here.
+    Just a note, the code for this project is in the filesys branch in order to
+separate it from the vm project code. This assignment was built on the final
+submission of the userprogram project code.
 
 >> Please cite any offline or online sources you consulted while
 >> preparing your submission, other than the Pintos documentation, course
 >> text, lecture notes, and course staff.
+    None.
 
 		     INDEXED AND EXTENSIBLE FILES
 		     ============================
@@ -37,13 +43,66 @@ FirstName LastName <email@domain.example>
 >> `struct' member, global or static variable, `typedef', or
 >> enumeration.  Identify the purpose of each in 25 words or less.
 
+global variables (moved, in inode.c)
+    static char zeros[BLOCK_SECTOR_SIZE]
+        TODO
+struct inode_disk (modified, in inode.c)
+    block_sector_t sector_list[NUM_DIRECT_FILE_SECTOR + 2]
+        TODO
+    uint32_t unused[125]
+        TODO
+struct inode_disk_fs (created, in inode.c)
+    block_sector_t sector_list[NUM_INDIRECT_FILE_SECTOR]
+        TODO
+struct inode (modified, in inode.c)
+    off_t length
+        TODO
+    struct lock extending
+        TODO
+    struct inode_disk data
+        TODO
+global variables (removed, filesys.c)
+    struct lock filesys_lock
+        TODO
+global variables (added, in freemap.c)
+    struct lock freemap_lock
+        TODO
+
 >> A2: What is the maximum size of a file supported by your inode
 >> structure?  Show your work.
+
+    Our inode has a direct level which can hold 124 blocks. This is because each
+sector can hold 128 words, and 4 are reserved for other purposes: 1 to hold the
+inode length, 1 for the magic number, and 1 each for the indirect and double
+indirect sector index. Since the indirect and double indirect blocks don't need
+to hold any data except sector pointers, they can hold 128 blocks each. This
+works out to a little over 8 Mb as the maximum supported file size.
+    Thus we have:
+        Direct:             124 blocks
+        Indirect            128 blocks
+        Double indirect:    128*128 blocks (128 pointers holding 128 each)
+    Total blocks: 16,636 blocks
+    Total size: 8,517,632 bytes, or 8,318 kb, or 8.12 Mb
 
 ---- SYNCHRONIZATION ----
 
 >> A3: Explain how your code avoids a race if two processes attempt to
 >> extend a file at the same time.
+
+    If a process determines that read is after the end of a file, it will simply
+fail to read any data. Thus any read occuring during the extension process,
+which will be before the file length is updated, will fail to read data. If a
+second process attempts to write past the end of the file, it will also enter
+the file extension code in the inode_write_at function. Here it will first
+acquire the extending lock in the inode struct. Thus the second process will be
+forced to wait for the first process to finish extending the file.
+    Now that the first process finished extending the file, it will go on to do
+its write. In the meantime, process 2 can start its extension. As only after
+acquiring the lock and getting the length again will the process compute how
+many sectors need to be added, the second process will only extend again if its
+write is even further past the end than the write from the first process. Again,
+upon finishing extending the file (even if no change happended), it will release
+the lock and go on to performing the write.
 
 >> A4: Suppose processes A and B both have file F open, both
 >> positioned at end-of-file.  If A reads and B writes F at the same
@@ -52,12 +111,44 @@ FirstName LastName <email@domain.example>
 >> nonzero data, A is not allowed to see all zeros.  Explain how your
 >> code avoids this race.
 
+    As mentioned above, if a process tries to read past the end of the file, it
+will simply return without reading any data. During the extension process, the
+file length is not updated. Thus A will not see any data that B writes if the
+read occurs during the extension time. Once the extension is over, B will write
+the data.
+    A read occuring at the same time as the write will be allowed to run
+concurrently. Thus in this case A might see all the data from B if the write
+finishes first, some of the data if they get interleaved, or none of the data if
+the read happens first. Any data that A reads not from B will be 0 as that is
+the data written into the disk during the extension process for the sectors.
+    Note: technically the extension process zeros only new sectors, but an
+extension may not cause a new sector to be allocated. As we allows write the
+entire sector to 0 upon allocation, this guarantees that the data there will be
+0 in the case of these in-sector extensions.
+
 >> A5: Explain how your synchronization design provides "fairness".
 >> File access is "fair" if readers cannot indefinitely block writers
 >> or vice versa.  That is, many processes reading from a file cannot
 >> prevent forever another process from writing the file, and many
 >> processes writing to a file cannot prevent another process forever
 >> from reading the file.
+
+    Reads and writes do not block each other at all. Thus there is no unfairness
+in file access, each process will run as fast as the block loading and the
+scheduler in the system will allow it to. Only extensions can block off portions
+of the file, and as explained above this does not block reading threads and the
+scheduler will handle blocking and blocking subsequent extending writes.
+    In terms of data coherency, this means that two writes may be interleaved.
+Thus there is no guarantee after a write completes that the data of that
+specific write still exists in the file and has not been partially or completely
+overwritten by another process. Similarly, any read occuring before or during a
+write will potentially "miss" some or all of the data being written. This is as
+specified in the synchronization requirements for the project, once a write
+completes, barring another write over the data, all reads will see that data.
+This is not so much synchronization as the block cache system ensuring that any
+reads and writes to a file offset are mapped to the same location in memory and
+maintaining coherency with the disk to prevent two copies of a disk sector from
+being used at a time.
 
 ---- RATIONALE ----
 
@@ -66,6 +157,34 @@ FirstName LastName <email@domain.example>
 >> indirect blocks?  If not, why did you choose an alternative inode
 >> structure, and what advantages and disadvantages does your
 >> structure have, compared to a multilevel index?
+
+    Yes, we used a system very similar to the traditional direct, indirect, and
+doubly indirect hierachy. An inode struct knows only what sector on the disk the
+direct mappings reside on, which must be loaded and accessed each time when
+translating an offset to a disk sector. As inode_disk must be an entrie sector,
+we allow it to hold as many direct entries as possible, or 124 sectors. Thus
+files up to 62kb can be direct map, and will incur only 1 extra sector load to
+find an offset in the file (which in practice the direct sector will likely be
+in the block cache already).
+    Once the direct sectors are exhausted, a reserved slot in that table is then
+mapped to a newly allocated sector for indirect mappings. As this new sector has
+only sector numbers, it can hold 128 of them. This allows files up to 126kb to
+be created, incurring 2 extra sector loads.
+    Finally, if this runs out too, a sector for double indirect mappings is
+allocated, along with any subsectors for the actual offset sectors. This will
+allow files up to just over 8Mb. This has a cost of 3 extra sector loads per
+offset to sector conversion.
+    We chose this system as it requires keeping no sector tables in memory
+outside the block cache (meeting the 64 block constraint), while minimizing the
+number of sectors necessary to access in the offset conversion process. Most
+files in the system will be under 62kb and a larger majority under 126kb, thus
+lowering the average cost in sector loads to convert offsets. However in order
+to support the largest size, a double indirect table is required since chaining
+indirect sectors would be very inefficient. We can note that in the test code
+only a few files hit the indirect size, mostly the excutables put into the
+system. A couple of the tar files hit the double indirect size, indicating that
+the offset conversion cost minimization tradeoff is worth it.
+
 
 			    SUBDIRECTORIES
 			    ==============
@@ -76,10 +195,44 @@ FirstName LastName <email@domain.example>
 >> `struct' member, global or static variable, `typedef', or
 >> enumeration.  Identify the purpose of each in 25 words or less.
 
+struct thread (added, in thread.c)
+    struct dir *curr_dir
+        TODO
+struct directory (added field, in directory.c)
+    bool is_dir
+        TODO
+struct inode (modified, in inode.c)
+    bool is_dir
+        TODO
+    struct lock in_use
+        TODO
+
 ---- ALGORITHMS ----
 
 >> B2: Describe your code for traversing a user-specified path.  How
 >> do traversals of absolute and relative paths differ?
+
+    Note: most of the parsing is done in filesys_parse_path_split, which gets a
+directory and filename from the path given. Additionally, filesys_parse_path
+returns a directory, treating the entire path as a directory to open.
+    Traversals are done by parsing the path given based on a tokenizer using "/"
+to separate tokens. To begin the traversal, the very first character of the path
+is checked. If the path starts with "/", then the traversal will open the root
+director to traverse from. Otherwise, it will keep a reopened copy of the
+current directory of the process to traverse from. Now, each subsequent element
+of the path will do a lookup for that entry as a directory. If it exists, then
+the subdirectory is opened and the next token is parsed. If it does not exist,
+then a failure condition is returned.
+    The very last token is returned as the file name instead of being treated as
+a subdirectory to open. Additionally, if the last character of the path is a "/"
+then this is noted by the boolean return value so that we can prevent files from
+being opened/created in the case that a "/" was given at the end. The system
+thus only accepts a path ending in "/" if the last element is a directory name.
+    During the traversal, each new subdirectory must be opened. The functions
+are careful to start in a reopened directory so that the underlying inode will
+not accidentally be completely closed and become invalid. As each new directory
+is opened, the previous one is closed to ensure that memory is cleaned up
+correctly.
 
 ---- SYNCHRONIZATION ----
 
@@ -88,15 +241,45 @@ FirstName LastName <email@domain.example>
 >> should succeed, as should only one of two simultaneous attempts to
 >> create a file with the same name, and so on.
 
+    Race attempts can only occur if two process attempt to remove or create a
+file or subdirectory in the same directory at the same time. Thus the functions
+that add and remove entries from a directory acquire a lock to indicate that the
+directory is in use. Whichever of the attempts ends up running second will fail,
+as the file it needs to remove/create is already removed/created. One exception
+of course is if a remove of a file happens to block waiting for the create of
+that file, in which case both succeed. In the vice versa case, both would fail.
+(Note that I use file and subdirectory interchangeably here).
+    Other directory functions do not block however. Thus any lookups to a
+directory may or may not see a new/removed entry. As adding and removing is
+locked at the top level, this will not affect their coherency of data.
+
 >> B5: Does your implementation allow a directory to be removed if it
 >> is open by a process or if it is in use as a process's current
 >> working directory?  If so, what happens to that process's future
 >> file system operations?  If not, how do you prevent it?
 
+    Yes, the only requirement for a directory to be removed is that it is an
+empty directory. Thus the current directory may be removed. This has the speed
+advantage of making it unnecessary to keep and check a list of process current
+directories to determine if the current one can be removed. For coherency
+reasons, a call to filesys_create or filesys_create_dir will fail if the
+directory it needs to create in is marked as removed. Thus any directory
+operations that a process attempts based on a relative path from a deleted
+current directory will fail.
+
 ---- RATIONALE ----
 
 >> B6: Explain why you chose to represent the current directory of a
 >> process the way you did.
+
+    The current process simply has a struct dir pointer that it holds, which is
+an opened copy of whatever directory it last changed to. On thread creation, it
+reopens the current directory of its parent thread, ensuring that the inode gets
+marked as having an additional opener. We chose this as it seemed simplest and
+cleanest, allowing relative traversals to proceed immediately without needing to
+search for the directory to start the relative traversal from. As current
+directories have no special system meaning aside from its use in the relative
+paths, there seemed to be no reason to have any special structures for them.
 
 			     BUFFER CACHE
 			     ============
@@ -107,14 +290,112 @@ FirstName LastName <email@domain.example>
 >> `struct' member, global or static variable, `typedef', or
 >> enumeration.  Identify the purpose of each in 25 words or less.
 
+struct fblock_entry (created, in fballoc.h)
+    uint32_t status
+        TODO
+    block_sector_t inumber
+        TODO
+    off_t start
+        TODO
+    block_sector_t sector
+        TODO
+    struct lock in_use
+        TODO
+    uint32_t num_users
+        TODO
+struct fblock (created, in fballoc.h)
+    uint8_t data[BLOCK_SECTOR_SIZE]
+        TODO
+global variables (added, in fballoc.c)
+    static struct fblock *fblock_arr
+        TODO
+    static struct fblock_entry *fblock_entry_arr
+        TODO
+
 ---- ALGORITHMS ----
 
 >> C2: Describe how your cache replacement algorithm chooses a cache
 >> block to evict.
 
+    Evicition is modeled after a clock algorithm, with several modifications.
+Since the cache is small, we check all 64 cache blocks to find the first one
+relative to the clock hand which falls in the categories of not accessed and not
+dirty (na/nd), not accessed but dirty (na/d), accessed and not dirty (a/nd), and
+accessed and dirty (a/d). The a/d block is always the one directly after the
+hand, which was the alst evicted cache block.
+    Now, if any block is not in use, it is immediately returned and the hand is
+unaffected. If all blocks are in use, the the first na/nd block is returned. If
+no such block, the the first na/d is returned. In either case, the accessed bit
+of all blocks between the hand start location and the block to evict are cleared
+and the hand is moved to block evicted.
+    If all blocks are accessed, then the first a/nd block is evicted, or if none
+then the block directly after the hand start position is evicted as the first
+a/d block. All access bits are reset, and the hand position is updated.
+    The rational for this ordering is that we want to favor clean blocks that
+are not in recent use as these are fastest to evict (no writeback) and least
+likely to be needed again soon. We favor lower usage over dirty, so na/d blocks
+come next. The reason to devalue dirty blocks in eviction is that the system
+write-behind functionality will eventually clean all blocks asynchronously, so
+we prefer to make evictions that occur synchronously fast.
+    A special case to note is the optional saved block number. This allows the
+request for eviction to indicate that a certain block should not be removed and
+that eviction is allowed to fail. This will be useful in implementing read-ahead
+and other asynchronous functionality where the system does not have to load new
+data but is trying to optimize its operation to minimize wait time for block
+loads.
+
 >> C3: Describe your implementation of write-behind.
 
+    During system initialization, along with the creation of an idle thread, a
+fballoc thread is created to run a simple infinite loop. After sleeping for 1s,
+the thread calls a function to write back all cache blocks. This function will
+automatically only write back the blocks that are in use and dirty, clearing the
+dirty flag. After this write back, the thread goes back to sleep again for 1s.
+    In order for this to work, any writes to a cache block must be careful to
+mark the cache as dirty after the last write has been completed, while the dirty
+flag must be cleared before writing the block back to disk. This may lead to
+extra write backs, but ensures that no data will be missed since writes can be
+made to a block during the write back process.
+    The writeback function is called by this thread, or upon eviction of a cache
+block. Thus the minimum number of writes back to the disk are done, while still
+giving some degree of coherency to the filesystem in the case of a system crash.
+As the freemap is kept in cache, this is particularly important. We do note that
+on system shutdown, all cache blocks are written back.
+    The 1s time is chosen arbitrarily. It is meant to balance disk coherency
+with minimizing the time spent writing back to disk. If too small, then this
+thread will always be active in writing back and consuming system resources, if
+too large, then the thread will do nothing generally as eviction will happen for
+most blocks first, making the asynchronous aspect worthless. For a larger system
+that accessed a real harddisk, it likely that a larger timer interval would be
+necessary than for Pintos.
+
 >> C4: Describe your implementation of read-ahead.
+
+    Read ahead has not been implemented as of now, sorry. :/
+    In terms of our planned design, we were going to have the same thread doing
+the writeback have a sleep of ~50ms instead of 1s. At each wakeup time, it would
+check if it has a block to read in, do that, and return to sleep. On the 20th
+wakeup time, it would also execute the write-behind. At each synchronous load, a
+check would be made if there is already read ahead request. If not, then the
+next sector would be requested to be loaded. This ensures that the system does
+not spend too much time handling asynchronous loads when there are immediate
+synchronous ones required by running processes. Additionally, as the cache block
+is limited, reading ahead too many blocks would simply evict blocks currently in
+use.
+    In preparing for read-ahead, our eviction process can specify a "safe" block
+which is guaranteed not to be evicted. This ensures that a read-ahead will not
+accidentally evict the block before it would lead the previous to get loaded
+again. Similarly, if such a block is specified, eviction will not accessed
+blocks. This is done under the assumption that it is more important to keep
+recently accessed blocks that it is to load the next one.
+    The complications that were required to implement are the following:
+        - how to check if the inode becomes invalid before a block is loaded
+        - how to get the next sector without requiring multiple loads from the
+          offset conversion process (potentially nullifying readahead advantage)
+        - once a block is read-ahead, how to schedule another read-ahead for the
+          next block, given that no cache miss occured
+        - should read-ahead be intelligent enough to prepare a sector for a file
+          extension if at the last sector
 
 ---- SYNCHRONIZATION ----
 
@@ -122,13 +403,43 @@ FirstName LastName <email@domain.example>
 >> buffer cache block, how are other processes prevented from evicting
 >> that block?
 
+    TODO
+
 >> C6: During the eviction of a block from the cache, how are other
 >> processes prevented from attempting to access the block?
+
+    TODO
 
 ---- RATIONALE ----
 
 >> C7: Describe a file workload likely to benefit from buffer caching,
 >> and workloads likely to benefit from read-ahead and write-behind.
+
+    Buffer caching works under the assumption that a process which opened a file
+will often read/write to the same location. Thus it becomes beneficial to keep
+that disk sector completely in memory, which is fast to access, rather than to
+send each read/write directly to the disk.
+    The write-behind is beneficial if a process makes multiple small writes that
+would have fallen within the same disk sector, as now all those writes occur to
+memory rather than disk.
+    The read-ahead functionallity is beneficial if a process is reading or
+writing a large block of data in order, which means that one of the next few
+reads/writes will fall in the block that was read-ahead.
+    This work load is similar to what is likely encountered in most real
+applications, particularly for data files. In the case of data files, the
+process will generally by reading or writing sequentially to the file in chunks
+of the underlying object, most often numerical data or small objects. Thus the
+write-behind saves the multiple disk writes until an entire sector has been
+fully written to by the process. The read-ahead will speed up the case where a
+write/read has moved into the next sector as it will already be in the cache.
+    However, if a system is accessing a very large number of files relative to
+the cache size, or reading/writing to a large variety of locations, then the
+read-ahead will simply cause trashing in the cache and unnecessary disk reads
+since the assumption that the next block will be used fails. Even the
+write-behind becomes somewhat less effective as it would be slightly faster to
+directly read/write the small chunks being used instead of entire sectors at
+once.
+
 
 			   SURVEY QUESTIONS
 			   ================
@@ -142,6 +453,14 @@ website.
 >> In your opinion, was this assignment, or any one of the three problems
 >> in it, too easy or too hard?  Did it take too long or too little time?
 
+    We found that the read-ahead portion seemed to be a significant amount of
+additional code required for the synchronization and coherency requirements that
+it poses, along with various complications arising from making the read-ahead
+intelligent enough to effectively disable itself if the system is under heavy
+file operation load (inidcated by a fully accessed block cache). After getting
+the remaining system working and designing it, it just didn't seem very
+interesting to spend the time necessary to get the read-ahead working.
+
 >> Did you find that working on a particular part of the assignment gave
 >> you greater insight into some aspect of OS design?
 
@@ -149,10 +468,13 @@ website.
 >> future quarters to help them solve the problems?  Conversely, did you
 >> find any of our guidance to be misleading?
 
-- should specify that file and directory names cannot be the same
-
 >> Do you have any suggestions for the TAs to more effectively assist
 >> students in future quarters?
 
 >> Any other comments?
 
+    This is a general comment, but it would have been really nice to have a way
+to run only the filesys tests without having to wait for the 70+ userprog tests
+to run first. For the majority of our debugging, we had all or virtually all of
+the old tests passing, but still had to wait the extra time to see if the new
+ones were passing. Maybe even a reording would have been nice.
