@@ -775,7 +775,6 @@ init_thread (struct thread *t, const char *name, int priority, struct thread *t_
   list_init(&(t->frames));
   list_init(&(t->page_entries));
   
-  
   t->stack_bottom = PHYS_BASE - PGSIZE;
 
   old_level = intr_disable ();
