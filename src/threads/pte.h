@@ -82,16 +82,14 @@ static inline uintptr_t pd_no(const void *va) {
 /*! Returns a PDE that points to page table PT. */
 static inline uint32_t pde_create(uint32_t *pt) {
     ASSERT(pg_ofs(pt) == 0);
-    //ASSERT ((uint32_t) pt >> PTSHIFT < init_ram_pages);
     return ((uint32_t) pt)| PTE_U | PTE_P | PTE_W | PTE_PIN;
-    //return vtop(pt) | PTE_U | PTE_W;
 }
 
 /*! Returns a pointer to the page table that page directory entry
     PDE, which must "present", points to. */
 static inline uint32_t *pde_get_pt(uint32_t pde) {
     ASSERT(pde & PTE_P);
-    return ptov(pde & PTE_ADDR);    // TODO: CORRECTNESS UNKNOWN
+    return ptov(pde & PTE_ADDR);
 }
 
 /*! Returns a PTE that points to PAGE.
@@ -101,7 +99,6 @@ static inline uint32_t *pde_get_pt(uint32_t pde) {
 static inline uint32_t pte_create_kernel(void *ppage, bool writable) {
     ASSERT (pg_ofs (ppage) == 0);
     ASSERT ((uint32_t) ppage >> PTSHIFT < init_ram_pages);
-    //return vtop(ppage) | (writable ? PTE_W : 0);
     return ((uint32_t) ppage) | (writable ? PTE_W : 0);
 }
 

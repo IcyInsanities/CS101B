@@ -127,7 +127,7 @@ void syscall_exec(struct intr_frame *f, void * arg1, void * arg2 UNUSED, void * 
 
 // Waits for a child process with pid and returns its exit status.  Returns -1
 // if the pid does not correspond to a direct child or if wait has already
-//  been called on pid.
+// been called on pid.
 void syscall_wait(struct intr_frame *f, void * arg1, void * arg2 UNUSED, void * arg3 UNUSED)
 {
     // Reconstruct arguments.

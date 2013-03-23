@@ -8,7 +8,7 @@
  
 /*! A swap entry struct. */
 struct swap {
-    uint32_t start_sector;    /*!< Starting sector of swap. */
+    uint32_t start_sector;          /*!< Starting sector of swap. */
     bool in_use;                    /*!< Marks a swap as used or open. */
     struct list_elem process_elem;  /*!< List element for process. */
     struct list_elem open_elem;     /*!< List element for open list. */

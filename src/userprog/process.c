@@ -205,10 +205,11 @@ void process_exit(void) {
     struct list_elem *e;
 
     /* Clean up all frames and pages, and related data. */
-    // Things to clean up in thread struct
-    //      - supplemental page entries (t->page_entries)
-    //      - free all frames
-    //      - free all pages
+    /* Things to clean up in thread struct
+            - supplemental page entries (t->page_entries)
+            - free all frames
+            - free all pages
+     */
 
     /* Free all the frames in the process. */
     while (!list_empty(&(cur->frames))) {
@@ -437,9 +438,6 @@ done:
 
 /* load() helpers. */
 
-// TOOD: UNUSED?
-//static bool install_page(void *upage, void *kpage, bool writable);
-
 /*! Checks whether PHDR describes a valid, loadable segment in
     FILE and returns true if so, false otherwise. */
 static bool validate_segment(const struct Elf32_Phdr *phdr, struct file *file) {
@@ -506,7 +504,10 @@ static bool load_segment(struct file *file, off_t ofs, uint8_t *upage,
     if (!writable) {
         flags |= PAL_READO;
     }
-    if (NULL == palloc_make_multiple_addr(upage, flags, (uint32_t) pg_round_up((void*)read_bytes)/PGSIZE, FILE_PAGE, file, (void *) ofs)) {
+    /* If allocation of pages fails, load fails. */
+    if (NULL == palloc_make_multiple_addr(upage, flags, 
+                (uint32_t) pg_round_up((void*)read_bytes)/PGSIZE, 
+                FILE_PAGE, file, (void *) ofs)) {
         return false;
     }
     /* Account for full pages of zero bytes */
@@ -526,23 +527,3 @@ static bool setup_stack(void **esp) {
     *esp = PHYS_BASE;
     return true;
 }
-
-// TOOD: UNUSED?
-///*! Adds a mapping from user virtual address UPAGE to kernel
-//    virtual address KPAGE to the page table.
-//    If WRITABLE is true, the user process may modify the page;
-//    otherwise, it is read-only.
-//    UPAGE must not already be mapped.
-//    KPAGE should probably be a page obtained from the user pool
-//    with palloc_get_page().
-//    Returns true on success, false if UPAGE is already mapped or
-//    if memory allocation fails. */
-//static bool install_page(void *upage, void *kpage, bool writable) {
-//    struct thread *t = thread_current();
-//
-//    /* Verify that there's not already a page at that virtual
-//       address, then map our page there. */
-//    return (pagedir_get_page(t->pagedir, upage) == NULL &&
-//            pagedir_set_page(t->pagedir, upage, kpage, writable));
-//}
-

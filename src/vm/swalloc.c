@@ -81,7 +81,6 @@ struct swap *swalloc_get_swap()
 void swalloc_free_swap(struct swap *swap_entry)
 {
     /* If it wasn't allocated, just return. */
-    // TODO: should this be an error? -Shir
     if (!swap_entry->in_use)
     {
         return;
