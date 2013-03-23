@@ -7,19 +7,6 @@
 #include "threads/synch.h"
 #include "threads/thread.h"
 
-/*! A memory pool. */
-// TODO: Don't need pool stuff
-//struct pool
-//{
-//    struct lock lock;                   /*!< Mutual exclusion. */
-//    struct bitmap *used_map;            /*!< Bitmap of free pages. */
-//    uint8_t *base;                      /*!< Base of pool. */
-//};
-
-// TODO: frame struct
-// pointer to page
-// need to know supplemental page
-// 
 /*! A frame entry struct. */
 struct frame {
     void *faddr;                    /*!< Address of corresponding frame. */
@@ -30,7 +17,6 @@ struct frame {
     struct list_elem open_elem;     /*!< List element for open list. */
 };
 
-
 void falloc_init(size_t user_page_limit);
 struct frame *get_frame_addr(bool user);
 void *falloc_get_frame(void *upage, bool user, struct page_entry *sup_entry);
@@ -38,9 +24,5 @@ void falloc_free_frame(void *frame);
 
 struct page_entry *get_page_entry(void);
 void free_page_entry(struct page_entry *);
-
-// TODO: Don't need pool stuff
-//static void init_pool(struct pool *, void *base, size_t page_cnt, const char *name);
-//static bool page_from_pool(const struct pool *, void *page);
 
 #endif /* vm/falloc.h */

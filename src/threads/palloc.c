@@ -36,11 +36,19 @@ static bool palloc_block_valid(void *start_addr, size_t block_size);
     pages are put into the user pool. */
 void palloc_init(void)
 {
-    /* Does nothing for now? */
-    // TODO!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-    // Or maybe not.
+    /* TODO: Does nothing for now. */
+
 }
 
+/*! Obtains and returns a group of PAGE_CNT contiguous free pages starting at
+    START_ADDR.  If PAL_USER is set, the pages are obtained from the user pool,
+    otherwise from the kernel pool.  If PAL_ZERO is set in FLAGS, then the pages
+    are filled with zeros.  If PAL_PIN is set in FLGAS, then the pages are
+    pinned.  If too few pages are available, returns a null pointer, unless 
+    PAL_ASSERT is set in FLAGS, in which case the kernel panics.  If LOAD_TYPE
+    is ZERO_PAGE, then the page data pointer is set to NULL, otherwise it is set
+    to the passed pointer DATA.  If LOAD_TYPE is FILE_PAGE, the page's file
+    offset is set to F_OFS. */
 void *palloc_make_multiple_addr(void * start_addr,
                                 enum palloc_flags flags,
                                 size_t page_cnt,
@@ -58,7 +66,7 @@ void *palloc_make_multiple_addr(void * start_addr,
 
     /* Page data should not be in a frame. */
     if (load_type == FRAME_PAGE) {
-        // TODO: handle
+        /* TODO: case where it is in a frame. */
         ASSERT(false);
     }
 
@@ -87,12 +95,12 @@ void *palloc_make_multiple_addr(void * start_addr,
 
         ASSERT (page_i != NULL);
 
-        /* Get the vrtual address for the page. */
+        /* Get the virtual address for the page. */
         vaddr = (uint8_t *) (start_addr + (i * PGSIZE)) + PGSIZE * 1000;
 
         /* Initialize the page. */
         page_i->vaddr = vaddr;
-        page_i->source = load_type; // DEBUG: set to zero page by default for now
+        page_i->source = load_type;
 
         if (load_type == ZERO_PAGE) {
             page_i->data = NULL;
@@ -111,21 +119,18 @@ void *palloc_make_multiple_addr(void * start_addr,
         }
         
         /* Add to list of allocated pages in order by address. */
-        list_insert_ordered(alloc_page_list, &(page_i->elem), palloc_page_less, NULL);
+        list_insert_ordered(alloc_page_list, &(page_i->elem), 
+                            palloc_page_less, NULL);
 
         if (flags & PAL_USER) {
             pagedir_set_page(pagedir, vaddr, 0, !(flags & PAL_READO));
         } else {
-            printf("HI, from palloc.\n"); // DEBUG:
-            printf("Pagedir at: %x\n", pagedir);
-            printf("vaddr at: %x\n", vaddr);
             if(!pagedir_set_page_kernel(pagedir, vaddr, 0, !(flags & PAL_READO))) {
                 if (flags & PAL_ASSERT) {
                     PANIC("palloc: out of pages");
                 }
                 return NULL;
             }
-            printf("PALLOC LIVED!\n"); // DEBUG:
         }
         
         pte = lookup_page(pagedir, vaddr, false);
@@ -135,17 +140,24 @@ void *palloc_make_multiple_addr(void * start_addr,
            *pte = *pte | PTE_PIN;
         }
         
-        // TODO: need to handle flags properly (done? -shir)
     }
-    printf("PALLOC DONE!\n"); // DEBUG:
     return start_addr;
 }
 
+/*! Obtains and returns a single page starting at START_ADDR.  If PAL_USER is
+    set, the pages are obtained from the user pool, otherwise from the kernel
+    pool.  If PAL_ZERO is set in FLAGS, then the page is filled with zeros.
+    If PAL_PIN is set in FLGAS, then the page is pinned.  If too few pages are
+    available, returns a null pointer, unless PAL_ASSERT is set in FLAGS, in
+    which case the kernel panics.  If LOAD_TYPE is ZERO_PAGE, then the page data
+    pointer is set to NULL, otherwise it is set to the passed pointer DATA.  If 
+    LOAD_TYPE is FILE_PAGE, the page's file offset is set to F_OFS. */
 void *palloc_make_page_addr(void * start_addr, enum palloc_flags flags,
                             enum page_load load_type, void *data, void *f_ofs) {
 
     /* Allocate one page at the specified address, and return. */
-    return palloc_make_multiple_addr(start_addr, flags, 1, load_type, data, f_ofs);
+    return palloc_make_multiple_addr(start_addr, flags, 1, load_type,
+                                    data, f_ofs);
 
 }
 
@@ -160,45 +172,24 @@ void *palloc_get_multiple(enum palloc_flags flags, size_t page_cnt) {
     return _palloc_get_multiple(flags, page_cnt, ZERO_PAGE, NULL, NULL);
 }
 
-        // take enum page_load
-    // take void* to data
-void *_palloc_get_multiple(enum palloc_flags flags, size_t page_cnt, enum page_load load_type, void *data, void *f_ofs) {
-    /*
-    struct pool *pool = flags & PAL_USER ? &user_pool : &kernel_pool;
-    void *pages;
-    size_t page_idx;
-
-    if (page_cnt == 0)
-        return NULL;
-
-    lock_acquire(&pool->lock);
-    page_idx = bitmap_scan_and_flip(pool->used_map, 0, page_cnt, false);
-    lock_release(&pool->lock);
-
-    if (page_idx != BITMAP_ERROR)
-        pages = pool->base + PGSIZE * page_idx;
-    else
-        pages = NULL;
-
-    if (pages != NULL) {
-        if (flags & PAL_ZERO)
-            memset(pages, 0, PGSIZE * page_cnt);
-    }
-    else {
-        if (flags & PAL_ASSERT)
-            PANIC("palloc_get: out of pages");
-    }
-
-    return pages;
-    */
-
+/*! Obtains and returns a group of PAGE_CNT contiguous free pages.  If PAL_USER
+    is set, the pages are obtained from the user pool, otherwise from the kernel
+    pool.  If PAL_ZERO is set in FLAGS, then the pages are filled with zeros.
+    If PAL_PIN is set in FLGAS, then the pages are pinned.  If too few pages are
+    available, returns a null pointer, unless PAL_ASSERT is set in FLAGS, in
+    which case the kernel panics.  If LOAD_TYPE is ZERO_PAGE, then the page data
+    pointer is set to NULL, otherwise it is set to the passed pointer DATA.  If
+    LOAD_TYPE is FILE_PAGE, the page's file offset is set to F_OFS. */
+void *_palloc_get_multiple(enum palloc_flags flags, size_t page_cnt,
+                            enum page_load load_type, void *data, void *f_ofs) {
     void *start_addr;
 
     /* Look for an open block. */
     start_addr = palloc_get_open_addr(flags & PAL_USER, page_cnt);
 
     /* Allocate the block. */
-    start_addr = palloc_make_multiple_addr(start_addr, flags, page_cnt, load_type, data, f_ofs);
+    start_addr = palloc_make_multiple_addr(start_addr, flags, page_cnt,
+                                            load_type, data, f_ofs);
 
     return start_addr;
 }
@@ -214,39 +205,14 @@ void *palloc_get_page(enum palloc_flags flags) {
     return _palloc_get_page(flags, ZERO_PAGE, NULL, NULL);
 }
 
-void *_palloc_get_page(enum palloc_flags flags, enum page_load load_type, void *data, void *f_ofs) {
+void *_palloc_get_page(enum palloc_flags flags, enum page_load load_type,
+                        void *data, void *f_ofs) {
     return _palloc_get_multiple(flags, 1, load_type, data, f_ofs);
 }
 
 /*! Frees the PAGE_CNT pages starting at PAGES. */
-// TODO: DELTETION FROM KERNEL PAGEDIR AFFECTS ALL PROCESSES
+/* TODO: Deletetion from kernel pagedir affects all processes. */
 void palloc_free_multiple(void *pages, size_t page_cnt) {
-/*
-    struct pool *pool;
-    size_t page_idx;
-
-    ASSERT(pg_ofs(pages) == 0);
-    if (pages == NULL || page_cnt == 0)
-        return;
-
-    if (page_from_pool(&kernel_pool, pages))
-        pool = &kernel_pool;
-    else if (page_from_pool(&user_pool, pages))
-        pool = &user_pool;
-    else
-        NOT_REACHED();
-
-    page_idx = pg_no(pages) - pg_no(pool->base);
-
-#ifndef NDEBUG
-    memset(pages, 0xcc, PGSIZE * page_cnt);
-#endif
-
-    ASSERT(bitmap_all(pool->used_map, page_idx, page_cnt));
-    bitmap_set_multiple(pool->used_map, page_idx, page_cnt, false);
-
-*/
-
     uint32_t i = 0;
     void *vaddr = pages;
     struct list *alloc_page_list;
@@ -259,7 +225,7 @@ void palloc_free_multiple(void *pages, size_t page_cnt) {
 
     /* Make sure the block to free is valid. */
     if(!palloc_block_valid(pages, page_cnt)) {
-        // Kill process
+        /* Kill process. */
         kill_current_thread(1);
     }
 
@@ -289,7 +255,7 @@ void palloc_free_multiple(void *pages, size_t page_cnt) {
             }
             /* If reached the end of paging list, page was not allocated, kill process. */
             else if (list_next(e) == list_end(alloc_page_list) && paging_list) {
-                // TODO: Kill process
+                /* Kill process. */
                 kill_current_thread(1);
             }
         }
@@ -312,11 +278,11 @@ void palloc_free_multiple(void *pages, size_t page_cnt) {
         /* If an unallocated page is in the block, can't free. */
         if (page_e->vaddr != vaddr) {
 
-            // TODO: Kill the process if user
+            /* TODO: Kill the process if user. */
             if (user_space) {
                 kill_current_thread(1);
             }
-            // TODO: Kernel panic if kernel
+            /* TODO: Kernel panic if kernel. */
             else {
                 PANIC("palloc_free: unallocated page in block to free");
 
@@ -353,7 +319,12 @@ bool palloc_page_less(const struct list_elem *A,
     return vaddrA < vaddrB;
 }
 
-bool palloc_block_open_list(void* vaddr, struct list *alloc_list, struct list_elem *e, size_t block_size) {
+/*! Returns true if the block of size BLOCK_SIZE starting at virtual address
+    VADDR is open.  This list of allocated blocks to check must be passed via
+    ALLOC_LIST, and E is updated to the list_elem where the seach for an open
+    block finished. */
+bool palloc_block_open_list(void* vaddr, struct list *alloc_list,
+                            struct list_elem *e, size_t block_size) {
     struct page_entry *curr_alloc_page;
     struct page_entry *next_alloc_page;
     struct list_elem *prev_elem;
@@ -376,7 +347,11 @@ bool palloc_block_open_list(void* vaddr, struct list *alloc_list, struct list_el
 }
 
 // TODO: might want to change it to get the one after
-struct list_elem *palloc_alloc_elem_after_addr(void *vaddr, struct list *alloc_list, struct list_elem *curr_elem) {
+/*! Starting at CURR_ELEM in list ALLOC_LIST, finds and returns the list_elem of
+    the allocated block at or just after the passed virtual address VADDR. */
+struct list_elem *palloc_alloc_elem_after_addr(void *vaddr,
+                                                struct list *alloc_list,
+                                                struct list_elem *curr_elem) {
 
     struct list_elem *e;
     struct page_entry *curr_page;
@@ -387,8 +362,7 @@ struct list_elem *palloc_alloc_elem_after_addr(void *vaddr, struct list *alloc_l
 
         curr_page = list_entry(e, struct page_entry, elem);
 
-        /* Once allocated page past the given address found, go back one to get
-         * to the page one before the address. */
+        /* Once allocated page past the given address found, return it. */
         if (((void *) curr_page->vaddr) >= vaddr) {
             return e;
         }
@@ -397,6 +371,8 @@ struct list_elem *palloc_alloc_elem_after_addr(void *vaddr, struct list *alloc_l
     return list_end(alloc_list);
 }
 
+/*! Returns the address of an open block of size BLOCK_SIZE in the space
+    specified by USER_SPACE. */
 void* palloc_get_open_addr(bool user_space, size_t block_size) {
 
     bool block_found = false;
@@ -522,7 +498,7 @@ void* palloc_get_open_addr(bool user_space, size_t block_size) {
 }
 
 /*! Returns true if the block of size block_size starting at start_addr is
-    unallocated (open). */
+    unallocated (open), and false otherwise. */
 bool palloc_block_open(void *start_addr, size_t block_size) {
     struct list *alloc_page_list;
     struct thread *t = thread_current();
@@ -541,35 +517,6 @@ bool palloc_block_open(void *start_addr, size_t block_size) {
     if (!palloc_block_valid(start_addr, block_size)) {
         return false;
     }
-
-    // TODO: NEED TO FUCKING CHANGE THIS TO SEARCH BOTH LIST
-    ///* If in user space, get list of supplemental page entries from process. */
-    //if (is_user_vaddr(start_addr)) {
-    //    alloc_page_list = &(t->page_entries);
-    //}
-    ///* Otherwise, get list of supplemental page entries from kernel. */
-    //else {
-    //    alloc_page_list = init_page_dir_sup;
-    //}
-    //
-    ///* Loop until start address is reached in allocated list. */
-    //for (e = list_begin(alloc_page_list); e != list_end(alloc_page_list);
-    //    e = list_next(e))
-    //{
-    //    start_page = list_entry(e, struct page_entry, elem);
-    //
-    //    /* If reached the end of list, no more allocated pages, block open. */
-    //    if (list_next(e) == list_end(alloc_page_list)) {
-    //        return true;
-    //    }
-    //    /* If reached starting address, can check unallocated until end addr */
-    //    else if (((void *) start_page->vaddr) >= start_addr) {
-    //        /* Get the next allocated page. */
-    //        next_page = list_next(e); // DEBUG: should this be next or current???
-    //        break;
-    //    }
-    //}
-
     /* Look in the process list for the starting page first. */
     alloc_page_list = &(t->page_entries);
 
@@ -615,6 +562,8 @@ bool palloc_block_open(void *start_addr, size_t block_size) {
     }
 }
 
+/*! Returns true if the block of size BLOCK_SIZE starting at address START_ADDR
+    is valid, and false otherwise. */
 static bool palloc_block_valid(void *start_addr, size_t block_size) {
     void *end_addr;
 
@@ -630,7 +579,7 @@ static bool palloc_block_valid(void *start_addr, size_t block_size) {
     }
 }
 
-// TODO: finish implementing this properly
+/*! Returns the page entry for the page with address PAGE_ADDR. */
 struct page_entry *palloc_addr_to_page_entry(void *page_addr) {
     struct list *alloc_page_list;
     struct thread *t = thread_current();
@@ -670,19 +619,3 @@ struct page_entry *palloc_addr_to_page_entry(void *page_addr) {
 
     return NULL;
 }
-//[x]palloc_make_page_addr()
-//[x]palloc_make_multiple_addr()
-//address first argument
-
-// modify allocator functions
-    // [x]take enum page_load
-    // [x]take void* to data
-
-    //[x]page_load cannot == FRAME_PAGE (in palloc.h)
-    // [x]data not used if zero page
-    // [x]old functions wrapper for new functions that always call with 0 page
-    // account for pin flag
-
-// should we panic or kill the process on an invalid block? (requested block wraps, crosses kernel-user boundary, etc?)
-
-// implement read only (PAL_READO)

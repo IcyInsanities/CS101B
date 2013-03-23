@@ -146,6 +146,7 @@ static void page_fault(struct intr_frame *f) {
     write = (f->error_code & PF_W) != 0;
     user = (f->error_code & PF_U) != 0;
 
+    /* Retrieve the supplementary page entry. */
     struct thread *t = thread_current();
     uint32_t *pagedir = t->pagedir;
     struct page_entry *pg_entry = palloc_addr_to_page_entry(fault_page);
@@ -189,11 +190,11 @@ static void page_fault(struct intr_frame *f) {
         }
     }
     
-    /* Process expect datas in this address, handle reading it in */
-    // TODO: do we care about frame address here?
+    /* Process expect datas in this address, handle reading it in. */
     falloc_get_frame(fault_page, user || (!user && is_user_vaddr(fault_addr)), pg_entry);
 }
 
+/* Print information on page faults. */
 static inline void print_page_fault(void *fault_addr, bool not_present,
                                     bool write, bool user) {
     printf("Page fault at %p: %s error %s page in %s context.\n",

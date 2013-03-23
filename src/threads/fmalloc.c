@@ -41,9 +41,6 @@
 #include "userprog/pagedir.h"
 #include "vm/falloc.h"
 
-
-
-
 /*! Descriptor. */
 struct desc {
     size_t block_size;          /*!< Size of each element in bytes. */
@@ -75,7 +72,7 @@ static size_t desc_cnt;         /*!< Number of descriptors. */
 static struct arena *block_to_arena(struct block *);
 static struct block *arena_to_block(struct arena *, size_t idx);
 
-/*! Initializes the malloc() descriptors. */
+/*! Initializes the fmalloc() descriptors. */
 void fmalloc_init(void) {
     size_t block_size;
 
@@ -89,8 +86,8 @@ void fmalloc_init(void) {
     }
 }
 
-/*! Obtains and returns a new block of at least SIZE bytes.
-    Returns a null pointer if memory is not available. */
+/*! Obtains and returns a new block of at least SIZE bytes.  Returns a null
+    pointer if memory is not available. */
 void * fmalloc(size_t size) {
     struct desc *d;
     struct block *b;
@@ -113,6 +110,7 @@ void * fmalloc(size_t size) {
         return NULL;
     }
 
+    /* Aqcuire lock to access descriptor. */
     lock_acquire(&d->lock);
 
     /* If the free list is empty, create a new arena. */
@@ -162,8 +160,8 @@ void * fmalloc(size_t size) {
     return b;
 }
 
-/*! Allocates and return A times B bytes initialized to zeroes.
-    Returns a null pointer if memory is not available. */
+/*! Allocates and return A times B bytes initialized to zeroes.  Returns a null
+    pointer if memory is not available. */
 void * fcalloc(size_t a, size_t b) {
     void *p;
     size_t size;
@@ -190,21 +188,21 @@ static size_t block_size(void *block) {
     return d != NULL ? d->block_size : PGSIZE * a->free_cnt - pg_ofs(block);
 }
 
-/*! Attempts to resize OLD_BLOCK to NEW_SIZE bytes, possibly
-    moving it in the process.
-    If successful, returns the new block; on failure, returns a
-    null pointer.
-
-    A call with null OLD_BLOCK is equivalent to malloc(NEW_SIZE).
-
-    A call with zero NEW_SIZE is equivalent to free(OLD_BLOCK). */
+/*! Attempts to resize OLD_BLOCK to NEW_SIZE bytes, possibly moving it in the
+    process.  If successful, returns the new block; on failure, returns a null
+    pointer.  A call with null OLD_BLOCK is equivalent to malloc(NEW_SIZE).  A
+    call with zero NEW_SIZE is equivalent to free(OLD_BLOCK). */
 void * frealloc(void *old_block, size_t new_size) {
+    /* A request for 0 bytes is met with a NULL pointer. */
     if (new_size == 0) {
-        ffree(old_block);
+        ffree(old_block);       /* Old block is no longer needed, so free it. */
         return NULL;
     }
     else {
+        /* Allocate a new block with size NEW_SIZE. */
         void *new_block = fmalloc(new_size);
+        /* If successful, copy data from old block into new block, then free the
+           old block. */
         if (old_block != NULL && new_block != NULL) {
             size_t old_size = block_size (old_block);
             size_t min_size = new_size < old_size ? new_size : old_size;
@@ -216,7 +214,7 @@ void * frealloc(void *old_block, size_t new_size) {
 }
 
 /*! Frees block P, which must have been previously allocated with
-    malloc(), calloc(), or realloc(). */
+    fmalloc() or fcalloc(). */
 void ffree(void *p) {
     if (p != NULL) {
         struct block *b = p;
@@ -231,6 +229,7 @@ void ffree(void *p) {
             memset(b, 0xcc, d->block_size);
 #endif
 
+            /* Acquire the lock to the descriptor. */
             lock_acquire(&d->lock);
 
             /* Add block to free list. */

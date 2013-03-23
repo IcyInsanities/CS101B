@@ -90,7 +90,6 @@ int main(void) {
     /* Clear BSS. */
     bss_init();
 
-    printf("page_struct: %d", sizeof(struct page_entry));
     /* Break command line into arguments and parse options. */
     argv = read_command_line();
     argv = parse_options(argv);
@@ -112,11 +111,8 @@ int main(void) {
 
     /* Segmentation. */
 #ifdef USERPROG
-    printf("I ");
     tss_init();
-    printf("HATE ");
     gdt_init();
-    printf("YOU ");
 #endif
     /* Initialize interrupt handlers. */
     intr_init();
@@ -141,6 +137,7 @@ int main(void) {
     filesys_init(format_filesys);
 #endif
 
+    /* Initialize the swap allocator. */
     swalloc_init();
 
     printf("Boot complete.\n");
@@ -170,16 +167,6 @@ static void bss_init(void) {
     directory it creates. */
 static void paging_init(void) {
     /* Setup done in falloc_init already */
-    // TODO!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-    // Or maybe not.
-
-    // TODO: MOVED TO FALLOC_INIT
-    ///* Store the physical address of the page directory into CR3
-    //   aka PDBR (page directory base register).  This activates our
-    //   new page tables immediately.  See [IA32-v2a] "MOV--Move
-    //   to/from Control Registers" and [IA32-v3a] 3.7.5 "Base Address
-    //   of the Page Directory". */
-    //asm volatile ("movl %0, %%cr3" : : "r" (vtop (init_page_dir)));
 }
 
 /*! Breaks the kernel command line into words and returns them as
