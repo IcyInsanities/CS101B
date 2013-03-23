@@ -133,7 +133,49 @@ that the next address will be free and saves retraversing the entire list.
 >> `struct' member, global or static variable, `typedef', or
 >> enumeration.  Identify the purpose of each in 25 words or less.
 
-    TODO
+global variables (created, init.c)
+    struct list *init_page_dir_sup
+        List of supplemental page entires for the pages in the init_page_dir,
+        which is used for the paging system pages.
+enum palloc_flags (added, palloc.h)
+    PAL_PIN
+        Indicate that a page should be pinned when created.
+    PAL_PAGING
+        Indicate that a page is part of the paging system and goes into the
+        init_page_dir.
+    PAL_READO
+        Indicates that a page should be read only when created.
+struct page_entry (created, palloc.h)
+    uint8_t *vaddr
+        Virtual address that a page entry represents for the process it belongs
+        to.
+    enum page_load source
+        Type of data that goes into a page (see enum below).
+    void *data
+        Pointer to the swap slot or file/executable depending on the source type
+    void *f_ofs
+        Offset inside the file to read/write to if the page is from a file.
+    struct list_elem elem
+        Allow page entries to be put in a list owned by each process.
+enum page_load (created, palloc.h)
+    ZERO_PAGE
+        Indicates that the page to load is a page of 0s.
+    FILE_PAGE
+        Indicates that the page should be loaded from a file.
+    SWAP_PAGE
+        Indicates that the page should be loaded from a swap slot.
+    FRAME_PAGE
+        Indicates that the page is in a frame. This likely needs to be changed
+        as the original file/swap flags need to be preserved for eviction.
+        Additionally, an executable page flag needs to be added.
+struct thread (added, thread.h)
+    struct list page_entries
+        List of the page_entries a file has, used to determine what is already
+        mapped by the process and for clean up purposes. This is the list of
+        supplemental data for paging.
+    void *stack_bottom
+        Pointer to the stack bottom to determine if a page fault is likely from
+        stack growth.
 
 ---- ALGORITHMS ----
 
@@ -199,7 +241,67 @@ require a search for the page however.
 >> `struct' member, global or static variable, `typedef', or
 >> enumeration.  Identify the purpose of each in 25 words or less.
 
-    TODO
+struct pool (removed, palloc.c)
+    Pages are no longer allocated from a pool but rather from the entire
+    possible address space, and a pool structure to hold that number of pages
+    would be immense. For frames, due to the need to keep additional metadata on
+    each for eviction purposes, we deemed a pool unnecessary and thus removed it
+struct thread (added, thread.h)
+    struct list swaps
+        List of swap slots a process owns so they can be cleaned up on thread
+        exit.
+    struct list frames
+        List of frames a process owns so they can be cleaned up on thread exit.
+struct frame (created, falloc.h)
+    void *faddr
+        Address of the frame in physical memory.
+    uint32_t *pte
+        Page table entry of the page mapping to this frame, if any. Used for
+        lookup purposes.
+    struct page_entry *sup_entry
+        Supplemental page entry of the page mapping to a frame.
+    struct thread *owner
+        Process owning thread so that correct page directory can be obtained.
+    struct list_elem process_elem
+        Allow frames to be put in a list owned by each process.
+    struct list_elem open_elem
+        Allow frames to be put in a list when open for fast allocation.
+global variables (created, falloc.c)
+    static struct list *open_frame_list_user
+        List of open frames from the user pool of frames.
+    static struct list *open_frame_list_kernel
+        List of open frames from the kernel pool of frames.
+    static struct frame *frame_list_user
+        Array of the frames that can be used for user space allocation, follows
+        directly after the kernel list in memory.
+    static struct frame *frame_list_kernel
+        Array of the frames that can be used for kernel space allocation, comes
+        before user list in memory allowing indexing to fall through.
+    static uint32_t user_frames
+        Number of frames in system available for user space.
+    static uint32_t kernel_frames
+        Number of frames in system available for kernel space.
+    static struct list *open_page_entry
+        List of unused page_entry slots that can be given to new pages created.
+struct swap (created, swalloc.h)
+    uint32_t start_sector
+        Starting sector on disk at which the swap slot exists
+    bool in_use
+        Indicates if a swap slot has already been assigned to a page
+    struct list_elem process_elem
+        Allow swap slots to be put in a list owned by each process.
+    struct list_elem open_elem
+        Allow swap slots to be put in a list when open for fast allocation,
+        particularly as swap slots cannot be evicted they can only run out.
+global variables (created swalloc.c)
+    static struct list *open_swap_list
+        List of open swap slots available for use.
+    static struct swap *swap_list
+        Array of swap slots metadata entry.
+    struct block *swap_disk
+        Pointer for use in accessing the swap disk through the block device.
+    static uint32_t swap_slots
+        Number of swap slots available in the system.
 
 ---- ALGORITHMS ----
 
@@ -319,67 +421,17 @@ of locks that are necessary to work with and simplify the design.
 			 MEMORY MAPPED FILES
 			 ===================
 
-global variables (created, init.c)
-    struct list *init_page_dir_sup
-        TODO
-struct pool (removed, palloc.c)
-    struct lock lock
-    struct bitmap *used_map
-    uint8_t *base
-enum palloc_flags (added, palloc.h)
-    PAL_PIN
-    PAL_PAGING
-    PAL_READO
-struct page_entry (created, palloc.h)
-    uint8_t *vaddr
-    enum page_load source
-    void *data
-    void *f_ofs
-    struct list_elem elem
-enum page_load (created, palloc.h)
-    ZERO_PAGE
-    FILE_PAGE
-    SWAP_PAGE
-    FRAME_PAGE
-struct thread (added, thread.h)
-    struct list swaps
-    struct list frames
-    struct list page_entries
-    void *stack_bottom
-struct frame (created, falloc.h)
-    void *faddr
-    uint32_t *pte
-    struct page_entry *sup_entry
-    struct thread *owner
-    struct list_elem process_elem
-    struct list_elem open_elem
-global variables (created, falloc.c)
-    static struct list *open_frame_list_user
-    static struct list *open_frame_list_kernel
-    static struct frame *frame_list_user
-    static struct frame *frame_list_kernel
-    static uint32_t user_frames
-    static uint32_t kernel_frames
-    static struct list *open_page_entry
-struct swap (created, swalloc.h)
-    uint32_t start_sector
-    bool in_use
-    struct list_elem process_elem
-    struct list_elem open_elem
-global variables (created swalloc.c)
-    static struct list *open_swap_list
-    static struct swap *swap_list
-    struct block *swap_disk
-    static uint32_t swap_slots
-
-
 ---- DATA STRUCTURES ----
 
 >> C1: Copy here the declaration of each new or changed `struct' or
 >> `struct' member, global or static variable, `typedef', or
 >> enumeration.  Identify the purpose of each in 25 words or less.
 
-    TODO
+    In the system design we merged this into our page table and frame/swap code.
+The fields most relevant to memory map files is the flags in enum page_load that
+can be used to inidicate that a page comes from a file, and thus the
+corresponding data and file offset fields in the page_entry are used during the
+actual read/write.
 
 ---- ALGORITHMS ----
 
@@ -448,7 +500,9 @@ particularly the portion that needs to setup the system itself and deal with any
 new memory that the paging system has to use which it cannot allocate through
 the normal process without recursing into itself. This is true even though we
 were unable to get the system working and would not recommend this route (see
-below comment).
+below comment). Maybe this can be covered in a couple of lectures? We would
+definitely have wanted to learn more about how the system boots and fakes the
+memory structures necessary to move to virtual addressing.
 
 >> Is there some particular fact or hint we should give students in
 >> future quarters to help them solve the problems?  Conversely, did you
