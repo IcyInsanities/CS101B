@@ -8,25 +8,121 @@
 
 >> Fill in the names and email addresses of your group members.
 
-FirstName LastName <email@domain.example>
-FirstName LastName <email@domain.example>
-FirstName LastName <email@domain.example>
+Shir Aharon <saharon@caltech.edu>
+Steven Okai <codered657@gmail.com>
 
->> Specify how many late tokens you are using on this assignment:  
+>> Specify how many late tokens you are using on this assignment:
+
+We had talked to you about having extra time since we attempted to virtualize
+the kernel. We worked until the day after it was due, and then again from Wed to
+Sat during finals week.
 
 >> What is the Git repository and commit hash for your submission?
 
-   Repository URL:  
+   Repository URL:  https://github.com/IcyInsanities/CS101B
    commit ...
+   tag is project5_vm
 
 ---- PRELIMINARIES ----
 
 >> If you have any preliminary comments on your submission, notes for the
 >> TAs, or extra credit, please give them here.
 
+    Our system design involved virtualizing the kernel's address space. Thus in
+either kernel or user mode, accessing the 4mb memory space would always go
+through the paging system, allowing the kernel to also have its memory paged out
+and thus appear to have more than 4mb of useable space (limited by the swap file
+size and how much of the pages requested are actually touched).
+    In order for the paging system to function, all the data used to implement
+it must be in mapped memory at all times, without being swapped out. This
+consists of the page directories for each process and sub page tables, the data
+stored in the supplemental page entries, and the data for the frame tables. This
+was done by marking this pages as pinned, which would prevent them from ever
+being selected for eviction. The initial space and population of these entries,
+consisting of all frame entries and the page entries for however many pages the
+system needs for this data, is done during the real addressing mode. Once this
+is finished, the created initial page directory is switched to and handles all
+future memory access for the code.
+    In the current implementation, this is functional. We successfully
+initialize this data into the frames and mark those frames as mapping to the
+appropriate virtual memory address that the kernel will think all of these
+structures are saved as. (During the real addressing mode we use physical
+addresses to write data at, but the future virtual addresses to save the
+pointers in preparation for the page table switch).
+    As soon as we move into the initial page table, all future requests for new
+pages goes through a palloc request. However, in requesting pages, either pinned
+or not, we have the potential need for more memory being required for the paging
+system, which does need a new pinned page. The creation of pinned pages involves
+getting an address from palloc (without setting up the page), getting a frame
+from the frame table of 0 data, and then adding the page into the pagetable
+before it can be accessed. Once we switch to our page fault exception handler,
+we can rely on it to handle the frame load for us, however regardless, we had a
+problem with installing the page.
+    The page installation into the page directory potentially requires a new
+page table page to be allocated, which must be pinned. However in allocating
+this, we need pinned memory and encounter a somewhat circular problem. Also, the
+base system expects various entries of the page tables to map with the original
+vtop to ptov functions, which is now not true anywhere in the system. Due to
+this, the system crashes at this point and cannot continue its calls to the
+remaining initialization functions. Thus, userprograms cannot run and no tests
+can pass.
+    In terms of implemention, the fact that the paging entries have a changing
+region assigned to them means that we need to alias them correctly. As the pages
+in the initial page directory should contain only pinned pages, we do not have
+to worry about aliasing of the status bits for these pages. We do however need
+to check on page fault if it occured in a page mapped in the initial page
+directory, but not yet marked as mapped in the user page table. This is easily
+done by copying the page table entry, and retrying the faulting instruction.
+More complicated is when one of these pages is removed (i.e. a process finishes
+and unmaps all of its pages including its page directory), since now all
+processes which had those paging entries mapped must have them removed.
+Similarly, palloc must check the address space of both the process and the
+paging structures to find a free location. This search is done, and appears to
+be working based on debugging and seeing the returned memory address when we
+request a page. The same goes for requesting a frame, it appears that it will
+correctly return the first frame after those used in the initialization of the
+paging system.
+    To get pages, currently we search through the possible address space to find
+contiguous free space that can hold that many pages, and then allocate them. The
+addresses in use must all have a corresponding page entry in the supplemental
+list of the process, which is maintained in sorted order by address allowing for
+easy searching. All that is required is finding two pages with enough space
+between them. The special cases are the start and end of the list, and handling
+wrap arounds from user to kernel space or vice versa. The traversal of the list
+holding the page entries is complicated by the fact that the pages for the
+paging system are in a different list. Thus we go through both lists at once,
+checking that the space is free in both before allocating. For allocations in
+user space, the paging system list traversal becomes unnecessary as all of its
+address fall later in the kernel space. For efficiency, we can add a simple
+indicator in each process of the address directly after the last allocated page,
+which points inside the list. This would speed up allocation as it is likely
+that the next address will be free and saves retraversing the entire list.
+    Code not yet implemented, mostly as we were waiting to get past the
+    initialization phase so that we can debug our functions first:
+        - frame eviction
+            We intended to do a clock eviction policy that checks the accessed
+            and dirty bits, and selects the first not accessed page if it is not
+            pinned. A dirty page would lead to a writeback to the underlying
+            file if thats the source, or to a new swap block otherwise. The code
+            would be similar to the cache block eviction code written in filesys
+        - mmap and munmap syscalls
+            These generally would simply determine the file size, and requests
+            that number of pages from palloc. The palloc code already accepts
+            arguments indicating the source of data and would then mark where in
+            the file it should get the data when the page is faulted on. The
+            unmap function would just remove those pages and clean up the file,
+            ensuring a write back if dirty.
+        - synchronization
+            We wanted to wait to have code working before dealing with errors in
+            the locks we acquire and release to make debugging easier. This is
+            particularly as the test code will not be able to rigourously test
+            all the edge cases that require synchronization.
+
 >> Please cite any offline or online sources you consulted while
 >> preparing your submission, other than the Pintos documentation, course
 >> text, lecture notes, and course staff.
+
+    None.
 
 			PAGE TABLE MANAGEMENT
 			=====================
@@ -37,24 +133,62 @@ FirstName LastName <email@domain.example>
 >> `struct' member, global or static variable, `typedef', or
 >> enumeration.  Identify the purpose of each in 25 words or less.
 
+    TODO
+
 ---- ALGORITHMS ----
 
 >> A2: In a few paragraphs, describe your code for locating the frame,
 >> if any, that contains the data of a given page.
 
+    Locating the frame is done by the default page table entry system by marking
+it as present and adding the appropriate entry into the page directory. Thus no
+code is really necessary to handle finding the frame location. One partially
+special case is that due to aliasing with the initial page directory, the page
+fault handler does check that page directory for a pte indicating a present page
+in which case it is simply copied over to the user's page directory.
+
 >> A3: How does your code coordinate accessed and dirty bits between
 >> kernel and user virtual addresses that alias a single frame, or
 >> alternatively how do you avoid the issue?
+
+    This is avoided by preventing aliasing in pages. Thus the status bits in the
+pte marking dirty and accessed are always correct when accessing through the
+user's page directory. We do have some aliasing with the paging systems's pages,
+but since these are always pinned and cannot be evicted, the status bits are not
+important. Sharing of data is not implemented, so multiple users cannot be own
+the same frame at once.
 
 ---- SYNCHRONIZATION ----
 
 >> A4: When two user processes both need a new frame at the same time,
 >> how are races avoided?
 
+    This would be done with a lock that the frame eviction function acquires.
+This would ensure that the same frame is not returned for eviction twice, thus
+preventing a race. Once the frame is marked as used, it can be locked during the
+loading process individually, allowing the frame eviction to evict a second
+frame for process two, which can now be loaded asynchronously from the first.
+
 ---- RATIONALE ----
 
 >> A5: Why did you choose the data structure(s) that you did for
 >> representing virtual-to-physical mappings?
+
+    We maintained the page directory setup as this allows the MMU to handle most
+accesses to memory. The additional strutures necessary however are for page
+faults when new pages must be loaded into memory. Thus we needed to keep track
+of the source of data, i.e. from a file (and where in the file) or if a zero
+page (must start at 0 so user data is kept separate). Once a page is evicted, it
+could also now reside in swap which it may be loaded from later. This data is
+used in process clean up when all pages are removed to free up the slots in swap
+that the process currently has data stored in.
+    The rationale for keeping the page entires in a list was for the simplicity
+of lists in the system. Keeping the linked list sorted made checking if a region
+of memory very simple by requiring checking two adjacent entries at a time. To
+us it seemed that the search for free address space would always be O(n) unless
+we kept data about free regions and their size. (Really O(k) where k is the
+number of pages in use.) In terms of finding a page after a fault, this does
+require a search for the page however.
 
 		       PAGING TO AND FROM DISK
 		       =======================
@@ -65,18 +199,45 @@ FirstName LastName <email@domain.example>
 >> `struct' member, global or static variable, `typedef', or
 >> enumeration.  Identify the purpose of each in 25 words or less.
 
+    TODO
+
 ---- ALGORITHMS ----
 
 >> B2: When a frame is required but none is free, some frame must be
 >> evicted.  Describe your code for choosing a frame to evict.
 
+    Eviction is done by the clock algorithm. A "hand" stores the index of the
+last frame evicted. Wrapping around at the number of total frames, each frame
+is checked if it was accessed or not. If it was, the accessed bit is reset and
+we continue to the next frame. If it wan't, then it is evicted after writing it
+back to the appropriate location (only if marked dirty). Finally, the hand is
+moved to point to this evicted frame.
+
 >> B3: When a process P obtains a frame that was previously used by a
 >> process Q, how do you adjust the page table (and any other data
 >> structures) to reflect the frame Q no longer has?
 
+    On eviction, the page is marked not present in the page table. Additionally,
+the supplemental page entry is updated to reflect the new location of the data,
+marking that it is either in swap or still in a file. Thus any subsequent access
+from Q to that memory location will page fault and cause a new frame to be
+loaded. Now once the load is completed, the page table for process P is marked
+as having the page present in the given frame, and the instruction can be
+retried.
+
 >> B4: Explain your heuristic for deciding whether a page fault for an
 >> invalid virtual address should cause the stack to be extended into
 >> the page that faulted.
+
+    Each process has a pointer to the bottom of the last page allocated for the
+stack, initially the bottom of the page ending at PHYS_BASE. Now if the page
+fault occured on an unallocated page address which is no more than 64 bytes
+below the bottom of the stack page, then we conclude that it is likely a stack
+related page fault.
+    In this case we allocate that page and move the stack bottom down by the
+size of a page. We update the values inside the page fault handler to reflect
+that we need to load this new page, so that the current page fault will handle
+putting it in memory and preventing the need for another page fault.
 
 ---- SYNCHRONIZATION ----
 
@@ -85,21 +246,55 @@ FirstName LastName <email@domain.example>
 >> textbook for an explanation of the necessary conditions for
 >> deadlock.)
 
+    In terms of implemention, none. In general, we would lock each frame during
+the loading phase (during which that process cannot evict a frame), and eviction
+would require a general lock for coherency reasons (during which an evicting
+process cannot be loading a frame). Thus evictions and loadings of frames cannot
+cause a deadlock as the locks do not require each other, and cannot be held by
+the same process at once.
+    Due to the aliasing of the page directory for the paging system, we would
+have a lock for any modifications to that page directory. As the pages in it are
+always in a frame, we do not have to worry about additional problems with it.
+For swaping, we can lock the frame during the swap process. By being careful to
+add a swap page to the free list only once the data in it is no longer needed,
+an by having a general lock for getting a swap frame, we can ensure that a swap
+frame is not allocated twice, providing coherency and preventing deadlock.
+
 >> B6: A page fault in process P can cause another process Q's frame
 >> to be evicted.  How do you ensure that Q cannot access or modify
 >> the page during the eviction process?  How do you avoid a race
 >> between P evicting Q's frame and Q faulting the page back in?
+
+    This is done by marking the frame as not present in the page directory first
+and only then clearing it's data. Thus during eviction, Q will already see the
+page as needing to be reloaded. The race is avoided since P will be given a
+frame before Q's request for a new frame will be handled. See the frame loading
+syncronization discussed in A4.
 
 >> B7: Suppose a page fault in process P causes a page to be read from
 >> the file system or swap.  How do you ensure that a second process Q
 >> cannot interfere by e.g. attempting to evict the frame while it is
 >> still being read in?
 
+    This can be done by locking a frame during the loading process, indicating
+that it should not be evicted. Thus during that locked stage, no other process
+will be able to interfere with the frame load, and evictions will always select
+a different frame. In a bizarre case where all frames are locked for loading,
+the eviction will have to wait in a loop blocking further evictions until some
+load finishes at which point it will immediately get evicted again. This however
+is a problem for a medium/long term scheduler or the user to kill programs.
+
 >> B8: Explain how you handle access to paged-out pages that occur
 >> during system calls.  Do you use page faults to bring in pages (as
 >> in user programs), or do you have a mechanism for "locking" frames
 >> into physical memory, or do you use some other design?  How do you
 >> gracefully handle attempted accesses to invalid virtual addresses?
+
+    All code uses the users page directory, including the system call code. Thus
+any page faults can be handled through the default route from the previous
+assignment, again only needing to check if the address falls in user space. By
+using this method, there should be no need lock the frames into place during
+system calls or handle invalid virtual addresses in a special way.
 
 ---- RATIONALE ----
 
@@ -110,8 +305,73 @@ FirstName LastName <email@domain.example>
 >> where your design falls along this continuum and why you chose to
 >> design it this way.
 
+    Our design would fall somewhat in the middle of the two. For the frames,
+each can be locked individually in order to load data or write it out to swap.
+To assign frames or swap slots however, we would have a top level lock of the
+allocation function (one for each) for synchronization. As the selection of
+which frame to evict/allocate or which swap slot to allocate should generally be
+fast (the actual eviction can be done after selection), this lock should not
+slow down the system by much even though it does limit parallelism. Otherwise,
+frames and swap slots are all independent and allow full parallelism. We chose
+this design as it maximizes the parallelism possible, while limiting the number
+of locks that are necessary to work with and simplify the design.
+
 			 MEMORY MAPPED FILES
 			 ===================
+
+global variables (created, init.c)
+    struct list *init_page_dir_sup
+        TODO
+struct pool (removed, palloc.c)
+    struct lock lock
+    struct bitmap *used_map
+    uint8_t *base
+enum palloc_flags (added, palloc.h)
+    PAL_PIN
+    PAL_PAGING
+    PAL_READO
+struct page_entry (created, palloc.h)
+    uint8_t *vaddr
+    enum page_load source
+    void *data
+    void *f_ofs
+    struct list_elem elem
+enum page_load (created, palloc.h)
+    ZERO_PAGE
+    FILE_PAGE
+    SWAP_PAGE
+    FRAME_PAGE
+struct thread (added, thread.h)
+    struct list swaps
+    struct list frames
+    struct list page_entries
+    void *stack_bottom
+struct frame (created, falloc.h)
+    void *faddr
+    uint32_t *pte
+    struct page_entry *sup_entry
+    struct thread *owner
+    struct list_elem process_elem
+    struct list_elem open_elem
+global variables (created, falloc.c)
+    static struct list *open_frame_list_user
+    static struct list *open_frame_list_kernel
+    static struct frame *frame_list_user
+    static struct frame *frame_list_kernel
+    static uint32_t user_frames
+    static uint32_t kernel_frames
+    static struct list *open_page_entry
+struct swap (created, swalloc.h)
+    uint32_t start_sector
+    bool in_use
+    struct list_elem process_elem
+    struct list_elem open_elem
+global variables (created swalloc.c)
+    static struct list *open_swap_list
+    static struct swap *swap_list
+    struct block *swap_disk
+    static uint32_t swap_slots
+
 
 ---- DATA STRUCTURES ----
 
@@ -119,14 +379,32 @@ FirstName LastName <email@domain.example>
 >> `struct' member, global or static variable, `typedef', or
 >> enumeration.  Identify the purpose of each in 25 words or less.
 
+    TODO
+
 ---- ALGORITHMS ----
 
 >> C2: Describe how memory mapped files integrate into your virtual
 >> memory subsystem.  Explain how the page fault and eviction
 >> processes differ between swap pages and other pages.
 
+    As mentioned in the initial comments, these system calls were not written
+yet. However, much of the underlying code does exist already. The palloc code
+already has the capability to allocate multiple pages at a given address, and
+takes arguments to indicate that the source of data for the page is a file and
+gives the corresponding offset to that file. During a eviction, this source can
+be checked and any pages originating from a file can be written back to it,
+otherwise it will go into swap. This also works for the page fault handler which
+knows if a page is currently in swap or a file, and where in each, or if it is a
+zero page which needs to be setup.
+
 >> C3: Explain how you determine whether a new file mapping overlaps
 >> any existing segment.
+
+    This is done in the palloc code, by the function that allocates multiple
+pages. It can be given the address at which to allocate, and will simply check
+the supplemental page entries list to ensure that none of the pages needed have
+already been allocated. If this is the case, it will then allocate those pages
+for the memory mapped file.
 
 ---- RATIONALE ----
 
@@ -136,6 +414,17 @@ FirstName LastName <email@domain.example>
 >> that much of their implementation can be shared.  Explain why your
 >> implementation either does or does not share much of the code for
 >> the two situations.
+
+    We can add a flag to our palloc source flags to indicate that the source is
+an executable in addition to a file or zeros/swap data. Thus in the case of a
+page coming from an executable, we would read it in during a page fault from the
+file the first time. Upon eviction, it would be written to swap and the source
+would be changed to swap. Thus we have almost identical handling of files and
+executables, with the only difference occuring on the first eviction of each.
+    This reuses as much code as possible, while requiring only 1 additional flag
+option in an enum field that we already have. Since selecting which condition we
+have is partially done with switches (and thus a jump table), this seems to be
+both the cleanest implementation for our system and the simplest/fastest.
 
 			   SURVEY QUESTIONS
 			   ================
@@ -152,9 +441,29 @@ website.
 >> Did you find that working on a particular part of the assignment gave
 >> you greater insight into some aspect of OS design?
 
+    We feel that we learned a lot from attempting to virtualize the kernel space
+in terms of understanding what happens during system boot. We realized many of
+the subtleties involved in writing the code that handles the paging system,
+particularly the portion that needs to setup the system itself and deal with any
+new memory that the paging system has to use which it cannot allocate through
+the normal process without recursing into itself. This is true even though we
+were unable to get the system working and would not recommend this route (see
+below comment).
+
 >> Is there some particular fact or hint we should give students in
 >> future quarters to help them solve the problems?  Conversely, did you
 >> find any of our guidance to be misleading?
+
+    Don't virtualize the kernel. We felt that this wasn't clear from how the
+assignment was written, which led us to design the more complicated system. We
+still feel that our design will work in principle, since conceptually there is
+not much once the system is running to virtualizing the kernel aside from being
+careful with some memory aliasing and ensuring certain pagese are pinned. What
+we hadn't anticipated was how complicated the setup code for the paging system
+would be, particuarly as to how it would acquire new memory for itself and trick
+the MMU into thinking that it was mapped memory already. We had figured that the
+allocation of all the extra meta data would be tricky, and think we have that
+working in the code, but the subsequent extension become too complicated.
 
 >> Do you have any suggestions for the TAs to more effectively assist
 >> students, either for future quarters or the remaining projects?
