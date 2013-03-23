@@ -197,7 +197,7 @@ in which case it is simply copied over to the user's page directory.
 pte marking dirty and accessed are always correct when accessing through the
 user's page directory. We do have some aliasing with the paging systems's pages,
 but since these are always pinned and cannot be evicted, the status bits are not
-important. Sharing of data is not implemented, so multiple users cannot be own
+important. Sharing of data is not implemented, so multiple users cannot be on
 the same frame at once.
 
 ---- SYNCHRONIZATION ----
